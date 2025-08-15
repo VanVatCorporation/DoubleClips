@@ -1,6 +1,7 @@
 package com.vanvatcorporation.doubleclips.activities;
 
 import android.app.Activity;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
@@ -11,10 +12,6 @@ public class PickerActivity extends AppCompatActivityImpl {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        int a;
-        int b;
-        int c;
 
     }
 }
