@@ -15,10 +15,11 @@
 </div>
 
 
-
-
-
 DoubleClips is an open-source, ready-to-use video editor with functionality similar to CapCut. It offers Community Templates, Cross-platform rendering, Multitrack editing, and a variety of effects!
+
+## Install
+[<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/VanVatCorporation/DoubleClips/releases/latest)
+[<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=com.vanvatcorporation.doubleclips)
 
 ## Current Features
 
