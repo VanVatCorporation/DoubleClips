@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- res/layout/view_transition_knot.xml -->
-<View xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/transitionKnot"
-    android:layout_width="12dp"
-    android:layout_height="12dp"
-    android:background="@drawable/diamond_shape"
-    android:visibility="gone" />
