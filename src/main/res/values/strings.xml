@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">DoubleClips</string>
+    <string name="title">Title</string>
+    <string name="welcome">Welcome!</string>
+    <string name="add_project">Add new project!</string>
+
+
+    <string name="alert_delete_project_confirmation_title">Delete project???</string>
+    <string name="alert_delete_project_confirmation_description">Are you sure you want to delete this project?</string>
+
+    <string name="menu_cpn_project_element_edit">Edit title</string>
+    <string name="menu_cpn_project_element_delete">Delete project</string>
+    <string name="menu_cpn_project_element_share">Share project</string>
+    <string name="menu_cpn_project_element_upload">Upload project</string>
+    <string name="menu_cpn_project_element_clone">Clone project</string>
+</resources>

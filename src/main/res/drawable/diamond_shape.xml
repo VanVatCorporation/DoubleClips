@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/drawable/diamond_shape.xml -->
+
+<rotate
+xmlns:android="http://schemas.android.com/apk/res/android"
+android:fromDegrees="45"
+android:toDegrees="45"
+android:pivotX="50%"
+android:pivotY="50%">
+    <shape
+        android:shape="rectangle">
+        <solid android:color="#FF4081" />
+        <corners android:radius="2dp" />
+    </shape>
+</rotate>
