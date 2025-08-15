@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="100dp"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="You have one export video that isnt export yet"/>
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:text="Export"/>
+    </RelativeLayout>
+
+    <EditText
+        android:id="@+id/exportWidth"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:hint="width"/>
+    <TextView
+        android:id="@+id/xText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/exportWidth"
+        android:textSize="24sp"
+        android:text="x"/>
+    <EditText
+        android:id="@+id/exportHeight"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:hint="height"
+        android:layout_toEndOf="@id/xText"/>
+    <EditText
+        android:id="@+id/exportFrameRate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:hint="framerate"
+        android:layout_toEndOf="@id/exportHeight"/>
+    <EditText
+        android:id="@+id/exportCRF"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:hint="constant rate factor"
+        android:layout_below="@id/exportFrameRate"/>
+    <Spinner
+        android:id="@+id/exportPreset"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/exportCRF"/>
+    <Spinner
+        android:id="@+id/exportTune"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/exportCRF"
+        android:layout_toEndOf="@id/exportPreset"/>
+
+
+    <Button
+        android:id="@+id/generateCmdButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:text="Gen cmd"/>
+    <Button
+        android:id="@+id/exportButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:text="export"
+        android:layout_below="@id/generateCmdButton"/>
+
+    <EditText
+        android:id="@+id/exportCommand"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_below="@id/exportPreset"
+        android:gravity="top"
+        android:textSize="12sp"
+        android:scrollbarSize="20dp"
+        android:hint="FFmpeg Command..."/>
+
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:layout_marginTop="-10dp"
+        android:text="Running Post processing image"
+        android:layout_below="@id/exportCommand"/>
+    <ProgressBar
+        android:id="@+id/statusBar"
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:layout_below="@id/exportCommand"/>
+    <TextView
+        android:id="@+id/globalStatusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:layout_marginTop="-10dp"
+        android:text="Running Post processing image"
+        android:layout_below="@id/statusBar"/>
+    <ProgressBar
+        android:id="@+id/globalStatusBar"
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:layout_below="@id/statusBar"/>
+    <ScrollView
+        android:id="@+id/logScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbarSize="25dp"
+        android:layout_below="@id/globalStatusBar">
+        <TextView
+            android:id="@+id/logText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textIsSelectable="true"
+            android:text="export"/>
+
+    </ScrollView>
+
+
+</RelativeLayout>
