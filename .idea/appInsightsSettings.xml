@@ -6,11 +6,6 @@
         <entry key="Android Vitals">
           <value>
             <InsightsFilterSettings>
-              <option name="connection">
-                <ConnectionSetting>
-                  <option name="appId" value="com.vanvatcorporation.doubleclips" />
-                </ConnectionSetting>
-              </option>
               <option name="failureTypes">
                 <list>
                   <option value="FATAL" />
