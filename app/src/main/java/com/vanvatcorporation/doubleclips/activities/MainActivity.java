@@ -396,7 +396,7 @@ public class MainActivity extends AppCompatActivityImpl {
                         String projectPath = IOHelper.CombinePath(projectItem.projectPath + "_clone");
                         String oldProjectPath = projectItem.projectPath;
 
-                        IOHelper.writeToFileAsRaw(context, projectPath, IOHelper.readFromFileAsRaw(context, oldProjectPath));
+                        IOHelper.copyDir(context, oldProjectPath, projectPath);
 
 
                         return true;

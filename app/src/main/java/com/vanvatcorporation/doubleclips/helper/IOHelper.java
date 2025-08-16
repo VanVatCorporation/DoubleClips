@@ -26,8 +26,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Objects;
 
 
 public class IOHelper {
@@ -709,6 +711,22 @@ public class IOHelper {
         return true;
     }
 
+
+    public static void copyFile(Context context, String filePath, String destinationFilePath)
+    {
+        IOHelper.writeToFileAsRaw(context, destinationFilePath, IOHelper.readFromFileAsRaw(context, filePath));
+    }
+    public static void copyDir(Context context, String filePath, String destinationFilePath) {
+        File file = new File(filePath);
+        createEmptyDirectories(destinationFilePath);
+        if (file.isDirectory()) {
+            for (String child : Objects.requireNonNull(file.list())) {
+                copyDir(context, new File(filePath, child).getPath(), new File(destinationFilePath, child).getPath());
+            }
+        }
+
+        copyFile(context, filePath, destinationFilePath);
+    }
 
 
     public enum FileListing
