@@ -3,6 +3,7 @@ package com.vanvatcorporation.doubleclips.activities;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -157,7 +158,7 @@ public class MainActivity extends AppCompatActivityImpl {
 
 
     void addNewProject() {
-        String projectPath = IOHelper.getNextIndexPathInFolder(this, IOHelper.CombinePath(IOHelper.getPersistentDataPath(this), "projects"), "project_", "", false);
+        String projectPath = IOHelper.getNextIndexPathInFolder(this, Constants.DEFAULT_PROJECT_DIRECTORY(this), "project_", "", false);
 
         String projectName = projectPath.substring(projectPath.lastIndexOf("/") + 1);
         File file = new File(projectPath);
@@ -261,8 +262,14 @@ public class MainActivity extends AppCompatActivityImpl {
         public void setProjectPath(String projectPath) {
             this.projectPath = projectPath;
         }
-        public void setProjectTitle(String projectTitle) {
+        public void setProjectTitle(Context context, String projectTitle) {
             this.projectTitle = projectTitle;
+
+            // Change the path along the way
+            String newDir = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(context), projectTitle);
+            File newName = new File(newDir);
+            if(!new File(getProjectPath()).renameTo(newName)) return;
+            setProjectPath(newDir);
         }
         public void setProjectTimestamp(long projectTimestamp) {
             this.projectTimestamp = projectTimestamp;
@@ -320,6 +327,36 @@ public class MainActivity extends AppCompatActivityImpl {
                 popup.setOnMenuItemClickListener(item -> {
                     if(item.getItemId() == R.id.action_edit)
                     {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+
+                        // Inflate your custom layout
+                        LayoutInflater inflater = LayoutInflater.from(context);
+                        View dialogView = inflater.inflate(R.layout.popup_edit_project_title, null);
+                        builder.setView(dialogView);
+
+                        // Get references to the EditText and Buttons in your custom layout
+                        EditText editText = dialogView.findViewById(R.id.directoryText);
+                        Button okButton = dialogView.findViewById(R.id.okButton);
+                        Button cancelButton = dialogView.findViewById(R.id.cancelButton);
+
+                        // Create the AlertDialog
+                        AlertDialog dialog = builder.create();
+                        editText.setText(projectItem.getProjectTitle());
+
+                        // Set button click listeners
+                        okButton.setOnClickListener(vok -> {
+                            projectItem.setProjectTitle(context, editText.getText().toString());
+
+                            dialog.dismiss();
+                        });
+
+                        cancelButton.setOnClickListener(vcan -> {
+                            // Just dismiss the dialog
+                            dialog.dismiss();
+                        });
+
+                        // Show the dialog
+                        dialog.show();
 
                         return true;
                     }

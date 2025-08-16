@@ -3,8 +3,13 @@
     <string name="title">Title</string>
     <string name="welcome">Welcome!</string>
     <string name="add_project">Add new project!</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">Ok</string>
 
 
+
+    <string name="alert_edit_project_title">Edit project title</string>
+    <string name="alert_placeholder_edit_project">Project name...</string>
     <string name="alert_delete_project_confirmation_title">Delete project???</string>
     <string name="alert_delete_project_confirmation_description">Are you sure you want to delete this project?</string>
 
