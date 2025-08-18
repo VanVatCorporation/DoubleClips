@@ -75,6 +75,7 @@ import com.vanvatcorporation.doubleclips.utils.ShaderUtils;
 import com.vanvatcorporation.doubleclips.utils.TimelineUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
@@ -346,6 +347,28 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (isPlaying) {
                 startPlayback();
                 playPauseButton.setImageResource(R.drawable.baseline_pause_circle_24);
+
+                // TODO: Temporary processing real-time audio !
+                for(Track audioTrack : timeline.tracks)
+                {
+                    for(Clip audioClip : audioTrack.clips)
+                    {
+                        if(audioClip.type == ClipType.AUDIO)
+                        {
+                            if(currentTime - audioClip.startTime > 0)
+                            {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime) * 1000), MediaPlayer.SEEK_CLOSEST);
+                                }
+                                else {
+                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime) * 1000));
+                                }
+                                audioRenderer.start();
+                                break;
+                            }
+                        }
+                    }
+                }
             } else {
                 stopPlayback();
                 playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
@@ -353,6 +376,23 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 LoggingManager.LogToToast(this, "Begin prepare for preview!");
                 //refreshPreviewClip();
+
+                // TODO: Temporary processing real-time audio !
+                for(Track audioTrack : timeline.tracks)
+                {
+                    for(Clip audioClip : audioTrack.clips)
+                    {
+                        if(audioClip.type == ClipType.AUDIO)
+                        {
+                            try {
+                                audioRenderer.setDataSource(audioClip.filePath);
+                                audioRenderer.prepareAsync();
+                            } catch (IOException e) {
+                                LoggingManager.LogToPersistentDataPath(this, LoggingManager.getStackTraceFromException(e));
+                            }
+                        }
+                    }
+                }
                 timelineRenderer.buildTimeline(timeline);
 
                 previewView.queueEvent(() -> {

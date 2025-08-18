@@ -7,16 +7,16 @@
     <RelativeLayout
         android:id="@+id/titlePanel"
         android:layout_width="match_parent"
-        android:layout_height="100dp">
+        android:layout_height="50dp">
 
         <TextView
             android:id="@+id/title"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_marginStart="25dp"
-            android:layout_marginTop="25dp"
+            android:layout_marginTop="0dp"
             android:layout_marginEnd="25dp"
-            android:layout_marginBottom="25dp"
+            android:layout_marginBottom="0dp"
             android:gravity="start|center"
             android:text="@string/welcome"
             android:textSize="24sp" />
@@ -25,16 +25,20 @@
     <RelativeLayout
         android:id="@+id/addProjectPanel"
         android:layout_width="match_parent"
-        android:layout_height="50dp"
+        android:layout_height="100dp"
         android:layout_below="@id/titlePanel">
+
         <Button
             android:id="@+id/addProjectButton"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_margin="2dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_marginBottom="5dp"
             android:gravity="center"
-            android:textSize="24sp"
-            android:text="@string/add_project"/>
+            android:text="@string/add_project"
+            android:textSize="24sp" />
 
     </RelativeLayout>
 
@@ -42,6 +46,12 @@
         android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+
         android:layout_below="@id/addProjectPanel">
 
         <androidx.recyclerview.widget.RecyclerView
