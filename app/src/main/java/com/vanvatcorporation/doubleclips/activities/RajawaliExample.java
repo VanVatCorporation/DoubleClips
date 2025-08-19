@@ -1,6 +1,7 @@
 package com.vanvatcorporation.doubleclips.activities;
 
 import android.content.Context;
+import android.graphics.BitmapFactory;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.view.MotionEvent;
@@ -11,11 +12,16 @@ import android.widget.RelativeLayout;
 
 import androidx.annotation.Nullable;
 
+import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
+import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import org.rajawali3d.Object3D;
 import org.rajawali3d.lights.DirectionalLight;
 import org.rajawali3d.materials.Material;
+import org.rajawali3d.materials.textures.ATexture;
+import org.rajawali3d.materials.textures.StreamingTexture;
+import org.rajawali3d.materials.textures.Texture;
 import org.rajawali3d.math.vector.Vector3;
 import org.rajawali3d.primitives.Cube;
 import org.rajawali3d.renderer.Renderer;
@@ -74,29 +80,38 @@ public class RajawaliExample extends AppCompatActivityImpl {
 
         @Override
         protected void initScene() {
-            // Set up camera
-            getCurrentCamera().setPosition(0, 0, 6);
-            getCurrentCamera().setLookAt(0, 0, 0);
+            try {
+                // Set up camera
+                getCurrentCamera().setPosition(0, 0, 6);
+                getCurrentCamera().setLookAt(0, 0, 0);
 
-            // Create cube
-            cube = new Cube(2); // 2 units wide
-            Material material = new Material();
-            material.setColor(0xff00BCD4); // Teal color
-            cube.setMaterial(material);
-            cube.setPosition(0, 0, 0);
+                // Create cube
+                cube = new Cube(2); // 2 units wide
 
-            getCurrentScene().addChild(cube);
+                Texture streamingTexture = new Texture("videoTexture", BitmapFactory.decodeResource(getResources(), R.drawable.logo));
+                Material material = new Material();
+                material.addTexture(streamingTexture);
+                material.setColorInfluence(0); // Use texture only
+                cube.setMaterial(material);
+                cube.setPosition(0, 0, 0);
 
-            // Add light
-            DirectionalLight light = new DirectionalLight(1, 0.2, -1);
-            light.setPower(2);
-            getCurrentScene().addLight(light);
+                getCurrentScene().addChild(cube);
+
+                // Add light
+                DirectionalLight light = new DirectionalLight(1, 0.2, -1);
+                light.setPower(2);
+                getCurrentScene().addLight(light);
+            } catch (ATexture.TextureException e) {
+                LoggingManager.LogToPersistentDataPath(this.getContext(), LoggingManager.getStackTraceFromException(e));
+            }
         }
 
         @Override
         protected void onRender(long elapsedTime, double deltaTime) {
             super.onRender(elapsedTime, deltaTime);
-            cube.rotate(Vector3.Axis.Y, 1.5); // Rotate cube on Y-axis
+            cube.rotate(Vector3.Axis.Y, 0.1); // Rotate cube on Y-axis
+            cube.rotate(Vector3.Axis.X, 0.025); // Rotate cube on X-axis
+            cube.rotate(Vector3.Axis.Z, 0.00125); // Rotate cube on X-axis
         }
 
         @Override
