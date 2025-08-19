@@ -14,5 +14,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DoubleClips"
-include ':app'
 
+include ':app'

@@ -102,6 +102,12 @@ public class MainActivity extends AppCompatActivityImpl {
             startActivity(intent);
         });
 
+        findViewById(R.id.title).setOnLongClickListener(v -> {
+            Intent intent = new Intent(this, RajawaliExample.class);
+            startActivity(intent);
+            return true;
+        });
+
 
 
 
@@ -262,9 +268,10 @@ public class MainActivity extends AppCompatActivityImpl {
         public void setProjectPath(String projectPath) {
             this.projectPath = projectPath;
         }
-        public void setProjectTitle(Context context, String projectTitle) {
+        public void setProjectTitle(Context context, String projectTitle, boolean changeFilePath) {
             this.projectTitle = projectTitle;
 
+            if(!changeFilePath) return;
             // Change the path along the way
             String newDir = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(context), projectTitle);
             File newName = new File(newDir);
@@ -345,7 +352,10 @@ public class MainActivity extends AppCompatActivityImpl {
 
                         // Set button click listeners
                         okButton.setOnClickListener(vok -> {
-                            projectItem.setProjectTitle(context, editText.getText().toString());
+                            projectItem.setProjectTitle(context, editText.getText().toString(), true);
+
+                            // Re-update properties after renaming the entire folder
+                            IOHelper.writeToFile(context, IOHelper.CombinePath(projectItem.getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(projectItem));
 
                             dialog.dismiss();
                         });
@@ -396,7 +406,17 @@ public class MainActivity extends AppCompatActivityImpl {
                         String projectPath = IOHelper.CombinePath(projectItem.projectPath + "_clone");
                         String oldProjectPath = projectItem.projectPath;
 
+
+
                         IOHelper.copyDir(context, oldProjectPath, projectPath);
+
+                        // Re-update properties after renaming the entire folder
+                        ProjectData data = new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(projectPath, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)), ProjectData.class);
+                        data.setProjectPath(projectPath);
+                        data.setProjectTimestamp(new Date().getTime());
+                        data.setProjectTitle(context, data.getProjectTitle() + "_clone", false);
+
+                        IOHelper.writeToFile(context, IOHelper.CombinePath(projectPath, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(data));
 
 
                         return true;

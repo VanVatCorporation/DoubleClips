@@ -38,7 +38,9 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
+task prepareKotlinBuildScriptModel {
 
+}
 dependencies {
 
     implementation 'androidx.appcompat:appcompat:1.7.1'
@@ -51,10 +53,13 @@ dependencies {
     implementation 'org.jsoup:jsoup:1.21.1'
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0-beta01"
 
+
     //implementation 'com.writingminds:FFmpegAndroid:0.3.2'
 
     implementation files('libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar')
     implementation 'com.arthenica:smart-exception-java:0.2.1'
 
+
+    implementation files('libs/rajawali-1.2.1970.aar')
 
 }

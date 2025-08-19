@@ -718,14 +718,15 @@ public class IOHelper {
     }
     public static void copyDir(Context context, String filePath, String destinationFilePath) {
         File file = new File(filePath);
-        createEmptyDirectories(destinationFilePath);
         if (file.isDirectory()) {
             for (String child : Objects.requireNonNull(file.list())) {
+                createEmptyDirectories(destinationFilePath);
                 copyDir(context, new File(filePath, child).getPath(), new File(destinationFilePath, child).getPath());
             }
         }
+        else
+            copyFile(context, filePath, destinationFilePath);
 
-        copyFile(context, filePath, destinationFilePath);
     }
 
 

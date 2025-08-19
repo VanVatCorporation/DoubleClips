@@ -8,6 +8,8 @@
         </intent>
     </queries>
 
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -18,6 +20,7 @@
 
     <!--android:theme="@style/Theme.DoubleClips"-->
     <application
+        android:hardwareAccelerated="true"
         android:hasFragileUserData="true"
         android:largeHeap="true"
         android:allowBackup="true"
@@ -50,6 +53,9 @@
             android:exported="true">
         </activity>
         <activity android:name=".activities.PickerActivity"
+            android:exported="true">
+        </activity>
+        <activity android:name=".activities.RajawaliExample"
             android:exported="true">
         </activity>
     </application>
