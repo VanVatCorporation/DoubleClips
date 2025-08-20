@@ -517,7 +517,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             Clip newClip = new Clip("TEXT", currentTime, duration, selectedTrack.trackIndex, type);
-            newClip.textContent = "I love you HTMD";
+            newClip.textContent = "Simple text";
             newClip.fontSize = 30;
             addClipToTrack(selectedTrack, newClip);
         });
