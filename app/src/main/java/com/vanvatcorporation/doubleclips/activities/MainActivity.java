@@ -37,11 +37,13 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.ext.rajawali.RajawaliExample;
+import com.vanvatcorporation.doubleclips.helper.CompressionHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
 import com.vanvatcorporation.doubleclips.helper.IOImageHelper;
 import com.vanvatcorporation.doubleclips.helper.StringFormatHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
+import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.io.File;
 import java.io.Serializable;
@@ -59,6 +61,9 @@ public class MainActivity extends AppCompatActivityImpl {
     RecyclerView projectListView;
     ProjectDataAdapter projectAdapter;
     SwipeRefreshLayout projectSwipeRefreshLayout;
+
+
+    ProjectData currentExportingProject;
 
 
     @Override
@@ -110,10 +115,40 @@ public class MainActivity extends AppCompatActivityImpl {
 
 
 
-    addNewProjectButton = findViewById(R.id.addProjectButton);
+        addNewProjectButton = findViewById(R.id.addProjectButton);
         addNewProjectButton.setOnClickListener(v -> {
             //pickingContent();
-            addNewProject();
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+            // Inflate your custom layout
+            LayoutInflater inflater = LayoutInflater.from(this);
+            View dialogView = inflater.inflate(R.layout.popup_add_project, null);
+            builder.setView(dialogView);
+
+            // Get references to the EditText and Buttons in your custom layout
+            ImageView newButton = dialogView.findViewById(R.id.newButton);
+            ImageView importButton = dialogView.findViewById(R.id.importButton);
+
+            // Create the AlertDialog
+            AlertDialog dialog = builder.create();
+
+            // Set button click listeners
+            newButton.setOnClickListener(vok -> {
+                addNewProject();
+                dialog.dismiss();
+            });
+
+            importButton.setOnClickListener(vcan -> {
+
+                importContent();
+
+                // Just dismiss the dialog
+                dialog.dismiss();
+            });
+
+            // Show the dialog
+            dialog.show();
         });
 
 
@@ -143,7 +178,19 @@ public class MainActivity extends AppCompatActivityImpl {
                     Uri uri = result.getData().getData();
                     String inputPath = getPath(this, uri); // Use your helper
 
-                    addNewProject();
+                    CompressionHelper.unzipFolder(this, getContentResolver(), uri, Constants.DEFAULT_PROJECT_DIRECTORY(this));
+                }
+            }
+    );
+    private ActivityResultLauncher<Intent> fileCreatorLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    Uri uri = result.getData().getData();
+
+                    if(currentExportingProject == null) return;
+                    CompressionHelper.zipFolder(this, currentExportingProject.projectPath, getContentResolver(), uri);
+                    currentExportingProject = null;
                 }
             }
     );
@@ -152,12 +199,12 @@ public class MainActivity extends AppCompatActivityImpl {
 
 
 
-    void pickingContent()
+    void importContent()
     {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("*/*");
+        intent.setType("application/zip");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        filePickerLauncher.launch(Intent.createChooser(intent, "Select Video"));
+        filePickerLauncher.launch(Intent.createChooser(intent, "Select Import Zip"));
     }
 
 
@@ -191,7 +238,7 @@ public class MainActivity extends AppCompatActivityImpl {
         for (File directory : Objects.requireNonNull(file.listFiles())) {
             if(directory.isDirectory())
             {
-                ProjectData data = new Gson().fromJson(IOHelper.readFromFile(this, IOHelper.CombinePath(directory.getAbsolutePath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)), ProjectData.class);
+                ProjectData data = ProjectData.loadProperties(this, directory.getAbsolutePath());
 
                 if(data != null)
                 {
@@ -204,6 +251,18 @@ public class MainActivity extends AppCompatActivityImpl {
 
         projectSwipeRefreshLayout.setRefreshing(false);
     }
+    public void zippingProject(ProjectData data)
+    {
+        currentExportingProject = data;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType("application/zip");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_TITLE, "export_" + data.projectTitle + ".zip");
+        fileCreatorLauncher.launch(Intent.createChooser(intent, "Select Export"));
+    }
+
+
+
 
 
     public static String getPath(Context context, Uri uri) {
@@ -267,14 +326,32 @@ public class MainActivity extends AppCompatActivityImpl {
             this.projectPath = projectPath;
         }
         public void setProjectTitle(Context context, String projectTitle, boolean changeFilePath) {
+            // Provide a fallback if the operation failed
+            String oldProjectTitle = this.projectTitle;
+            String oldDir = this.getProjectPath();
+
             this.projectTitle = projectTitle;
 
             if(!changeFilePath) return;
+
             // Change the path along the way
             String newDir = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(context), projectTitle);
             File newName = new File(newDir);
-            if(!new File(getProjectPath()).renameTo(newName)) return;
+            if(!new File(getProjectPath()).renameTo(newName)) {
+                this.projectPath = oldProjectTitle;
+                LoggingManager.LogToToast(context, "Rename failed (1)");
+                return;
+            }
             setProjectPath(newDir);
+            if(!new File(getProjectPath()).exists()) {
+                this.projectPath = oldProjectTitle;
+                setProjectPath(oldDir);
+                LoggingManager.LogToToast(context, "Rename failed (2)");
+                return;
+            }
+
+            // Re-update properties after renaming the entire folder
+            savePropertiesAtProject(context);
         }
         public void setProjectTimestamp(long projectTimestamp) {
             this.projectTimestamp = projectTimestamp;
@@ -287,13 +364,37 @@ public class MainActivity extends AppCompatActivityImpl {
         }
 
 
+
+
+
+        public void savePropertiesAtProject(Context context)
+        {
+            IOHelper.writeToFile(context, IOHelper.CombinePath(getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(this));
+        }
+        public void loadPropertiesFromProject(Context context)
+        {
+            ProjectData data = loadProperties(context, getProjectPath());
+            this.version = data.version;
+            this.projectPath = data.projectPath;
+            this.projectTitle = data.projectTitle;
+            this.projectTimestamp = data.projectTimestamp;
+            this.projectSize = data.projectSize;
+            this.projectDuration = data.projectDuration;
+        }
+        public static ProjectData loadProperties(Context context, String path)
+        {
+            return new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(path, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)), ProjectData.class);
+        }
+
+
+
         @NonNull
         @Override
         protected Object clone() {
             return new ProjectData(projectPath, projectTitle, projectTimestamp, projectSize, projectDuration);
         }
     }
-    public static class ProjectDataAdapter extends RecyclerView.Adapter<ProjectDataViewHolder>
+    public class ProjectDataAdapter extends RecyclerView.Adapter<ProjectDataViewHolder>
     {
 
         private List<ProjectData> projectList;
@@ -352,8 +453,6 @@ public class MainActivity extends AppCompatActivityImpl {
                         okButton.setOnClickListener(vok -> {
                             projectItem.setProjectTitle(context, editText.getText().toString(), true);
 
-                            // Re-update properties after renaming the entire folder
-                            IOHelper.writeToFile(context, IOHelper.CombinePath(projectItem.getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(projectItem));
 
                             dialog.dismiss();
                         });
@@ -391,6 +490,10 @@ public class MainActivity extends AppCompatActivityImpl {
                     }
                     else if(item.getItemId() == R.id.action_share)
                     {
+                        MainActivity.this.zippingProject(projectItem);
+
+
+
 
                         return true;
                     }
@@ -409,12 +512,12 @@ public class MainActivity extends AppCompatActivityImpl {
                         IOHelper.copyDir(context, oldProjectPath, projectPath);
 
                         // Re-update properties after renaming the entire folder
-                        ProjectData data = new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(projectPath, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)), ProjectData.class);
+                        ProjectData data = ProjectData.loadProperties(context, projectPath);
                         data.setProjectPath(projectPath);
                         data.setProjectTimestamp(new Date().getTime());
                         data.setProjectTitle(context, data.getProjectTitle() + "_clone", false);
 
-                        IOHelper.writeToFile(context, IOHelper.CombinePath(projectPath, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(data));
+                        data.savePropertiesAtProject(context);
 
 
                         return true;
@@ -431,6 +534,10 @@ public class MainActivity extends AppCompatActivityImpl {
 
             holder.wholeView.setOnClickListener(v -> {
                 enterEditing(context, projectItem);
+            });
+            holder.wholeView.setOnLongClickListener(v -> {
+                holder.moreButton.performClick();
+                return true;
             });
         }
 

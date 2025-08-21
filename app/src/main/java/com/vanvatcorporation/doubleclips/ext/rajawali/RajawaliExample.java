@@ -2,6 +2,7 @@ package com.vanvatcorporation.doubleclips.ext.rajawali;
 
 import android.content.Context;
 import android.graphics.BitmapFactory;
+import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.view.MotionEvent;
@@ -24,6 +25,11 @@ import org.rajawali3d.math.vector.Vector3;
 import org.rajawali3d.primitives.Cube;
 import org.rajawali3d.renderer.Renderer;
 import org.rajawali3d.view.SurfaceView;
+
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+import javax.microedition.khronos.opengles.GL10;
 
 public class RajawaliExample extends AppCompatActivityImpl {
     Button button;
@@ -50,7 +56,7 @@ public class RajawaliExample extends AppCompatActivityImpl {
             SurfaceView surface = new SurfaceView(this);
             surface.setFrameRate(60);
             surface.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
-            CubeRenderer renderer = new CubeRenderer(this);
+            CubeRenderer renderer = new CubeRenderer(this, 1920, 1080);
             surface.setSurfaceRenderer(renderer);
 
             layout.addView(surface, new RelativeLayout.LayoutParams(
@@ -69,13 +75,15 @@ public class RajawaliExample extends AppCompatActivityImpl {
     public class CubeRenderer extends Renderer {
 
         private Object3D cube;
-        private double existenceTime;
 
+        int width, height;
 
-        public CubeRenderer(Context context) {
+        public CubeRenderer(Context context, int width, int height) {
             super(context);
             setFrameRate(60);
-            existenceTime = 0;
+
+            this.width = width;
+            this.height = height;
         }
 
         @Override
@@ -109,14 +117,27 @@ public class RajawaliExample extends AppCompatActivityImpl {
         @Override
         protected void onRender(long elapsedTime, double deltaTime) {
             super.onRender(elapsedTime, deltaTime);
-            existenceTime += deltaTime;
-            cube.rotate(Vector3.Axis.Y, deltaTime); // Rotate cube on Y-axis
-            cube.rotate(Vector3.Axis.X, 0.025); // Rotate cube on X-axis
-            cube.rotate(Vector3.Axis.Z, 0.00125); // Rotate cube on X-axis
-            cube.moveForward((existenceTime > 5 ? 0.001f : 0));
+            cube.rotate(Vector3.Axis.Y, deltaTime * 5); // Rotate cube on Y-axis
+            cube.rotate(Vector3.Axis.X, deltaTime * 2); // Rotate cube on X-axis
+            cube.rotate(Vector3.Axis.Z, deltaTime * 1); // Rotate cube on X-axis
+            cube.moveForward((elapsedTime <= 5000000000L ? 0.001f : 0));
             Button button1 = RajawaliExample.this.button;
+            if(elapsedTime > 5000000000L)
+                button1.setTextColor(0xFFFF0000);
             button1.post(() -> button.setText(elapsedTime + " | " + deltaTime));
         }
+        @Override
+        public void onRenderFrame(GL10 glUnused) {
+            super.onRenderFrame(glUnused);
+
+            ByteBuffer pixelBuffer = ByteBuffer.allocateDirect(width * height * 4);
+            pixelBuffer.order(ByteOrder.nativeOrder());
+
+            GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixelBuffer);
+
+            // Now pixelBuffer contains the image data
+        }
+
 
         @Override
         public void onOffsetsChanged(float v, float v1, float v2, float v3, int i, int i1) {

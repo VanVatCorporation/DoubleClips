@@ -113,23 +113,23 @@ public class FFmpegEdit {
             float y = clip.posYKeyFrames.getValueAt(time);
             float rotation = clip.rotationKeyFrames.getValueAt(time);
 
-            renderFrameToBitmap(context, clip.filePath, workingProjectPath, scale, x, y, rotation, i);
+            renderFrameToBitmap(context, clip.getAbsolutePath(workingProjectPath), workingProjectPath, scale, x, y, rotation, i);
         }
 
         // Audio extracting part
         String audioFilePath = IOHelper.CombinePath(workingProjectPath, Constants.DEFAULT_CLIP_TEMP_DIRECTORY, tempIndex + "audio.aac");
         StringBuilder audioCmd = new StringBuilder();
-        audioCmd.append("-i ").append("\"").append(clip.filePath).append("\"").append(" -ss ").append(clip.startTime).append(" -t ").append(clip.duration).append(" -vn -acodec copy -y ")
+        audioCmd.append("-i ").append("\"").append(clip.getAbsolutePath(workingProjectPath)).append("\"").append(" -ss ").append(clip.startTime).append(" -t ").append(clip.duration).append(" -vn -acodec copy -y ")
                 .append("\"").append(audioFilePath).append("\"");
         runAnyCommand(context, audioCmd.toString(), "Copying Audio #" + tempIndex);
 
-        clip.setRenderedPath(IOHelper.CombinePath(workingProjectPath, Constants.DEFAULT_CLIP_TEMP_DIRECTORY, tempIndex + ".mp4"));
+        clip.setRenderedName(tempIndex + ".mp4");
 
         StringBuilder cmd = new StringBuilder();
         cmd.append("-framerate ").append(fps).append(" -i ")
                 .append("\"").append(IOHelper.CombinePath(workingProjectPath, Constants.DEFAULT_CLIP_TEMP_DIRECTORY, "frames/frame%04d.jpg")).append("\"")
                 .append(" -i ").append("\"").append(audioFilePath).append("\"")
-                .append(" -c:v libx264 -pix_fmt yuv420p -c:a aac ").append("-y \"").append(clip.getRenderedPath()).append("\"");
+                .append(" -c:v libx264 -pix_fmt yuv420p -c:a aac -preset slow ").append("-y \"").append(clip.getAbsoluteRenderPath(workingProjectPath)).append("\"");
 
         runAnyCommand(context, cmd.toString(), "Building Keyframed Clip #" + tempIndex);
 
@@ -153,7 +153,8 @@ public class FFmpegEdit {
 
         // Apply scale
         // -vf "scale=ceil(iw/2)*2:ceil(ih/2)*2"
-        vf.append("scale=ceil(iw*").append(scale).append("/2)*2").append(":ceil(ih*").append(scale).append("/2)*2").append(",");
+        //vf.append("scale=ceil(iw*").append(scale).append("/2)*2").append(":ceil(ih*").append(scale).append("/2)*2").append(",");
+        vf.append("scale=iw*").append(scale).append(":ih*").append(scale).append(",");
 
         // Apply rotation
         vf.append("rotate=").append(rotation)
@@ -164,7 +165,7 @@ public class FFmpegEdit {
         cmd.append("-i ").append("\"").append(inputPath).append("\"")
                 .append(" -q:v ").append(10) // Lower = better quality, higher = more compression, ranges from 1 (best quality) to 31 (worst). Try 5–10 for good balance.
                 .append(" -vf \"").append(vf).append("\"")
-                .append(" -vsync vfr -frames:v 1 -y ")
+                .append(" -vsync vfr -frames:v 1 -preset slow -y ")
                 .append("\"").append(outputPath).append("\"");
 
         runAnyCommand(context, cmd.toString(), "Rendering Frame #" + frameIndex);
@@ -254,17 +255,17 @@ public class FFmpegEdit {
                         // render that video beforehand before entering the stream
                         if (clip.hasAnimatedProperties()) {
                             renderKeyframedClip(context, data.getProjectPath(), clip, keyframeClipIndex, settings.getFrameRate()); // Pre-render to video
-                            clip.filePath = clip.getRenderedPath(); // Replace with new video
+                            clip.clipName = clip.getRenderedName(); // Replace with new video
                             clip.type = EditingActivity.ClipType.VIDEO; // Treat as normal video now
                             keyframeClipIndex++;
                         }
 
 
 
-                        cmd.append(frameFilter).append("-i \"").append(clip.filePath).append("\" ");
+                        cmd.append(frameFilter).append("-i \"").append(clip.getAbsolutePath(data)).append("\" ");
                         break;
                     case AUDIO:
-                        cmd.append("-i \"").append(clip.filePath).append("\" ");
+                        cmd.append("-i \"").append(clip.getAbsolutePath(data)).append("\" ");
                         break;
                     case TEXT:
                         cmd.append("-f lavfi -i \"nullsrc=size=")
@@ -466,7 +467,7 @@ public class FFmpegEdit {
                 .append(" -c:v libx264 -preset ").append(settings.getPreset())
                 .append(" -tune ").append(settings.getTune())
                 .append(" -crf ").append(settings.getCRF())
-                .append(" -y ").append(IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_EXPORT_CLIP_FILENAME));
+                .append(" -y ").append("\"").append(IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_EXPORT_CLIP_FILENAME)).append("\"");
 
         return cmd.toString();
     }

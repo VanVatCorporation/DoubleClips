@@ -7,6 +7,7 @@
     <string name="ok">Ok</string>
 
 
+    <string name="alert_add_new_project_title">Add/Import Project</string>
 
     <string name="alert_edit_project_title">Edit project title</string>
     <string name="alert_placeholder_edit_project">Project name...</string>
@@ -18,4 +19,6 @@
     <string name="menu_cpn_project_element_share">Share project</string>
     <string name="menu_cpn_project_element_upload">Upload project</string>
     <string name="menu_cpn_project_element_clone">Clone project</string>
+    <string name="add_project_choice_new">New</string>
+    <string name="add_project_choice_import">Import</string>
 </resources>

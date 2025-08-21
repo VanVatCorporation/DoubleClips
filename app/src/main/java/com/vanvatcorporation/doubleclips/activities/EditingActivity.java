@@ -293,7 +293,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         System.err.println(type);
 
 
-        Clip newClip = new Clip(clipPath, currentTime + index, duration, selectedTrack.trackIndex, type);
+        Clip newClip = new Clip(filename, currentTime + index, duration, selectedTrack.trackIndex, type);
         addClipToTrack(selectedTrack, newClip);
     }
 
@@ -385,7 +385,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         if(audioClip.type == ClipType.AUDIO)
                         {
                             try {
-                                audioRenderer.setDataSource(audioClip.filePath);
+                                audioRenderer.setDataSource(audioClip.getAbsolutePath(properties));
                                 audioRenderer.prepareAsync();
                             } catch (IOException e) {
                                 LoggingManager.LogToPersistentDataPath(this, LoggingManager.getStackTraceFromException(e));
@@ -984,7 +984,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         //params.topMargin = 4; // 8
         clipView.setX(getTimeInX(data.startTime));
         clipView.setLayoutParams(params);
-        clipView.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, data.filePath, data.type)));
+        clipView.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, data.getAbsolutePath(properties), data.type)));
         clipView.setTag(data);
 
 
@@ -1037,7 +1037,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-        clip.scaleKeyFrames.keyframes.add(new Keyframe(currentTime, Random.Range(0.7f, 1.3f), EasingType.LINEAR));
+        clip.scaleKeyFrames.keyframes.add(new Keyframe(currentTime, Random.Range(0.5f, 3f), EasingType.LINEAR));
+        clip.rotationKeyFrames.keyframes.add(new Keyframe(currentTime, Random.Range(0.5f, 3f), EasingType.LINEAR));
 
         handleKeyframeInteraction(knotView);
     }
@@ -1771,7 +1772,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if(nearestClip != null) break;
             }
             if(nearestClip != null)
-                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), extractThumbnail(context, nearestClip.filePath, nearestClip.type, 1).get(0), 25);
+                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), extractThumbnail(context, nearestClip.getAbsolutePath(data), nearestClip.type, 1).get(0), 25);
 
             data.setProjectTimestamp(new Date().getTime());
             data.setProjectDuration((long) (timeline.duration * 1000));
@@ -1779,16 +1780,19 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             String jsonTimeline = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create().toJson(timeline); // Save
-            String jsonProperties = new Gson().toJson(data); // Save
 
 
-            IOHelper.writeToFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), jsonProperties);
+            data.savePropertiesAtProject(context);
             IOHelper.writeToFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_TIMELINE_FILENAME), jsonTimeline);
+        }
+        public static Timeline loadRawTimeline(Context context, MainActivity.ProjectData data)
+        {
+            String json = IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_TIMELINE_FILENAME));
+            return new Gson().fromJson(json, Timeline.class);
         }
         public static Timeline loadTimeline(Context context, EditingActivity instance, MainActivity.ProjectData data)
         {
-            String json = IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_TIMELINE_FILENAME));
-            return loadTimeline(context, instance, new Gson().fromJson(json, Timeline.class));
+            return loadTimeline(context, instance, loadRawTimeline(context, data));
         }
         public static Timeline loadTimeline(Context context, EditingActivity instance, Timeline timeline)
         {
@@ -1891,7 +1895,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public ClipType type;
         @Expose
-        public String filePath;
+        public String clipName;
         @Expose
         public float startTime; // in seconds
         @Expose
@@ -1926,7 +1930,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         public AnimatedProperty rotationKeyFrames = new AnimatedProperty();
         // Use for keyframe pre-rendering
         @Expose
-        public String preRenderedPath;
+        public String preRenderedName;
 
         // FX support (for EFFECT type)
         @Expose
@@ -1941,8 +1945,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         public transient View leftHandle, rightHandle;
         public transient ImageGroupView viewRef;
 
-        public Clip(String filePath, float startTime, float duration, int trackIndex, ClipType type) {
-            this.filePath = filePath;
+        public Clip(String clipName, float startTime, float duration, int trackIndex, ClipType type) {
+            this.clipName = clipName;
             this.startTime = startTime;
             this.startClipTrim = 0;
             this.endClipTrim = 0;
@@ -1980,8 +1984,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                             Clip clip = (Clip) clipView.getTag();
                             int minWidth = (int) (MIN_CLIP_DURATION * pixelsPerSecond);
                             int maxWidth = (int) (clip.originalDuration * pixelsPerSecond);
-                            switch (event.getAction())
-                            {
+                            switch (event.getAction()) {
                                 case MotionEvent.ACTION_DOWN:
                                     dX = event.getRawX();
                                     break;
@@ -1990,29 +1993,47 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
-                                    deltaX = (Math.min(-deltaX, clip.startClipTrim * pixelsPerSecond));
-                                    deltaX = -deltaX;
 
 
-                                    int newWidth = clipView.getWidth() - (int) deltaX;
-                                    float newStartTime = (clipView.getX() + deltaX - centerOffset) / pixelsPerSecond;
-
-                                    // Clamping
-                                    if (newWidth < minWidth) return true;
-                                    // Clamp to prevent going before 0s
-                                    if (newStartTime < 0) return true;
+                                    // Clamping only for video and audio as these type has limited duration
+                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO)
+                                    {
+                                        deltaX = (Math.min(-deltaX, clip.startClipTrim * pixelsPerSecond));
+                                        deltaX = -deltaX;
 
 
-                                    newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+                                        int newWidth = clipView.getWidth() - (int) deltaX;
+                                        float newStartTime = (clipView.getX() + deltaX - centerOffset) / pixelsPerSecond;
 
-                                    clipView.getLayoutParams().width = newWidth;
-                                    clipView.setX(clipView.getX() + deltaX);
-                                    clipView.requestLayout();
+                                        // Clamping
+                                        if (newWidth < minWidth) return true;
+                                        // Clamp to prevent going before 0s
+                                        if (newStartTime < 0) return true;
 
-                                    clip.startTime = (clipView.getX() - centerOffset) / pixelsPerSecond;
-                                    clip.startClipTrim += (deltaX) / pixelsPerSecond;
-                                    clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
 
+                                        newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+
+                                        clipView.getLayoutParams().width = newWidth;
+                                        clipView.setX(clipView.getX() + deltaX);
+                                        clipView.requestLayout();
+
+                                        clip.startTime = (clipView.getX() - centerOffset) / pixelsPerSecond;
+                                        clip.startClipTrim += (deltaX) / pixelsPerSecond;
+                                        clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
+                                    }
+                                    else {
+                                        deltaX = -deltaX;
+
+                                        int newWidth = clipView.getWidth() - (int) deltaX;
+
+                                        clipView.getLayoutParams().width = newWidth;
+                                        clipView.setX(clipView.getX() + deltaX);
+                                        clipView.requestLayout();
+
+                                        clip.startTime = (clipView.getX() - centerOffset) / pixelsPerSecond;
+                                        clip.startClipTrim += (deltaX) / pixelsPerSecond;
+                                        clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;
+                                    }
                                     break;
 
                                 case MotionEvent.ACTION_UP:
@@ -2046,20 +2067,34 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
-                                    deltaX = Math.min(deltaX, clip.endClipTrim * pixelsPerSecond);
 
-                                    int newWidth = clipView.getWidth() + (int) deltaX;
+                                    // Clamping only for video and audio as these type has limited duration
+                                    if(type == ClipType.VIDEO || type == ClipType.AUDIO)
+                                    {
+                                        deltaX = Math.min(deltaX, clip.endClipTrim * pixelsPerSecond);
 
-                                    // Clamping
-                                    if (newWidth < minWidth) return true;
+                                        int newWidth = clipView.getWidth() + (int) deltaX;
 
-                                    newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+                                        // Clamping
+                                        if (newWidth < minWidth) return true;
 
-                                    clipView.getLayoutParams().width = newWidth;
-                                    clipView.requestLayout();
+                                        newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
 
-                                    clip.endClipTrim -= (deltaX) / pixelsPerSecond;
-                                    clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
+                                        clipView.getLayoutParams().width = newWidth;
+                                        clipView.requestLayout();
+
+                                        clip.endClipTrim -= (deltaX) / pixelsPerSecond;
+                                        clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
+                                    }
+                                    else {
+                                        int newWidth = clipView.getWidth() + (int) deltaX;
+
+                                        clipView.getLayoutParams().width = newWidth;
+                                        clipView.requestLayout();
+
+                                        clip.endClipTrim -= (deltaX) / pixelsPerSecond;
+                                        clip.duration = clip.originalDuration - clip.endClipTrim - clip.startClipTrim;//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
+                                    }
 
 
                                     break;
@@ -2113,7 +2148,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             float translatedLocalCurrentTime = currentGlobalTime - startTime;
 
-            Clip secondaryClip = new Clip(filePath, currentGlobalTime, originalDuration, trackIndex, type);
+            Clip secondaryClip = new Clip(clipName, currentGlobalTime, originalDuration, trackIndex, type);
 
             float oldEndClipTrim = endClipTrim;
             float oldStartClipTrim = startClipTrim;
@@ -2138,12 +2173,24 @@ public class EditingActivity extends AppCompatActivityImpl {
                     rotationKeyFrames.keyframes.size() != 0;
         }
 
-        public String getRenderedPath() {
-            return preRenderedPath;
+        public String getRenderedName() {
+            return preRenderedName;
         }
 
-        public void setRenderedPath(String s) {
-            preRenderedPath = s;
+        public void setRenderedName(String s) {
+            preRenderedName = s;
+        }
+        public String getAbsolutePath(MainActivity.ProjectData properties) {
+            return getAbsolutePath(properties.getProjectPath());
+        }
+        public String getAbsolutePath(String projectPath) {
+            return IOHelper.CombinePath(projectPath, Constants.DEFAULT_CLIP_DIRECTORY, clipName);
+        }
+        public String getAbsoluteRenderPath(MainActivity.ProjectData properties) {
+            return getAbsoluteRenderPath(properties.getProjectPath());
+        }
+        public String getAbsoluteRenderPath(String projectPath) {
+            return IOHelper.CombinePath(projectPath, Constants.DEFAULT_CLIP_DIRECTORY, preRenderedName);
         }
     }
 
@@ -2389,6 +2436,7 @@ frameRate = 60;
         private MediaExtractor extractor;
         private MediaCodec decoder;
 
+        private MediaPlayer mediaPlayer;
         private SurfaceTexture surfaceTexture;
         private Surface surface;
 
@@ -2466,12 +2514,12 @@ frameRate = 60;
         }
         private void initDecoder() {
             try {
-                String mimeType = URLConnection.guessContentTypeFromName(new File(clip.filePath).getName());
+                String mimeType = URLConnection.guessContentTypeFromName(new File(clip.getAbsolutePath(properties)).getName());
 
 
                 if(mimeType.startsWith("image/")) return;
                 extractor = new MediaExtractor();
-                extractor.setDataSource(clip.filePath);
+                extractor.setDataSource(clip.getAbsolutePath(properties));
                 int videoTrack = TimelineUtils.findVideoTrackIndex(extractor);
                 extractor.selectTrack(videoTrack);
                 MediaFormat format = extractor.getTrackFormat(videoTrack);
@@ -2554,7 +2602,9 @@ frameRate = 60;
                     float clipTime = playheadTime - clip.startTime;
                     long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
 
+
                     decoder.queueInputBuffer(inputIndex, 0, sampleSize, ptsUs, 0);
+                    extractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                     extractor.advance();
                 } else {
                     decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
@@ -2595,7 +2645,8 @@ frameRate = 60;
             for (Track track : timeline.tracks) {
                 List<ClipRenderer> renderers = new ArrayList<>();
                 for (Clip clip : track.clips) {
-                    renderers.add(new ClipRenderer(context, clip));
+                    if(clip.type == ClipType.VIDEO)
+                        renderers.add(new ClipRenderer(context, clip));
                 }
                 trackLayers.add(renderers);
             }
