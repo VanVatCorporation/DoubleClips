@@ -226,24 +226,27 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                     Intent data = result.getData();
                     // Check if multiple files are selected
+
+                    float offsetTime = 0;
+
                     if (data.getClipData() != null) {
                         int count = data.getClipData().getItemCount();
                         for (int i = 0; i < count; i++) {
                             Uri fileUri = data.getClipData().getItemAt(i).getUri();
                             // Process each file URI
-                            parseFileIntoWorkPathAndAddToTrack(fileUri, i);
+                            parseFileIntoWorkPathAndAddToTrack(fileUri, offsetTime);
                         }
                     } else if (data.getData() != null) {
                         // Single file selected
                         Uri fileUri = data.getData();
                         // Process the file URI
-                        parseFileIntoWorkPathAndAddToTrack(fileUri, 0);
+                        parseFileIntoWorkPathAndAddToTrack(fileUri, offsetTime);
                     }
                 }
             }
     );
 
-    void parseFileIntoWorkPathAndAddToTrack(Uri uri, int index)
+    void parseFileIntoWorkPathAndAddToTrack(Uri uri, float offsetTime)
     {
 
         if(uri == null) return;
@@ -293,8 +296,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         System.err.println(type);
 
 
-        Clip newClip = new Clip(filename, currentTime + index, duration, selectedTrack.trackIndex, type);
+        Clip newClip = new Clip(filename, currentTime + offsetTime, duration, selectedTrack.trackIndex, type);
         addClipToTrack(selectedTrack, newClip);
+
+        offsetTime += duration;
     }
 
 

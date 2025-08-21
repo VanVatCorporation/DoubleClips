@@ -113,17 +113,21 @@ public class RajawaliExample extends AppCompatActivityImpl {
                 LoggingManager.LogToPersistentDataPath(this.getContext(), LoggingManager.getStackTraceFromException(e));
             }
         }
+        float speed = 1;
 
         @Override
         protected void onRender(long elapsedTime, double deltaTime) {
             super.onRender(elapsedTime, deltaTime);
-            cube.rotate(Vector3.Axis.Y, deltaTime * 5); // Rotate cube on Y-axis
-            cube.rotate(Vector3.Axis.X, deltaTime * 2); // Rotate cube on X-axis
-            cube.rotate(Vector3.Axis.Z, deltaTime * 1); // Rotate cube on X-axis
-            cube.moveForward((elapsedTime <= 5000000000L ? 0.001f : 0));
+            cube.rotate(Vector3.Axis.Y, deltaTime * 5 * speed); // Rotate cube on Y-axis
+            cube.rotate(Vector3.Axis.X, deltaTime * 2 * speed); // Rotate cube on X-axis
+            cube.rotate(Vector3.Axis.Z, deltaTime * 1 * speed); // Rotate cube on X-axis
+            cube.moveForward((elapsedTime <= 8000000000L ? 0.001f : -deltaTime * 0.125 * speed));
+            cube.moveUp((elapsedTime <= 8000000000L ? 0.001f : -deltaTime * 2 * speed));
             Button button1 = RajawaliExample.this.button;
-            if(elapsedTime > 5000000000L)
+            if(elapsedTime > 5000000000L) {
                 button1.setTextColor(0xFFFF0000);
+                speed = 5;
+            }
             button1.post(() -> button.setText(elapsedTime + " | " + deltaTime));
         }
         @Override
