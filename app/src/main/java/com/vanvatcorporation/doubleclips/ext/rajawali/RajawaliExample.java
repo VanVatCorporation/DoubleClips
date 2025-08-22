@@ -118,11 +118,14 @@ public class RajawaliExample extends AppCompatActivityImpl {
         @Override
         protected void onRender(long elapsedTime, double deltaTime) {
             super.onRender(elapsedTime, deltaTime);
-            cube.rotate(Vector3.Axis.Y, deltaTime * 5 * speed); // Rotate cube on Y-axis
+            long elapsedTimeInMs = elapsedTime / 1000000;
+            cube.rotate(Vector3.Axis.Y, deltaTime * 12 * speed); // Rotate cube on Y-axis
             cube.rotate(Vector3.Axis.X, deltaTime * 2 * speed); // Rotate cube on X-axis
             cube.rotate(Vector3.Axis.Z, deltaTime * 1 * speed); // Rotate cube on X-axis
-            cube.moveForward((elapsedTime <= 8000000000L ? 0.001f : -deltaTime * 0.125 * speed));
-            cube.moveUp((elapsedTime <= 8000000000L ? 0.001f : -deltaTime * 2 * speed));
+            cube.setPosition(0, 0, -(double) elapsedTimeInMs / 1000);
+//            cube.moveRight((elapsedTime <= 8000000000L ? -deltaTime * 0.1 : -deltaTime * 0.125 * speed));
+//            cube.moveUp((elapsedTime <= 12000000000L ? 0.001f : -deltaTime * 0.5 * speed));
+//            cube.moveForward((elapsedTime <= 6000000000L ? 0.001f : -deltaTime * 0.75 * speed));
             Button button1 = RajawaliExample.this.button;
             if(elapsedTime > 5000000000L) {
                 button1.setTextColor(0xFFFF0000);

@@ -234,7 +234,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         for (int i = 0; i < count; i++) {
                             Uri fileUri = data.getClipData().getItemAt(i).getUri();
                             // Process each file URI
-                            parseFileIntoWorkPathAndAddToTrack(fileUri, offsetTime);
+                            offsetTime = parseFileIntoWorkPathAndAddToTrack(fileUri, offsetTime);
                         }
                     } else if (data.getData() != null) {
                         // Single file selected
@@ -246,11 +246,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
     );
 
-    void parseFileIntoWorkPathAndAddToTrack(Uri uri, float offsetTime)
+    float parseFileIntoWorkPathAndAddToTrack(Uri uri, float offsetTime)
     {
 
-        if(uri == null) return;
-        if(selectedTrack == null) return;
+        if(uri == null) return offsetTime;
+        if(selectedTrack == null) return offsetTime;
         String filename = getFileName(uri);
         String clipPath = IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY, filename);
         IOHelper.writeToFileAsRaw(this, clipPath, IOHelper.readFromFileAsRaw(this, getContentResolver(), uri));
@@ -258,7 +258,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         float duration = 3f; // fallback default if needed
         String mimeType = getContentResolver().getType(uri);
 
-        if(mimeType == null) return;
+        if(mimeType == null) return offsetTime;
 
         if(mimeType.startsWith("video/") || mimeType.startsWith("audio/"))
             try {
@@ -300,6 +300,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         addClipToTrack(selectedTrack, newClip);
 
         offsetTime += duration;
+        return offsetTime;
     }
 
 
@@ -360,13 +361,13 @@ public class EditingActivity extends AppCompatActivityImpl {
                     {
                         if(audioClip.type == ClipType.AUDIO)
                         {
-                            if(currentTime - audioClip.startTime > 0)
+                            if((currentTime - audioClip.startTime) * 1000 > 0)
                             {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime) * 1000), MediaPlayer.SEEK_CLOSEST);
+                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime + audioClip.startClipTrim) * 1000), MediaPlayer.SEEK_CLOSEST);
                                 }
                                 else {
-                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime) * 1000));
+                                    audioRenderer.seekTo((int) ((currentTime - audioClip.startTime + audioClip.startClipTrim) * 1000));
                                 }
                                 audioRenderer.start();
                                 break;
@@ -390,6 +391,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                         if(audioClip.type == ClipType.AUDIO)
                         {
                             try {
+
+                                audioRenderer.reset();
+
                                 audioRenderer.setDataSource(audioClip.getAbsolutePath(properties));
                                 audioRenderer.prepareAsync();
                             } catch (IOException e) {
@@ -2434,7 +2438,6 @@ frameRate = 60;
     }
 
 
-
     public class ClipRenderer {
         public final Clip clip;
 
@@ -2476,6 +2479,7 @@ frameRate = 60;
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
 
+            mediaPlayer = new MediaPlayer();
             surfaceTexture = new SurfaceTexture(textureId);
             surface = new Surface(surfaceTexture);
 
@@ -2555,7 +2559,7 @@ frameRate = 60;
 
 
             try {
-                pumpDecoderInput(playheadTime); // Feed decoder
+                pumpDecoderInputLag(playheadTime); // Feed decoder
 
                 // Drain decoder and render frame
                 MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
@@ -2598,19 +2602,52 @@ frameRate = 60;
         }
         private void pumpDecoderInput(float playheadTime) {
             if(decoder == null) return;
+            float clipTime = playheadTime - clip.startTime;
+            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
             int inputIndex = decoder.dequeueInputBuffer(0);
             if (inputIndex >= 0) {
                 ByteBuffer inputBuffer = decoder.getInputBuffer(inputIndex);
                 int sampleSize = extractor.readSampleData(inputBuffer, 0);
 
                 if (sampleSize >= 0) {
-                    float clipTime = playheadTime - clip.startTime;
-                    long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
 
-
+                    System.err.println(ptsUs + "|" + extractor.getSampleTime());
+                    if(ptsUs > extractor.getSampleTime())
+                    {
+                        extractor.advance();
+                    }
+                    else {
+                        extractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+                    }
                     decoder.queueInputBuffer(inputIndex, 0, sampleSize, ptsUs, 0);
-                    extractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
-                    extractor.advance();
+
+                } else {
+                    decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                }
+            }
+        }
+        private void pumpDecoderInputLag(float playheadTime) {
+            if(decoder == null) return;
+            float clipTime = playheadTime - clip.startTime;
+            long ptsUs = (long)((clip.startClipTrim + clipTime) * 1_000_000); // override presentation timestamp
+            int inputIndex = decoder.dequeueInputBuffer(0);
+            if (inputIndex >= 0) {
+                ByteBuffer inputBuffer = decoder.getInputBuffer(inputIndex);
+                int sampleSize = extractor.readSampleData(inputBuffer, 0);
+
+                if (sampleSize >= 0) {
+                    extractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                    while (true) {
+
+                        long sampleTime = extractor.getSampleTime();
+                        if (sampleTime >= ptsUs) {
+                            // Feed this frame to MediaCodec
+                            decoder.queueInputBuffer(inputIndex, 0, sampleSize, ptsUs, 0);
+                            System.err.println(ptsUs + "|" + extractor.getSampleTime());
+                            break;
+                        }
+                        extractor.advance();
+                    }
                 } else {
                     decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                 }
@@ -2652,6 +2689,8 @@ frameRate = 60;
                 for (Clip clip : track.clips) {
                     if(clip.type == ClipType.VIDEO)
                         renderers.add(new ClipRenderer(context, clip));
+//                    if(clip.type == ClipType.AUDIO)
+//                        renderers.add(new ClipRenderer(context, clip));
                 }
                 trackLayers.add(renderers);
             }
