@@ -137,9 +137,12 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
+
+
+
     private int trackCount = 0;
     private final int TRACK_HEIGHT = 100;
-    private static final float MIN_CLIP_DURATION = 0.5f; // in seconds
+    private static final float MIN_CLIP_DURATION = 0.1f; // in seconds
     public static int pixelsPerSecond = 100;
 
     public static int centerOffset;
@@ -182,7 +185,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
     };
     private boolean isPlaying = false;
-    private float frameInterval = 1f / 60f; // 60fps
+    private float frameInterval = 1f / 30f; // 30fps
     private Handler playbackHandler = new Handler(Looper.getMainLooper());
     private Runnable playbackLoop;
 

@@ -8,12 +8,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-        <ImageView
-            android:id="@+id/addMediaButton"
+        <TextView
+            android:id="@+id/title"
             android:layout_width="50dp"
             android:layout_height="50dp"
             android:layout_margin="5dp"
-            android:src="@drawable/baseline_perm_media_24"/>
+            android:gravity="center"
+            android:text="Clips"/>
         <ImageView
             android:id="@+id/deleteMediaButton"
             android:layout_width="50dp"
@@ -26,18 +27,6 @@
             android:layout_height="50dp"
             android:layout_margin="5dp"
             android:src="@drawable/baseline_content_cut_24"/>
-        <ImageView
-            android:id="@+id/addTextButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/baseline_text_increase_24"/>
-        <ImageView
-            android:id="@+id/addEffectButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/baseline_bubble_chart_24"/>
         <ImageView
             android:id="@+id/editMediaButton"
             android:layout_width="50dp"
@@ -56,37 +45,5 @@
             android:layout_height="50dp"
             android:layout_margin="5dp"
             android:src="@drawable/baseline_menu_24"/>
-        <ImageView
-            android:id="@+id/selectAllButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/baseline_select_all_24"/>
-        <ImageView
-            android:id="@+id/autoSnapButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/baseline_commit_24"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/ic_launcher_background"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/ic_launcher_background"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/ic_launcher_background"/>
-        <ImageView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:src="@drawable/ic_launcher_background"/>
     </LinearLayout>
 </HorizontalScrollView>

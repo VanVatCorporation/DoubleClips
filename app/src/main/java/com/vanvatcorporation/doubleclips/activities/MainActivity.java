@@ -33,6 +33,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.BuildConfig;
+import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
 import com.vanvatcorporation.doubleclips.constants.Constants;
@@ -490,6 +491,15 @@ public class MainActivity extends AppCompatActivityImpl {
                     }
                     else if(item.getItemId() == R.id.action_share)
                     {
+                        // Add ffmpeg cmd for ready-to-use rendering in other platform. Can be made into template
+                        EditingActivity.VideoSettings videoSettings = new EditingActivity.VideoSettings(1920, 1080, 30, 18,
+                                EditingActivity.VideoSettings.FfmpegPreset.MEDIUM,
+                                EditingActivity.VideoSettings.FfmpegTune.ZEROLATENCY);
+                        EditingActivity.Timeline timeline = EditingActivity.Timeline.loadRawTimeline(context, projectItem);
+                        String ffmpegCmdPath = IOHelper.CombinePath(projectItem.getProjectPath(), "ffmpegCmd.txt");
+                        IOHelper.writeToFile(context, ffmpegCmdPath, FFmpegEdit.generateExportCmd(context, videoSettings, timeline, projectItem));
+
+
                         MainActivity.this.zippingProject(projectItem);
 
 
