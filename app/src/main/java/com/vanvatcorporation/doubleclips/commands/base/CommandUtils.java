@@ -14,13 +14,24 @@ public class CommandUtils {
 
 
 
+    public static class GenericCommand implements Command {
+        private Runnable undoRunnable;
+        private Runnable redoRunnable;
+        public GenericCommand(Runnable undoRunnable, Runnable redoRunnable) {
+            this.undoRunnable = undoRunnable;
+            this.redoRunnable = redoRunnable;
+        }
+        public void execute() { redoRunnable.run(); }
+        public void undo() { undoRunnable.run(); }
+    }
+
     public static class DeltaCommand<T> implements Command {
         private Object target;
         private String property;
         private T oldValue;
         private T newValue;
 
-        DeltaCommand(Object target, String property, T oldValue, T newValue) {
+        public DeltaCommand(Object target, String property, T oldValue, T newValue) {
             this.target = target;
             this.property = property;
             this.oldValue = oldValue;
@@ -50,9 +61,9 @@ public class CommandUtils {
 
 
 
-    class CompositeCommand implements Command {
+    public class CompositeCommand implements Command {
         private List<Command> commands;
-        CompositeCommand(List<Command> commands) { this.commands = commands; }
+        public CompositeCommand(List<Command> commands) { this.commands = commands; }
         public void execute() { commands.forEach(Command::execute); }
         public void undo() { commands.forEach(Command::undo); }
     }

@@ -76,6 +76,7 @@ import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecif
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
+import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
@@ -165,7 +166,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     static ArrayList<Clip> selectedClips = new ArrayList<>();
     boolean isClipSelectMultiple;
 
-    CommandManager actionManager = new CommandManager();
+    static CommandManager actionManager = new CommandManager();
 
 
 
@@ -3875,6 +3876,15 @@ public class EditingActivity extends AppCompatActivityImpl {
                 ; // Operation failed
         }
 
+
+
+        public float getStartTime() {
+            return startTime;
+        }
+
+        public void setStartTime(float startTime) {
+            this.startTime = startTime;
+        }
         public float getDuration()
         {
             return duration;
@@ -3885,7 +3895,6 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(durationText != null)
                 durationText.setText(StringFormatHelper.smartRound(duration, 2, true) + "s");
         }
-
         public float getStartClipTrim()
         {
             return startClipTrim;

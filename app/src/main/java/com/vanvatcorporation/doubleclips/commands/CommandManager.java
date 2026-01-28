@@ -11,7 +11,7 @@ public class CommandManager {
     private Deque<CommandUtils.Command> undoStack = new ArrayDeque<>();
     private Deque<CommandUtils.Command> redoStack = new ArrayDeque<>();
 
-    void executeCommand(CommandUtils.Command cmd) {
+    public void executeCommand(CommandUtils.Command cmd) {
         cmd.execute();
         undoStack.push(cmd);
         redoStack.clear();
