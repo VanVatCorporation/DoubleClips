@@ -94,14 +94,30 @@
         <RelativeLayout
             android:id="@+id/controller_bar"
             android:layout_width="match_parent"
-            android:layout_height="30dp"
-            android:layout_alignParentBottom="true">
+            android:layout_height="40dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="0dp">
+
             <ImageButton
                 android:id="@+id/playPauseButton"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_centerInParent="true"
-                android:src="@drawable/baseline_play_circle_24"/>
+                android:src="@drawable/baseline_play_circle_24" />
+
+            <ImageButton
+                android:id="@+id/undoButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_toStartOf="@id/redoButton"
+                android:src="@drawable/baseline_undo_24" />
+
+            <ImageButton
+                android:id="@+id/redoButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:src="@drawable/baseline_redo_24" />
 
         </RelativeLayout>
 

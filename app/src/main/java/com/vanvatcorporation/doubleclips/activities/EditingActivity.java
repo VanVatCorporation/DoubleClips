@@ -75,6 +75,7 @@ import com.vanvatcorporation.doubleclips.activities.editing.TextEditSpecificArea
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
+import com.vanvatcorporation.doubleclips.commands.CommandManager;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
@@ -123,7 +124,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private TextView currentTimePosText, durationTimePosText, textCanvasControllerInfo;
     private ImageButton addNewTrackButton;
     private FrameLayout previewViewGroup;
-    private ImageButton playPauseButton, backButton, settingsButton;
+    private ImageButton playPauseButton, undoButton, redoButton, backButton, settingsButton;
     private Button exportButton;
     private TimelineRenderer timelineRenderer;
 
@@ -163,6 +164,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     static ArrayList<Clip> selectedClips = new ArrayList<>();
     boolean isClipSelectMultiple;
+
+    CommandManager actionManager = new CommandManager();
 
 
 
@@ -964,6 +967,21 @@ public class EditingActivity extends AppCompatActivityImpl {
                 stopPlayback(true);
             }
         });
+
+        undoButton = findViewById(R.id.undoButton);
+        undoButton.setOnClickListener(v -> {
+            actionManager.undo();
+            undoButton.setEnabled(actionManager.isUndoAvailable());
+        });
+        undoButton.setEnabled(actionManager.isUndoAvailable());
+
+        redoButton = findViewById(R.id.redoButton);
+        redoButton.setOnClickListener(v -> {
+            actionManager.redo();
+            redoButton.setEnabled(actionManager.isRedoAvailable());
+        });
+        redoButton.setEnabled(actionManager.isRedoAvailable());
+
         exportButton = findViewById(R.id.exportButton);
         exportButton.setOnClickListener(v -> {
             Timeline.saveTimeline(this, timeline, properties, settings);
