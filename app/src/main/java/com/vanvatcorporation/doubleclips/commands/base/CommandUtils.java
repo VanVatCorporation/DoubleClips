@@ -7,7 +7,7 @@ public class CommandUtils {
 
 
 
-    interface Command {
+    public interface Command {
         void execute();
         void undo();
     }
@@ -50,11 +50,11 @@ public class CommandUtils {
 
 
 
-    class CompositeCommand<T> implements Command {
-        private List<DeltaCommand<T>> commands;
-        CompositeCommand(List<DeltaCommand<T>> commands) { this.commands = commands; }
-        public void execute() { commands.forEach(DeltaCommand::execute); }
-        public void undo() { commands.forEach(DeltaCommand::undo); }
+    class CompositeCommand implements Command {
+        private List<Command> commands;
+        CompositeCommand(List<Command> commands) { this.commands = commands; }
+        public void execute() { commands.forEach(Command::execute); }
+        public void undo() { commands.forEach(Command::undo); }
     }
 
 
