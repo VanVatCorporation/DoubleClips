@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities.main;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -195,6 +196,10 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private long templateDuration;
         private int templateTotalClip;
         private String[] additionalResourceName;
+        private int viewCount;
+        private int heartCount;
+        private TemplateComment comments;
+        private int bookmarkCount;
 
         public TemplateData(String templateAuthor, String templateId, String templateTitle, String templateDescription, String ffmpegCommand, String templateSnapshotLink, String templateVideoLink, long templateTimestamp, long templateDuration, int templateTotalClip, String[] additionalResourceName) {
             this.templateAuthor = templateAuthor;
@@ -257,6 +262,22 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             ffmpegCommand = cmd;
         }
 
+
+
+
+
+
+
+
+        public static class TemplateComment {
+            public int heartCount;
+            TemplateComment[] replies;
+
+            public TemplateComment() {
+
+            }
+        }
+
     }
     public class TemplateDataAdapter extends RecyclerView.Adapter<TemplateDataViewHolder>
     {
@@ -281,6 +302,9 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             TemplateData projectItem = templateList.get(position);
 
             holder.templateTitle.setText(projectItem.getTemplateTitle());
+            holder.templateTitle.setOnClickListener(v -> {
+                holder.wholeView.performClick();
+            });
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
@@ -297,6 +321,12 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
                             int[] res = AlgorithmHelper.scaleByWidth(targetWidth, imageWidth, imageHeight);
 
+                            // enforce 9:16 ratio cap
+                            int maxHeight = (res[0] * 16) / 9;
+                            if (res[1] > maxHeight) {
+                                res[1] = maxHeight;
+                            }
+
                             ViewGroup.LayoutParams imageDimension = holder.templatePreview.getLayoutParams();
                             imageDimension.width = res[0];
                             imageDimension.height = res[1];
@@ -308,13 +338,29 @@ public class TemplateAreaScreen extends BaseAreaScreen {
                 }
             });
 
-            holder.templateTitle.setOnClickListener(v -> {
-                holder.wholeView.performClick();
+
+            holder.authorTitle.setText("@viet2007ht");
+            holder.authorTitle.setOnClickListener(v -> {
+                // TODO: Author profile destination.
+//                holder.wholeView.performClick();
+            });
+
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    Bitmap avatarBitmap = ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/viet2007ht/avatar.png");
+
+                    if(avatarBitmap != null)
+                    {
+                        holder.wholeView.post(() -> holder.authorPreview.setImageBitmap(avatarBitmap));
+                    }
+                } catch (Exception e) {
+                    LoggingManager.LogExceptionToNoteOverlay(context, e);
+                }
             });
 
 
             holder.wholeView.setOnClickListener(v -> {
-                Intent intent = new Intent(context, TemplatePreviewActivity.class);
+                @SuppressLint("UnsafeOptInUsageError") Intent intent = new Intent(context, TemplatePreviewActivity.class);
                 intent.putExtra("TemplateData", projectItem);
                 context.startActivity(intent);
             });
@@ -332,6 +378,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
     public static class TemplateDataViewHolder extends RecyclerView.ViewHolder {
         TextView templateTitle;
         ImageView templatePreview;
+        TextView authorTitle;
+        ImageView authorPreview;
         View wholeView;
         public TemplateDataViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -339,6 +387,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
             templateTitle = itemView.findViewById(R.id.titleText);
             templatePreview = itemView.findViewById(R.id.previewImage);
+            authorTitle = itemView.findViewById(R.id.authorText);
+            authorPreview = itemView.findViewById(R.id.authorAvatar);
         }
     }
 }

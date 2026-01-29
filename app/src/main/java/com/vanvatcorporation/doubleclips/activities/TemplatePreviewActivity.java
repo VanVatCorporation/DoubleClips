@@ -24,8 +24,19 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.database.DatabaseProvider;
+import androidx.media3.database.DefaultDatabaseProvider;
+import androidx.media3.database.ExoDatabaseProvider;
+import androidx.media3.database.StandaloneDatabaseProvider;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
+import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.LoopingMediaSource;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.PlayerView;
 
 import com.vanvatcorporation.doubleclips.R;
@@ -37,9 +48,11 @@ import com.vanvatcorporation.doubleclips.helper.NumberHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.Executors;
 
+@UnstableApi
 public class TemplatePreviewActivity extends AppCompatActivityImpl {
     TemplateAreaScreen.TemplateData data;
 
@@ -50,10 +63,30 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     ProgressBar mediaLoadingIcon;
     ImageView mediaPausedIcon;
 
+
+    private static SimpleCache simpleCache;
+    public static SimpleCache getSimpleCache() {
+        return simpleCache;
+    }
+
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.layout_template_preview);
+
+
+
+        File cacheDir = new File(getCacheDir(), "media");
+        long cacheSize = 100 * 1024 * 1024; // 100 MB
+
+
+        simpleCache = new SimpleCache(
+                cacheDir,
+                new LeastRecentlyUsedCacheEvictor(cacheSize),
+                new StandaloneDatabaseProvider(this)
+        );
+
 
         data = (TemplateAreaScreen.TemplateData) createrBundle.getSerializable("TemplateData");
 
@@ -93,6 +126,9 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             intent.putExtra("TemplateData", data);
             startActivity(intent);
         });
+        findViewById(R.id.backButton).setOnClickListener(v -> {
+            finish();
+        });
 
     }
 
@@ -121,9 +157,25 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         exoPlayer.setVideoSurface(previewSurfaceView.getHolder().getSurface());
 
         // Prepare media item
-        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(httpsPath));
-        exoPlayer.setMediaItem(mediaItem);
+//        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(httpsPath));
+//        exoPlayer.setMediaItem(mediaItem);
+
+        CacheDataSource.Factory cacheDataSourceFactory =
+                new CacheDataSource.Factory()
+                        .setCache(getSimpleCache())
+                        .setUpstreamDataSourceFactory(new DefaultHttpDataSource.Factory())
+                        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+
+        MediaSource mediaSource = new ProgressiveMediaSource.Factory(cacheDataSourceFactory)
+                .createMediaSource(MediaItem.fromUri(Uri.parse(httpsPath)));
+
+        exoPlayer.setMediaSource(mediaSource);
+
+
         exoPlayer.setVolume(1);
+
+
+
 
         // Add listener for errors
         exoPlayer.addListener(new Player.Listener() {
@@ -141,6 +193,14 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                     data.setTemplateDuration(exoPlayer.getDuration());
 
                     mediaLoadingIcon.setVisibility(View.GONE);
+                }
+                if(state == Player.STATE_BUFFERING)
+                {
+                    mediaLoadingIcon.setVisibility(View.VISIBLE);
+                }
+                if(state == Player.STATE_IDLE) {
+                    // TODO: Display Warning icon
+                    mediaLoadingIcon.setVisibility(View.VISIBLE);
                 }
             }
 
@@ -175,7 +235,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                 exoPlayer.play();
                 mediaPausedIcon.setVisibility(View.GONE);
 
-                mediaLoadingIcon.setVisibility(View.GONE);
+                //mediaLoadingIcon.setVisibility(View.GONE);
             }
         } catch (IllegalStateException e) {
             LoggingManager.LogExceptionToNoteOverlay(this, e);
@@ -201,6 +261,11 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             exoPlayer.release();
             exoPlayer = null;
         }
+        if(simpleCache != null)
+        {
+            simpleCache.release();
+            simpleCache = null;
+        }
     }
 
     @Override
@@ -209,6 +274,11 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
+        }
+        if(simpleCache != null)
+        {
+            simpleCache.release();
+            simpleCache = null;
         }
     }
 
