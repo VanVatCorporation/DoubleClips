@@ -61,7 +61,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     TextView usernameText, replacementClipCount, durationClipCount;
     TextView heartCount, commentCount, bookmarkCount;
     ProgressBar mediaLoadingIcon;
-    ImageView mediaPausedIcon;
+    ImageView mediaPausedIcon, mediaPlaybackErrorIcon;
 
 
     private static SimpleCache simpleCache;
@@ -100,13 +100,14 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
         mediaLoadingIcon = findViewById(R.id.mediaLoadingIcon);
         mediaPausedIcon = findViewById(R.id.mediaPausedIcon);
+        mediaPlaybackErrorIcon = findViewById(R.id.mediaPlaybackErrorIcon);
 
         usernameText.setText("@" + data.getTemplateAuthor());
         replacementClipCount.setText("" + data.getTemplateClipCount());
 
-        heartCount.setText("" + NumberHelper.abbreviateNumber(Random.Range(1, 80000000))); // data.clipCount
-        commentCount.setText("" + NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
-        bookmarkCount.setText("" + NumberHelper.abbreviateNumber(Random.Range(1, 500000))); // data.clipCount
+        heartCount.setText("" + data.getHeartCount());//NumberHelper.abbreviateNumber(Random.Range(1, 80000000))); // data.clipCount
+        commentCount.setText("0");// + data.getComments().length);//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
+        bookmarkCount.setText("" + data.getBookmarkCount());//NumberHelper.abbreviateNumber(Random.Range(1, 500000))); // data.clipCount
 
 
         previewSurfaceView.setOnClickListener(v -> {
@@ -193,13 +194,15 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                     data.setTemplateDuration(exoPlayer.getDuration());
 
                     mediaLoadingIcon.setVisibility(View.GONE);
+                    mediaPlaybackErrorIcon.setVisibility(View.GONE);
                 }
                 if(state == Player.STATE_BUFFERING)
                 {
                     mediaLoadingIcon.setVisibility(View.VISIBLE);
+                    mediaPlaybackErrorIcon.setVisibility(View.GONE);
                 }
                 if(state == Player.STATE_IDLE) {
-                    // TODO: Display Warning icon
+                    mediaPlaybackErrorIcon.setVisibility(View.VISIBLE);
                     mediaLoadingIcon.setVisibility(View.VISIBLE);
                 }
             }

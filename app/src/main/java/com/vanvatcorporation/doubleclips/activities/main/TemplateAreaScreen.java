@@ -22,6 +22,7 @@ import com.vanvatcorporation.doubleclips.activities.TemplatePreviewActivity;
 import com.vanvatcorporation.doubleclips.externalUtils.Random;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
+import com.vanvatcorporation.doubleclips.helper.NumberHelper;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.io.BufferedReader;
@@ -197,8 +198,9 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private int templateTotalClip;
         private String[] additionalResourceName;
         private int viewCount;
+        private int useCount;
         private int heartCount;
-        private TemplateComment comments;
+        private TemplateComment[] comments = new TemplateComment[0];
         private int bookmarkCount;
 
         public TemplateData(String templateAuthor, String templateId, String templateTitle, String templateDescription, String ffmpegCommand, String templateSnapshotLink, String templateVideoLink, long templateTimestamp, long templateDuration, int templateTotalClip, String[] additionalResourceName) {
@@ -249,6 +251,23 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         public String[] getTemplateAdditionalResourcesName() {
             return additionalResourceName;
         }
+
+        public int getViewCount() {
+            return viewCount;
+        }
+        public int getUseCount() {
+            return useCount;
+        }
+        public int getHeartCount() {
+            return heartCount;
+        }
+        public TemplateComment[] getComments() {
+            return comments;
+        }
+        public int getBookmarkCount() {
+            return bookmarkCount;
+        }
+
 
         public String getTemplateLocation() {
             return "/" + templateAuthor + "/" + templateId;
@@ -345,6 +364,12 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 //                holder.wholeView.performClick();
             });
 
+            holder.viewText.setText(NumberHelper.abbreviateNumber(projectItem.getViewCount()));
+            holder.heartText.setText(NumberHelper.abbreviateNumber(projectItem.getHeartCount()));
+            holder.useText.setText(NumberHelper.abbreviateNumber(projectItem.getUseCount()));
+
+
+
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
                     Bitmap avatarBitmap = ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/viet2007ht/avatar.png");
@@ -380,6 +405,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         ImageView templatePreview;
         TextView authorTitle;
         ImageView authorPreview;
+        TextView viewText, heartText, useText;
         View wholeView;
         public TemplateDataViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -389,6 +415,10 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             templatePreview = itemView.findViewById(R.id.previewImage);
             authorTitle = itemView.findViewById(R.id.authorText);
             authorPreview = itemView.findViewById(R.id.authorAvatar);
+
+            viewText = itemView.findViewById(R.id.viewCount);
+            heartText = itemView.findViewById(R.id.heartCount);
+            useText = itemView.findViewById(R.id.useCount);
         }
     }
 }

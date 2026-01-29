@@ -23,33 +23,6 @@
         app:use_controller="false" />
         -->
 
-    <ProgressBar
-        android:id="@+id/mediaLoadingIcon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"/>
-    <ImageView
-        android:id="@+id/mediaPausedIcon"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:src="@drawable/baseline_play_circle_24"
-        android:visibility="gone"
-        android:layout_centerInParent="true"/>
-    <ImageView
-        android:id="@+id/mediaPlaybackErrorIcon"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:src="@drawable/baseline_warning_24"
-        android:visibility="gone"
-        android:layout_centerInParent="true"/>
-
-    <ImageButton
-        android:id="@+id/backButton"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:src="@drawable/baseline_keyboard_return_24" />
-
-
     <RelativeLayout
         android:id="@+id/leftZone"
         android:layout_width="75dp"
