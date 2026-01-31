@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities.editing;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -23,6 +24,7 @@ import androidx.appcompat.widget.TooltipCompat;
 
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
+import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.warkiz.widget.IndicatorSeekBar;
 
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
@@ -35,6 +37,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
     public Spinner easingSpinner;
+    public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
 
 
     public ClipEditSpecificAreaScreen(Context context) {
@@ -98,6 +101,9 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         easingSpinner = findViewById(R.id.easingContent);
         easingTypeArrayAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, EditingActivity.EasingType.values());
         easingSpinner.setAdapter(easingTypeArrayAdapter);
+
+        importKeyframesButton = findViewById(R.id.importKeyframesButton);
+        exportKeyframesButton = findViewById(R.id.exportKeyframesButton);
 
 
 

@@ -467,10 +467,73 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     // ==============       Unsorted feature          =============
 
+    AnimatedProperty currentExportingKeyframes;
     Clip currentExportingClip;
     Track currentExportingTrack;
 
 
+    private ActivityResultLauncher<Intent> keyframesImportLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    Intent data = result.getData();
+                    // Check if multiple files are selected
+
+                    if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        Uri[] uris = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            uris[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+
+                        for (int i = 0; i < uris.length; i++) {
+                            try {
+                                AnimatedProperty keyframes = GsonHelper.createStrictGson(new String[]{"keyframes"}, AnimatedProperty.class).fromJson(IOHelper.readFromFile(this, getContentResolver(), uris[i]), AnimatedProperty.class);
+                                if(selectedClip != null)
+                                    selectedClip.importKeyframes(this, keyframes);
+                                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+
+                            } catch (JsonParseException e) {
+                                new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                            }
+
+
+                        }
+                    } else if (data.getData() != null) {
+                        // Single file selected
+                        Uri fileUri = data.getData();
+                        // Process the file URI
+                        try {
+                            AnimatedProperty keyframes = GsonHelper.createStrictGson(new String[]{"keyframes"}, AnimatedProperty.class).fromJson(IOHelper.readFromFile(this, getContentResolver(), fileUri), AnimatedProperty.class);
+                            if(selectedClip != null)
+                                selectedClip.importKeyframes(this, keyframes);
+                            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+
+                        } catch (JsonParseException e) {
+                            new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                        }
+
+                    }
+
+                }
+            }
+    );
+    private ActivityResultLauncher<Intent> keyframesExportLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    Intent data = result.getData();
+                    // Check if multiple files are selected
+                    if(currentExportingKeyframes == null) return;
+                    IOHelper.writeToFile(
+                            this,
+                            getContentResolver(),
+                            data.getData(),
+                            GsonHelper.createExposeOnlyGson().toJson(currentExportingKeyframes));
+                    currentExportingKeyframes = null;
+                }
+            }
+    );
     private ActivityResultLauncher<Intent> clipImportLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -643,6 +706,22 @@ public class EditingActivity extends AppCompatActivityImpl {
                 clip.deleteClip(timeline, this);
             }
         }
+    }
+    public void exportSingularKeyframesList(AnimatedProperty data)
+    {
+        currentExportingKeyframes = data;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType("application/json");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_TITLE, "export_keyframes_data.json");
+        keyframesExportLauncher.launch(Intent.createChooser(intent, "Select Export Keyframes Json Data File"));
+    }
+    public void importSingularKeyframesList()
+    {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("application/json");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        keyframesImportLauncher.launch(Intent.createChooser(intent, "Select Import Keyframes Json Data File"));
     }
     public void exportSingularClip(Clip data)
     {
@@ -1331,12 +1410,13 @@ public class EditingActivity extends AppCompatActivityImpl {
                 for (Clip clip : clips) {
                     if(clip != selectedClip)
                     {
-                        clearKeyframe(clip);
+                        clip.importKeyframes(this, selectedClip.keyframes);
 
-                        for (Keyframe keyframe : selectedClip.keyframes.keyframes) {
-                            addKeyframe(clip, keyframe);
-                        }
-
+//                        clearKeyframe(clip);
+//
+//                        for (Keyframe keyframe : selectedClip.keyframes.keyframes) {
+//                            addKeyframe(clip, keyframe);
+//                        }
                     }
                 }
             }
@@ -1612,6 +1692,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.setChecked(selectedClip.isLockedForTemplate());
             clipEditSpecificAreaScreen.reverseCheckbox.setChecked(selectedClip.isReverse());
 
+
             Keyframe k = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
             if(k != null) {
                 clipEditSpecificAreaScreen.easingSpinner.setSelection(clipEditSpecificAreaScreen.easingTypeArrayAdapter.getPosition(k.easing));
@@ -1650,6 +1731,21 @@ public class EditingActivity extends AppCompatActivityImpl {
                     clearKeyframe(selectedClip);
                 }
             });
+
+            clipEditSpecificAreaScreen.importKeyframesButton.setOnClickListener(v -> {
+                if(selectedClip != null) {
+                    importSingularKeyframesList();
+                }
+                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            });
+            clipEditSpecificAreaScreen.exportKeyframesButton.setOnClickListener(v -> {
+                if(selectedClip != null) {
+                    exportSingularKeyframesList(selectedClip.keyframes);
+                }
+                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            });
+
+
         });
 
 
@@ -3914,6 +4010,19 @@ public class EditingActivity extends AppCompatActivityImpl {
             setDuration(originalDuration - endClipTrim - startClipTrim);
         }
 
+        public void resetKeyframes(EditingActivity instance) {
+            instance.clearKeyframe(this);
+        }
+        public void addKeyframe(EditingActivity instance, Keyframe keyframe)
+        {
+            instance.addKeyframe(this, keyframe);
+        }
+        public void importKeyframes(EditingActivity instance, AnimatedProperty sourceProperty) {
+            resetKeyframes(instance);
+            for (Keyframe keyframe : sourceProperty.keyframes) {
+                addKeyframe(instance, keyframe);
+            }
+        }
     }
 
 
