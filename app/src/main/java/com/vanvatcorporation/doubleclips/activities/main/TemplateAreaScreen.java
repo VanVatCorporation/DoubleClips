@@ -490,7 +490,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
             holder.wholeView.setOnClickListener(v -> {
                 @SuppressLint("UnsafeOptInUsageError") Intent intent = new Intent(context, TemplatePreviewActivity.class);
-                TemplateData[] dataList = Arrays.copyOfRange(templateListFull.toArray(new TemplateData[0]), position, templateListFull.size());
+                TemplateData[] dataList = Arrays.copyOfRange(templateListDisplay.toArray(new TemplateData[0]), position, templateListDisplay.size());
                 intent.putExtra("TemplateDataList", dataList);
                 context.startActivity(intent);
             });
