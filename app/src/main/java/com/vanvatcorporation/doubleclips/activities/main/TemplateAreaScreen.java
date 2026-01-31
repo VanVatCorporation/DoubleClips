@@ -147,6 +147,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
                     for (TemplateData data : serverData) {
                         addTemplate(data);
                     }
+
+                    templateAdapter.getFilter().filter(searchView.getQuery());
                     templateSwipeRefreshLayout.setRefreshing(false);
                 });
             }
@@ -400,10 +402,12 @@ public class TemplateAreaScreen extends BaseAreaScreen {
                 return results;
             }
 
+
+            @SuppressWarnings({"unchecked", "rawtypes"})
             @Override
             protected void publishResults(CharSequence constraint, FilterResults results) {
                 templateListDisplay.clear();
-                templateListDisplay.addAll((List) results.values);
+                templateListDisplay.addAll((List)results.values);
                 notifyDataSetChanged();
             }
         };
