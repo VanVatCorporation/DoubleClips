@@ -90,7 +90,7 @@
                 <ImageView
                     android:layout_width="15dp"
                     android:layout_height="15dp"
-                    android:layout_marginStart="10dp"
+                    android:layout_marginStart="5dp"
                     android:src="@drawable/baseline_favorite_24"/>
                 <TextView
                     android:id="@+id/heartCount"
@@ -103,7 +103,7 @@
                 <ImageView
                     android:layout_width="15dp"
                     android:layout_height="15dp"
-                    android:layout_marginStart="10dp"
+                    android:layout_marginStart="5dp"
                     android:src="@drawable/baseline_web_stories_24"/>
                 <TextView
                     android:id="@+id/useCount"

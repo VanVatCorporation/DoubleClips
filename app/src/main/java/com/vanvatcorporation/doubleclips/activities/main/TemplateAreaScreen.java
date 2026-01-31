@@ -8,7 +8,10 @@ import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Filter;
+import android.widget.Filterable;
 import android.widget.ImageView;
+import android.widget.SearchView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -19,7 +22,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.TemplatePreviewActivity;
-import com.vanvatcorporation.doubleclips.externalUtils.Random;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
 import com.vanvatcorporation.doubleclips.helper.NumberHelper;
@@ -30,15 +32,17 @@ import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import javax.net.ssl.HttpsURLConnection;
 
 public class TemplateAreaScreen extends BaseAreaScreen {
-    public List<TemplateData> templateList;
+    public SearchView searchView;
     public RecyclerView templateRecyclerView;
     public TemplateDataAdapter templateAdapter;
     public SwipeRefreshLayout templateSwipeRefreshLayout;
@@ -66,6 +70,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
     public void init() {
         super.init();
 
+        searchView = findViewById(R.id.searchView);
         templateRecyclerView = findViewById(R.id.templateRecyclerView);
         templateSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
@@ -77,9 +82,23 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         templateRecyclerView.setLayoutManager(layoutManager);
 
 
-        templateList = new ArrayList<>();
-        templateAdapter = new TemplateDataAdapter(getContext(), templateList);
+        templateAdapter = new TemplateDataAdapter(getContext());
         templateRecyclerView.setAdapter(templateAdapter);
+
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                templateAdapter.getFilter().filter(query);
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                templateAdapter.getFilter().filter(newText);
+                return false;
+            }
+        });
 
         templateSwipeRefreshLayout.setOnRefreshListener(this::reloadingProject);
 
@@ -92,8 +111,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
     public void addTemplate(TemplateData data)
     {
-        templateList.add(data);
-        templateAdapter.notifyItemInserted(templateList.size() - 1);
+        templateAdapter.add(data);
+        templateAdapter.notifyItemInserted(templateAdapter.templateListDisplay.size() - 1);
     }
 
     public void fetchTemplate() {
@@ -145,10 +164,12 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
     public void reloadingProject()
     {
-        templateList.clear();
+        templateAdapter.clear();
         templateAdapter.notifyDataSetChanged();
         fetchTemplate();
 
+//        addTemplate(new TemplateData("viet", "0", "TitleTest", "Testing purpose", "cc", "https://www.google.com", "https://www.google.com", 100, 100, 10, new String[0]));
+//        templateSwipeRefreshLayout.setRefreshing(false);
 
 //        projectList.clear();
 //        projectAdapter.notifyDataSetChanged();
@@ -202,6 +223,10 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private int heartCount;
         private TemplateComment[] comments = new TemplateComment[0];
         private int bookmarkCount;
+
+
+        private transient Bitmap cacheThumbnailBitmap;
+        private transient Bitmap cacheAuthorAvatarBitmap;
 
         public TemplateData(String templateAuthor, String templateId, String templateTitle, String templateDescription, String ffmpegCommand, String templateSnapshotLink, String templateVideoLink, long templateTimestamp, long templateDuration, int templateTotalClip, String[] additionalResourceName) {
             this.templateAuthor = templateAuthor;
@@ -273,6 +298,46 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             return "/" + templateAuthor + "/" + templateId;
         }
 
+        public Bitmap getCacheThumbnailBitmap(Context context) throws ExecutionException, InterruptedException {
+            if(cacheThumbnailBitmap == null)
+            {
+                Future<Bitmap> bitmapFuture = Executors.newSingleThreadExecutor().submit(() -> {
+                    try {
+                        Bitmap thumbnailBitmap = ImageHelper.getImageBitmapFromNetwork(context, getTemplateSnapshotLink());
+
+                        cacheThumbnailBitmap = thumbnailBitmap;
+                        return thumbnailBitmap;
+                    } catch (Exception e) {
+                        LoggingManager.LogExceptionToNoteOverlay(context, e);
+                        return null;
+                    }
+                });
+
+                return bitmapFuture.get();
+            }
+            else return cacheThumbnailBitmap;
+        }
+
+        public Bitmap getCacheAuthorAvatarBitmap(Context context) throws ExecutionException, InterruptedException {
+            if(cacheAuthorAvatarBitmap == null)
+            {
+                Future<Bitmap> bitmapFuture = Executors.newSingleThreadExecutor().submit(() -> {
+                    try {
+                        Bitmap thumbnailBitmap = ImageHelper.getImageBitmapFromNetwork(context, "https://account.vanvatcorp.com/viet2007ht/avatar.png");
+
+                        cacheAuthorAvatarBitmap = thumbnailBitmap;
+                        return thumbnailBitmap;
+                    } catch (Exception e) {
+                        LoggingManager.LogExceptionToNoteOverlay(context, e);
+                        return null;
+                    }
+                });
+
+                return bitmapFuture.get();
+            }
+            else return cacheAuthorAvatarBitmap;
+        }
+
 
         public void setTemplateDuration(long amount) {
             templateDuration = amount;
@@ -298,17 +363,52 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         }
 
     }
-    public class TemplateDataAdapter extends RecyclerView.Adapter<TemplateDataViewHolder>
+    public class TemplateDataAdapter extends RecyclerView.Adapter<TemplateDataViewHolder> implements Filterable
     {
 
-        private List<TemplateData> templateList;
+        public List<TemplateData> templateListFull = new ArrayList<>();
+        private List<TemplateData> templateListDisplay = new ArrayList<>();
         private Context context;
 
         // Constructor
-        public TemplateDataAdapter(Context context, List<TemplateData> templateList) {
+        public TemplateDataAdapter(Context context) {
             this.context = context;
-            this.templateList = templateList;
         }
+
+
+        @Override
+        public Filter getFilter() {
+            return filter;
+        }
+
+        private Filter filter = new Filter() {
+            @Override
+            protected FilterResults performFiltering(CharSequence constraint) {
+                List<TemplateData> filteredList = new ArrayList<>();
+                if (constraint == null || constraint.length() == 0) {
+                    filteredList.addAll(templateListFull);
+                } else {
+                    String filterPattern = constraint.toString().toLowerCase().trim();
+                    for (TemplateData item : templateListFull) {
+                        if (item.getTemplateTitle().toLowerCase().contains(filterPattern)) {
+                            filteredList.add(item);
+                        }
+                    }
+                }
+                FilterResults results = new FilterResults();
+                results.values = filteredList;
+                return results;
+            }
+
+            @Override
+            protected void publishResults(CharSequence constraint, FilterResults results) {
+                templateListDisplay.clear();
+                templateListDisplay.addAll((List) results.values);
+                notifyDataSetChanged();
+            }
+        };
+
+
         @Override
         public TemplateDataViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(context).inflate(R.layout.cpn_template_element, parent, false);
@@ -318,7 +418,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         @Override
         public void onBindViewHolder(@NonNull TemplateDataViewHolder holder, int position) {
 
-            TemplateData projectItem = templateList.get(position);
+            TemplateData projectItem = templateListDisplay.get(position);
 
             holder.templateTitle.setText(projectItem.getTemplateTitle());
             holder.templateTitle.setOnClickListener(v -> {
@@ -327,11 +427,10 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
-                    Bitmap thumbnailBitmap = ImageHelper.getImageBitmapFromNetwork(context, projectItem.getTemplateSnapshotLink());
-
-                    if(thumbnailBitmap != null)
-                    {
-                        holder.wholeView.post(() -> {
+                    Bitmap thumbnailBitmap = projectItem.getCacheThumbnailBitmap(context);
+                    holder.wholeView.post(() -> {
+                        if(thumbnailBitmap != null)
+                        {
                             holder.templatePreview.setImageBitmap(thumbnailBitmap);
                             int targetWidth = holder.wholeView.getWidth();
 
@@ -350,11 +449,16 @@ public class TemplateAreaScreen extends BaseAreaScreen {
                             imageDimension.width = res[0];
                             imageDimension.height = res[1];
                             holder.templatePreview.setLayoutParams(imageDimension);
-                        });
-                    }
+                        }
+
+                    });
+
+
                 } catch (Exception e) {
                     LoggingManager.LogExceptionToNoteOverlay(context, e);
                 }
+
+
             });
 
 
@@ -372,7 +476,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
-                    Bitmap avatarBitmap = ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/viet2007ht/avatar.png");
+                    Bitmap avatarBitmap = projectItem.getCacheAuthorAvatarBitmap(context);
 
                     if(avatarBitmap != null)
                     {
@@ -386,7 +490,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
             holder.wholeView.setOnClickListener(v -> {
                 @SuppressLint("UnsafeOptInUsageError") Intent intent = new Intent(context, TemplatePreviewActivity.class);
-                intent.putExtra("TemplateData", projectItem);
+                TemplateData[] dataList = Arrays.copyOfRange(templateListFull.toArray(new TemplateData[0]), position, templateListFull.size());
+                intent.putExtra("TemplateDataList", dataList);
                 context.startActivity(intent);
             });
             holder.wholeView.setOnLongClickListener(v -> {
@@ -397,7 +502,17 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
         @Override
         public int getItemCount() {
-            return templateList.size();
+            return templateListDisplay.size();
+        }
+
+        public void clear() {
+            templateListFull.clear();
+            templateListDisplay.clear();
+        }
+
+        public void add(TemplateData data) {
+            templateListFull.add(data);
+            templateListDisplay.add(data);
         }
     }
     public static class TemplateDataViewHolder extends RecyclerView.ViewHolder {
