@@ -4,8 +4,10 @@ import android.content.Context;
 
 import com.vanvatcorporation.doubleclips.R;
 
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 
 public class DateHelper {
 
@@ -62,4 +64,7 @@ public class DateHelper {
         return String.format("%02d:%02d", minutes, secs);
     }
 
+    public static String convertTimestampToDateTimeStringFormat(long projectTimestamp) {
+        return new SimpleDateFormat("dd/MM/yyyy hh:mm", Locale.getDefault()).format(new Date(projectTimestamp));
+    }
 }

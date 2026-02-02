@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:layout_marginStart="25dp"
+    android:layout_marginEnd="25dp">
+    <com.google.android.material.imageview.ShapeableImageView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+
+        android:layout_alignParentTop="true"
+        android:layout_alignBottom="@id/commentContentText"
+
+        android:background="@color/colorPalette1_4"
+
+        app:strokeColor="@color/colorGlassBackground"
+        app:strokeWidth="1dp"
+        app:shapeAppearanceOverlay="@style/roundedImageView"/>
+
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/commenterAvatar"
+        android:layout_width="35dp"
+        android:layout_height="35dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:scaleType="centerCrop"
+
+
+        android:background="@color/colorGlassBackground"
+
+        app:strokeColor="@color/colorPrimaryBackground"
+        app:shapeAppearanceOverlay="@style/rounded4pxImageView"/>
+
+    <TextView
+        android:id="@+id/commenterText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="0dp"
+        android:layout_toEndOf="@id/commenterAvatar"
+        android:layout_alignTop="@id/commenterAvatar"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="\@viet2007ht" />
+    <TextView
+        android:id="@+id/commentDate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="0dp"
+        android:layout_toEndOf="@id/commenterText"
+        android:layout_alignTop="@id/commenterAvatar"
+        android:layout_alignBottom="@id/commenterText"
+        android:layout_toStartOf="@id/moreButton"
+        android:gravity="center|start"
+        android:textSize="12sp"
+        android:textStyle="italic"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="23w ago" />
+
+    <ImageButton
+        android:id="@+id/moreButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/baseline_menu_24"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignTop="@id/commenterAvatar"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="More options" />
+
+
+    <TextView
+        android:id="@+id/commentContentText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="0dp"
+        android:textSize="12sp"
+        android:layout_below="@id/commenterAvatar"
+        android:layout_toStartOf="@id/moreButton"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="Lorem itsumef dfskdjfnksjdgnksdjfksjfksdjajknfksdjfnksjdnfksdn\n\n\n\n\n\nfkjsndfkjsdnfksjdnfksjdnfksjdnfksjdnfksjdfnjk" />
+
+    <RelativeLayout
+        android:id="@+id/heartArea"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_toEndOf="@id/commentContentText"
+        android:layout_alignParentEnd="true"
+        android:layout_below="@id/moreButton"
+        android:layout_alignBottom="@id/commentContentText">
+
+
+        <ImageButton
+            android:id="@+id/heartButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="#00000000"
+            android:src="@drawable/baseline_favorite_border_24" />
+
+        <TextView
+            android:id="@+id/heartCount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/heartButton"
+            android:gravity="center"
+            android:textSize="12sp"
+            android:text="15k" />
+
+
+    </RelativeLayout>
+
+
+
+</RelativeLayout>

@@ -1,5 +1,7 @@
 package com.vanvatcorporation.doubleclips.activities;
 
+import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -8,8 +10,10 @@ import android.view.LayoutInflater;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -32,20 +36,39 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.ExoPlayerExtended;
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
+import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
+import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 @UnstableApi
 public class TemplatePreviewActivity extends AppCompatActivityImpl {
@@ -57,12 +80,20 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     ProgressBar mediaLoadingIcon;
     ImageView mediaPausedIcon, mediaPlaybackErrorIcon;
 
+    RelativeLayout commentLayout;
+    CommentsAreaScreen commentsAreaScreen;
+
 
 
     private static SimpleCache simpleCache;
     public static SimpleCache getSimpleCache() {
         return simpleCache;
     }
+
+
+    OkHttpClient httpsClient = new OkHttpClient();
+
+
 
 
     @Override
@@ -90,6 +121,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         mediaPausedIcon = findViewById(R.id.mediaPausedIcon);
         mediaPlaybackErrorIcon = findViewById(R.id.mediaPlaybackErrorIcon);
 
+        commentLayout = findViewById(R.id.commentLayout);
+
 
         mediaViewPager = findViewById(R.id.mediaViewPager);
 
@@ -114,7 +147,36 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             finish();
         });
 
+        setupSpecificEdit();
     }
+
+
+    private void setupSpecificEdit() {
+
+
+        // ===========================       COMMENT ZONE       ====================================
+        commentsAreaScreen = (CommentsAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_template_comments, null);
+        commentLayout.addView(commentsAreaScreen);
+        // ===========================       COMMENT ZONE       ====================================
+
+
+        // ===========================       COMMENT ZONE       ====================================
+
+        commentsAreaScreen.onClose.add(() -> {
+
+
+        });
+        commentsAreaScreen.onOpen.add(() -> {
+            TemplateAreaScreen.TemplateData data = adapter.getTemplateData(mediaViewPager.getCurrentItem());
+            commentsAreaScreen.fetchComments(data);
+        });
+
+
+        // ===========================       COMMENT ZONE       ====================================
+
+
+    }
+
 
 
     void adjustMaximumAspectRatio(int width, int height, SurfaceView previewSurfaceView)
@@ -310,6 +372,69 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
 
 
+    public void postToggleLike(String templateId, RunnableImpl runnable)
+    {
+        try {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("templateId", templateId);
+            postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-like", jsonObject.toString(), runnable);
+        } catch (JSONException e) {
+            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+        }
+    }
+    public void postToggleBookmark(String templateId, RunnableImpl runnable)
+    {
+        try {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("templateId", templateId);
+            postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-bookmark", jsonObject.toString(), runnable);
+        } catch (JSONException e) {
+            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+        }
+    }
+
+    private void postJson(String url, String json, RunnableImpl runnable) {
+        // Create request body
+        RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+
+        // Build request
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        // Execute asynchronously (important for Android)
+        httpsClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    if (!response.isSuccessful()) {
+                        LoggingManager.LogToToast(TemplatePreviewActivity.this, "Error: " + response.code());
+                    } else {
+                        // Read response body
+                        String responseData = response.body().string();
+                        //LoggingManager.LogToToast(TemplatePreviewActivity.this, responseData);
+                        if(runnable != null)
+                        {
+                            runnable.runWithParam(responseData);
+                        }
+                    }
+                } finally {
+                    response.close();
+                }
+            }
+        });
+    }
+
+
+
 
 
 
@@ -364,8 +489,58 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             holder.replacementClipCount.setText("" + data.getTemplateClipCount());
 
             holder.heartCount.setText("" + data.getHeartCount());//NumberHelper.abbreviateNumber(Random.Range(1, 80000000))); // data.clipCount
-            holder.commentCount.setText("0");// + data.getComments().length);//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
+            holder.commentCount.setText("" + data.getComments().size());//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
             holder.bookmarkCount.setText("" + data.getBookmarkCount());//NumberHelper.abbreviateNumber(Random.Range(1, 500000))); // data.clipCount
+
+            holder.heartButton.setOnClickListener(v -> {
+
+                postToggleLike(data.getTemplateId(), new RunnableImpl() {
+
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        try {
+                            boolean isLike = new JSONObject((String) param).getBoolean("isLiked");
+
+                            data.setHeartCount(data.getHeartCount() + (isLike ? 1 : -1));
+                            holder.heartCount.setText("" + data.getHeartCount());
+                            holder.heartButton.setImageResource(isLike ? R.drawable.baseline_favorite_24 : R.drawable.baseline_favorite_border_24);
+                        } catch (JSONException e) {
+                            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+                        }
+                    }
+                });
+
+                // TODO: Send request to server. POST /heart/{templateId}, send accountUsername along with its password
+                //  server check in database if user has hearted the templateId, then it will decide user has
+                //  already hearted the template or not to remove or add heart accordingly.
+                //  For template database, save the heartCount. For user, save the list of heartTemplate in templateId
+                //  .
+                //  The same goes to bookmark.
+            });
+            holder.commentButton.setOnClickListener(v -> {
+                commentsAreaScreen.open();
+//                data.getComments().add(new TemplateAreaScreen.TemplateData.TemplateComment());
+//                holder.commentCount.setText("" + data.getComments().size());
+
+            });
+            holder.bookmarkButton.setOnClickListener(v -> {
+
+                postToggleBookmark(data.getTemplateId(), new RunnableImpl() {
+
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        try {
+                            boolean isBookmark = new JSONObject((String) param).getBoolean("isBookmarked");
+
+                            data.setBookmarkCount(data.getBookmarkCount() + (isBookmark ? 1 : -1));
+                            holder.bookmarkCount.setText("" + data.getBookmarkCount());
+                            holder.bookmarkButton.setImageResource(isBookmark ? R.drawable.baseline_bookmark_24 : R.drawable.baseline_bookmark_border_24);
+                        } catch (JSONException e) {
+                            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+                        }
+                    }
+                });
+            });
 
 
             holder.previewSurfaceView.setOnClickListener(v -> {
@@ -402,6 +577,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             SurfaceView previewSurfaceView;
             TextView usernameText, replacementClipCount, durationClipCount;
             TextView heartCount, commentCount, bookmarkCount;
+            ImageButton heartButton, commentButton, bookmarkButton;
 
             public VideoViewHolder(@NonNull View itemView) {
                 super(itemView);
@@ -413,6 +589,10 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                 heartCount = itemView.findViewById(R.id.heartCount);
                 commentCount = itemView.findViewById(R.id.commentCount);
                 bookmarkCount = itemView.findViewById(R.id.bookmarkCount);
+
+                heartButton = itemView.findViewById(R.id.heartButton);
+                commentButton = itemView.findViewById(R.id.commentButton);
+                bookmarkButton = itemView.findViewById(R.id.bookmarkButton);
 
 
             }

@@ -223,26 +223,26 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private int viewCount;
         private int useCount;
         private int heartCount;
-        private TemplateComment[] comments = new TemplateComment[0];
+        private ArrayList<TemplateComment> comments = new ArrayList<>();
         private int bookmarkCount;
 
 
         private transient Bitmap cacheThumbnailBitmap;
         private transient Bitmap cacheAuthorAvatarBitmap;
 
-        public TemplateData(String templateAuthor, String templateId, String templateTitle, String templateDescription, String ffmpegCommand, String templateSnapshotLink, String templateVideoLink, long templateTimestamp, long templateDuration, int templateTotalClip, String[] additionalResourceName) {
-            this.templateAuthor = templateAuthor;
-            this.templateId = templateId;
-            this.templateTitle = templateTitle;
-            this.templateDescription = templateDescription;
-            this.ffmpegCommand = ffmpegCommand;
-            this.templateSnapshotLink = templateSnapshotLink;
-            this.templateVideoLink = templateVideoLink;
-            this.templateTimestamp = templateTimestamp;
-            this.templateDuration = templateDuration;
-            this.templateTotalClip = templateTotalClip;
-            this.additionalResourceName = additionalResourceName;
-        }
+//        public TemplateData(String templateAuthor, String templateId, String templateTitle, String templateDescription, String ffmpegCommand, String templateSnapshotLink, String templateVideoLink, long templateTimestamp, long templateDuration, int templateTotalClip, String[] additionalResourceName) {
+//            this.templateAuthor = templateAuthor;
+//            this.templateId = templateId;
+//            this.templateTitle = templateTitle;
+//            this.templateDescription = templateDescription;
+//            this.ffmpegCommand = ffmpegCommand;
+//            this.templateSnapshotLink = templateSnapshotLink;
+//            this.templateVideoLink = templateVideoLink;
+//            this.templateTimestamp = templateTimestamp;
+//            this.templateDuration = templateDuration;
+//            this.templateTotalClip = templateTotalClip;
+//            this.additionalResourceName = additionalResourceName;
+//        }
 
 
         public String getTemplateAuthor() {
@@ -288,7 +288,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         public int getHeartCount() {
             return heartCount;
         }
-        public TemplateComment[] getComments() {
+        public ArrayList<TemplateComment> getComments() {
+            if(comments == null) comments = new ArrayList<>();
             return comments;
         }
         public int getBookmarkCount() {
@@ -347,15 +348,21 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         public void setFfmpegCommand(String cmd) {
             ffmpegCommand = cmd;
         }
-
-
-
-
-
-
+        public void setHeartCount(int amount) {
+            heartCount = amount;
+        }
+        public void addComment(TemplateComment comment) {
+            comments.add(comment);
+        }
+        public void setBookmarkCount(int amount) {
+            bookmarkCount = amount;
+        }
 
 
         public static class TemplateComment {
+            public String username;
+            public String content;
+            public long commentTimestamp;
             public int heartCount;
             TemplateComment[] replies;
 

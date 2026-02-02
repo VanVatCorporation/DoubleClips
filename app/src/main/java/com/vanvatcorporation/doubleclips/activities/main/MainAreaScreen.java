@@ -385,7 +385,7 @@ public class MainAreaScreen extends BaseAreaScreen {
 
             holder.projectTitle.setText(projectItem.getProjectTitle());
             //holder.projectDatetime.setText(new Date(projectItem.getProjectTimestamp()).toString());
-            holder.projectDatetime.setText(new SimpleDateFormat("dd/MM/yyyy hh:mm", Locale.getDefault()).format(new Date(projectItem.getProjectTimestamp())));
+            holder.projectDatetime.setText(DateHelper.convertTimestampToDateTimeStringFormat(projectItem.getProjectTimestamp()));
             holder.projectSize.setText(StringFormatHelper.smartRound((projectItem.getProjectSize() / 1024d / 1024d), 2, true) + "MB");
             holder.projectDuration.setText(DateHelper.convertTimestampToHHMMSSFormat(projectItem.getProjectDuration()));
 
