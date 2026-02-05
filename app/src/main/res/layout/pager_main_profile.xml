@@ -147,11 +147,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/settings_account_statistics"/>
+                    <Button
+                        android:id="@+id/savedTemplateButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_account_saved_templates"/>
 
                     <Button
                         android:id="@+id/logOutButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:backgroundTint="@color/red"
                         android:text="@string/settings_account_log_out"/>
 
 

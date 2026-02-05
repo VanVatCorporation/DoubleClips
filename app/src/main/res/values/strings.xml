@@ -85,6 +85,7 @@
     <string name="template_recommended">Recommended</string>
     <string name="settings_group_account">Account</string>
     <string name="settings_account_statistics">Statistics</string>
+    <string name="settings_account_saved_templates">Saved Templates</string>
     <string name="settings_account_log_out">Log out</string>
     <string name="settings_account_sign_in">Sign in</string>
 </resources>

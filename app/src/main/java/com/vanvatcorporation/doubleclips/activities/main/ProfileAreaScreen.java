@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities.main;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.util.AttributeSet;
@@ -36,6 +37,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
     ShapeableImageView profileAvatarImage;
 
     RelativeLayout signInScreen;
+    Button logOutButton;
 
 
 
@@ -73,19 +75,22 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             Intent intent = new Intent(getContext(), LoginActivity.class);
             getContext().startActivity(intent);
         });
-        findViewById(R.id.logOutButton).setOnClickListener(v -> {
-            if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
-                AuthRepository.getInstance(getContext()).logout(new AuthRepository.AuthCallback<Void>() {
-                    @Override
-                    public void onSuccess(Void data) {
-                        reloadingPage();
-                    }
+        logOutButton = findViewById(R.id.logOutButton);
+        logOutButton.setOnClickListener(v -> {
+            new AlertDialog.Builder(getContext()).setTitle("Log out").setMessage("Are you sure you want to log out?").setPositiveButton("Yes", (dialog, which) -> {
+                if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
+                    AuthRepository.getInstance(getContext()).logout(new AuthRepository.AuthCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void data) {
+                            reloadingPage();
+                        }
 
-                    @Override
-                    public void onError(String message) {
-                        reloadingPage();
-                    }
-                });
+                        @Override
+                        public void onError(String message) {
+                            reloadingPage();
+                        }
+                    });
+            }).setNegativeButton("No", null).show();
         });
 
         profileSwipeRefreshLayout.setOnRefreshListener(this::reloadingPage);
@@ -99,6 +104,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         {
             profileNameText.setText(AuthRepository.getInstance(getContext()).getCurrentUser().getUsername());
             ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com" + AuthRepository.getInstance(getContext()).getCurrentUser().getAvatarUrl(), profileAvatarImage);
+            logOutButton.setEnabled(true);
 
             signInScreen.setVisibility(View.GONE);
         }
@@ -106,6 +112,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         {
             profileNameText.setText("Log in to see your profile.");
             profileAvatarImage.setImageBitmap(ImageHelper.createTransparentBitmap(100, 100));
+            logOutButton.setEnabled(false);
 
             signInScreen.setVisibility(View.VISIBLE);
         }
