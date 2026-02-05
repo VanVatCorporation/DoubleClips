@@ -34,6 +34,7 @@ public class LoginActivity extends AppCompatActivity {
             public void onSuccess(User user) {
                 Toast.makeText(LoginActivity.this, "Welcome back, " + user.getUsername(), Toast.LENGTH_LONG).show();
                 // Navigate to Main Activity...
+                finish();
             }
 
             @Override
@@ -54,6 +55,7 @@ public class LoginActivity extends AppCompatActivity {
                     public void onSuccess(User user) {
                         Toast.makeText(LoginActivity.this, "Login Success!", Toast.LENGTH_SHORT).show();
                         // Navigate to Main Activity...
+                        finish();
                     }
 
                     @Override

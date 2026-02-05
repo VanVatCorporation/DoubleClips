@@ -473,7 +473,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             });
 
 
-            holder.authorTitle.setText("@viet2007ht");
+            holder.authorTitle.setText("@" + projectItem.templateAuthor);
             holder.authorTitle.setOnClickListener(v -> {
                 // TODO: Author profile destination.
 //                holder.wholeView.performClick();

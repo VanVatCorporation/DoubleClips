@@ -14,6 +14,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -37,7 +39,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.arthenica.ffmpegkit.Log;
 import com.arthenica.ffmpegkit.Statistics;
 import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.AdsHandler;
@@ -49,6 +50,9 @@ import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.User;
 import com.vanvatcorporation.doubleclips.ext.rajawali.RajawaliExample;
 import com.vanvatcorporation.doubleclips.helper.CompressionHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
@@ -106,6 +110,22 @@ public class MainActivity extends AppCompatActivityImpl {
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
+        // Check if already logged in
+        AuthRepository.getInstance(this).checkSession(new AuthRepository.AuthCallback<User>() {
+            @Override
+            public void onSuccess(User user) {
+                // Navigate to Main Activity...
+                LoggingManager.LogToToast(MainActivity.this, "Logged in as " + user.getUsername());
+
+                profileAreaScreen.reloadingPage();
+            }
+
+            @Override
+            public void onError(String message) {
+                // Not logged in, stay on login screen
+                Log.d("Auth", "Session check: " + message);
+            }
+        });
         // Notification Stuff
         NotificationHelper.createNotificationChannel(this);
 

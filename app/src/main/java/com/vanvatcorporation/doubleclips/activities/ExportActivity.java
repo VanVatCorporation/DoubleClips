@@ -35,6 +35,7 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
 import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
@@ -387,7 +388,7 @@ public class ExportActivity extends AppCompatActivityImpl {
             ffmpegCommand = generateCmdFull(this, renderSettings);
 
             Map<String, String> field = new HashMap<>();
-            field.put("accountUsername", "viet2007ht");
+            field.put("accountUsername", AuthRepository.getInstance(this).getCurrentUser().getUsername());
             field.put("accountPassword", "********");
             field.put("templateTitle", properties.getProjectTitle());
             field.put("templateDescription", properties.getProjectTitle());

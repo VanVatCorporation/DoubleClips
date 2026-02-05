@@ -42,6 +42,7 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
@@ -377,9 +378,13 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
     public void postToggleLike(String templateId, RunnableImpl runnable)
     {
+        if(AuthRepository.getInstance(this).getCurrentUser() == null) {
+            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to like this template").create().show();
+            return;
+        }
         try {
             JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("username", AuthRepository.getInstance(this).getCurrentUser().getUsername());
             jsonObject.put("templateId", templateId);
             postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-like", jsonObject.toString(), runnable);
         } catch (JSONException e) {
@@ -388,9 +393,13 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     }
     public void postToggleBookmark(String templateId, RunnableImpl runnable)
     {
+        if(AuthRepository.getInstance(this).getCurrentUser() == null) {
+            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to bookmark this template").create().show();
+            return;
+        }
         try {
             JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("username", AuthRepository.getInstance(this).getCurrentUser().getUsername());
             jsonObject.put("templateId", templateId);
             postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-bookmark", jsonObject.toString(), runnable);
         } catch (JSONException e) {
@@ -401,7 +410,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     {
         try {
             JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("username", "viet2007ht");
             jsonObject.put("templateId", templateId);
             postJson("https://app.vanvatcorp.com/doubleclips/api/seen-template", jsonObject.toString(), runnable);
         } catch (JSONException e) {

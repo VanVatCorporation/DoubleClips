@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -18,6 +19,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.SettingsActivity;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
 import com.vanvatcorporation.doubleclips.externalUtils.Random;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
@@ -32,6 +34,8 @@ public class ProfileAreaScreen extends BaseAreaScreen {
 
     TextView profileNameText;
     ShapeableImageView profileAvatarImage;
+
+    RelativeLayout signInScreen;
 
 
 
@@ -59,6 +63,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         profileSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         profileNameText = findViewById(R.id.profileName);
         profileAvatarImage = findViewById(R.id.profileAvatarImage);
+        signInScreen = findViewById(R.id.signInScreen);
 
         findViewById(R.id.settingsButton).setOnClickListener(v -> {
             Intent intent = new Intent(getContext(), SettingsActivity.class);
@@ -68,6 +73,20 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             Intent intent = new Intent(getContext(), LoginActivity.class);
             getContext().startActivity(intent);
         });
+        findViewById(R.id.logOutButton).setOnClickListener(v -> {
+            if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
+                AuthRepository.getInstance(getContext()).logout(new AuthRepository.AuthCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void data) {
+                        reloadingPage();
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        reloadingPage();
+                    }
+                });
+        });
 
         profileSwipeRefreshLayout.setOnRefreshListener(this::reloadingPage);
 
@@ -76,8 +95,20 @@ public class ProfileAreaScreen extends BaseAreaScreen {
 
     public void reloadingPage()
     {
-        profileNameText.setText("Van Vat Employee");
-        ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/api/avatar/784d4412-a6b8-5495-92b8-f2db74b338dd", profileAvatarImage);
+        if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
+        {
+            profileNameText.setText(AuthRepository.getInstance(getContext()).getCurrentUser().getUsername());
+            ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com" + AuthRepository.getInstance(getContext()).getCurrentUser().getAvatarUrl(), profileAvatarImage);
+
+            signInScreen.setVisibility(View.GONE);
+        }
+        else
+        {
+            profileNameText.setText("Log in to see your profile.");
+            profileAvatarImage.setImageBitmap(ImageHelper.createTransparentBitmap(100, 100));
+
+            signInScreen.setVisibility(View.VISIBLE);
+        }
 
         profileSwipeRefreshLayout.setRefreshing(false);
     }

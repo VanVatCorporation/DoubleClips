@@ -59,6 +59,15 @@ public class RetrofitClient {
         return retrofit.create(ApiService.class);
     }
 
+    public void clearCookies() {
+        if (retrofit.callFactory() instanceof OkHttpClient) {
+            CookieJar jar = ((OkHttpClient) retrofit.callFactory()).cookieJar();
+            if (jar instanceof PersistentCookieJar) {
+                ((PersistentCookieJar) jar).clear();
+            }
+        }
+    }
+
     /**
      * persistent CookieJar implementation using SharedPreferences
      */
@@ -73,6 +82,11 @@ public class RetrofitClient {
             this.sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
             this.gson = new Gson();
             loadCookies();
+        }
+
+        public void clear() {
+            cookieStore.clear();
+            sharedPreferences.edit().remove(COOKIE_KEY).apply();
         }
 
         @Override
