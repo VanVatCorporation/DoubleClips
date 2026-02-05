@@ -271,11 +271,13 @@ public class ExportActivity extends AppCompatActivityImpl {
     }
 
     private void generateCommand() {
-        String cmd = generateCmdFull(this, settings, timeline, properties, false);
+        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, false, false);
+        String cmd = generateCmdFull(this, renderSettings);
         commandText.setText(cmd);
     }
     private void generateTemplateCommand() {
-        String cmd = generateCmdFull(this, settings, timeline, properties, true);
+        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, false);
+        String cmd = generateCmdFull(this, renderSettings);
         commandText.setText(cmd);
     }
 
@@ -304,6 +306,18 @@ public class ExportActivity extends AppCompatActivityImpl {
                 new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
 
 
+
+        // Detect when the child layout changes size
+        logScroll.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (bottom - top != oldBottom - oldTop) {
+                // Size changed — force ScrollView to re-measure and update
+
+                if (scrollLockCheckbox.isChecked())
+                    logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+            }
+        });
+
+
         String[] cmdAfterSplit = cmd.split(Constants.DEFAULT_MULTI_FFMPEG_COMMAND_REGEX);
         for (int i = 0; i < cmdAfterSplit.length; i++) {
             String cmdEach = cmdAfterSplit[i];
@@ -319,8 +333,9 @@ public class ExportActivity extends AppCompatActivityImpl {
                                     if (logStr.length() > Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS && truncateCheckbox.isChecked())
                                         logStr = logStr.substring(logStr.length() - Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS);
                                     logText.setText(logStr);
-                                    if (scrollLockCheckbox.isChecked())
-                                        logScroll.fullScroll(View.FOCUS_DOWN);
+                                    // Already handled above.
+//                                    if (scrollLockCheckbox.isChecked())
+//                                        logScroll.fullScroll(View.FOCUS_DOWN);
                                 });
                             }
                         }
@@ -368,7 +383,8 @@ public class ExportActivity extends AppCompatActivityImpl {
             new File(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_EXPORT_CLIP_FILENAME))
                     .renameTo(new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
 
-            ffmpegCommand = generateCmdFull(this, settings, timeline, properties, true);
+            FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, false);
+            ffmpegCommand = generateCmdFull(this, renderSettings);
 
             Map<String, String> field = new HashMap<>();
             field.put("accountUsername", "viet2007ht");

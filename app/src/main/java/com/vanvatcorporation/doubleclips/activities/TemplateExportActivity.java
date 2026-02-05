@@ -7,6 +7,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
@@ -485,6 +487,17 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
 
             // Replace placeholder clip to the new selected clips according to the list
             cmd = cmd.replace("-i \"" + Constants.DEFAULT_TEMPLATE_CLIP_MARK(i), frameFilter + "-i \"" + clipData.clipPath);
+
+
+            // TODO: No extension for end video
+            float extendMediaDuration = 0;
+            float fillingTransitionDuration = 0;
+
+            String trimFilter =
+                            clipData.type == EditingActivity.ClipType.VIDEO ?
+                                    "trim=start=" + clipData.startClipTrim + ":end=" + (clipData.startClipTrim + clipData.duration + extendMediaDuration) :
+                                    "trim=duration=" + (clipData.duration + fillingTransitionDuration);
+            cmd = cmd.replace(Constants.DEFAULT_TEMPLATE_TRIM_MARK(i), trimFilter);
         }
         for (String resourceName : additionalResourcesName) {
             cmd = cmd.replace(Constants.DEFAULT_TEMPLATE_CLIP_STATIC_MARK(resourceName), IOHelper.CombinePath(
@@ -666,6 +679,15 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
         public Bitmap getClipThumbnail() {
             return clipThumbnail;
         }
+
+        public void destroy() {
+            clipPath = "";
+            startClipTrim = 0;
+            endClipTrim = 0;
+            duration = 0;
+            clipThumbnail = ImageHelper.createTransparentBitmap(1, 1);
+
+        }
     }
 
     public class ClipReplacementAdapter extends RecyclerView.Adapter<ClipReplacementViewHolder> {
@@ -692,7 +714,7 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
             int humanIndex = position + 1;
 
             holder.indexText.setText("" + humanIndex);
-            holder.clipPreview.setBackground(ImageHelper.createDrawableFromBitmap(getResources(), data.clipThumbnail));
+            holder.clipPreview.setImageBitmap(data.clipThumbnail);
 
             holder.wholeView.setOnClickListener(v -> {
                 currentlyChosenClipIndex = holder.getAbsoluteAdapterPosition();
@@ -725,8 +747,8 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
 
                                         IOHelper.deleteFile(clipList.get(position).clipPath);
 
-                                        clipList.get(position).clipPath = "";
-                                        holder.clipPreview.setImageResource(R.color.colorPalette1_4);
+                                        clipList.get(position).destroy();
+                                        holder.clipPreview.setImageBitmap(clipList.get(position).clipThumbnail);
 
 
                                     })

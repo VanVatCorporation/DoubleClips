@@ -10,12 +10,10 @@
         android:layout_height="match_parent"
         android:layout_margin="5dp"
 
-
-        android:background="@color/colorPalette1_4"
-
         app:shapeAppearanceOverlay="@style/roundedImageView"
         app:strokeColor="@color/colorSoftBlueBackground"
-        app:strokeWidth="1dp" />
+        app:strokeWidth="1dp"
+        android:scaleType="centerCrop"/>
     <TextView
         android:id="@+id/indexText"
         android:layout_width="match_parent"

@@ -67,4 +67,20 @@ dependencies {
     implementation files('libs/rajawali-1.2.1970.aar')
     implementation files('libs/IndicatorSeekbar.aar')
 
+
+
+    // Retrofit & OkHttp
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.9.0'
+
+    // Advanced Cookie Management
+    implementation 'com.squareup.okhttp3:okhttp-urlconnection:4.9.0'
+
+    // Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+
+    // Gson
+    implementation 'com.google.code.gson:gson:2.8.9'
 }

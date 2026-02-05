@@ -1482,7 +1482,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             transition.toClip = clipB;
             transition.startTime = clipB.startTime - transitionDuration / 2;
             transition.duration = transitionDuration;
-            transition.effect = new EffectTemplate("fade", transitionDuration, transition.startTime);
+            transition.effect = new EffectTemplate("none", transitionDuration, transition.startTime);
             transition.mode = TransitionClip.TransitionMode.OVERLAP;
             timeline.tracks.get(clipA.trackIndex).addTransition(transition);
 

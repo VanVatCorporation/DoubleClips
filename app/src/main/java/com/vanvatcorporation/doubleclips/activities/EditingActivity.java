@@ -1374,7 +1374,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(selectedClip != null) {
                 Clip cloneClip = new Clip(selectedClip);
                 cloneClip.startTime = selectedClip.startTime + selectedClip.duration;
-                addClipToTrack(selectedTrack, cloneClip);
+                if(selectedTrack != null)
+                    addClipToTrack(selectedTrack, cloneClip);
+                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
@@ -3359,6 +3361,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.isReverse = clip.isReverse;
             this.isLockedForTemplate = clip.isLockedForTemplate;
 
+            this.keyframes = new AnimatedProperty(clip.keyframes);
+
 
             if(clip.type == ClipType.TEXT)
             {
@@ -4083,7 +4087,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             trackIndex = clipA.trackIndex;
             startTime = clipB.startTime - transitionDuration / 2;
             duration = transitionDuration;
-            effect = new EffectTemplate("fade", transitionDuration, startTime);
+            effect = new EffectTemplate("none", transitionDuration, startTime);
             mode = TransitionClip.TransitionMode.OVERLAP;
         }
 
@@ -4092,7 +4096,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             trackIndex = clipA.trackIndex;
             startTime = 0;
             duration = 0;
-            effect = new EffectTemplate("fade", 0, startTime);
+            effect = new EffectTemplate("none", 0, startTime);
             mode = TransitionClip.TransitionMode.OVERLAP;
         }
 
@@ -4442,6 +4446,11 @@ frameRate = 60;
 
         @Expose
         public List<Keyframe> keyframes = new ArrayList<>();
+        public AnimatedProperty() {}
+
+        public AnimatedProperty(AnimatedProperty keyframes) {
+            this.keyframes.addAll(keyframes.keyframes);
+        }
 
         /**
          * Get keyframe at global clip time
@@ -5039,7 +5048,7 @@ frameRate = 60;
                     rot = rotation == -1 ? rot : rotation;
                     scaleX = sx == -1 ? scaleX : sx;
                     scaleY = sy == -1 ? scaleY : sy;
-                    opacity = opacity < 0 ? op : opacity;
+                    opacity = op < 0 ? opacity : op;
 
                     applyPostTransformation();
                     //applyPostMatrixTransformation();

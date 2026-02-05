@@ -18,6 +18,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.SettingsActivity;
+import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
 import com.vanvatcorporation.doubleclips.externalUtils.Random;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
 
@@ -64,7 +65,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             getContext().startActivity(intent);
         });
         findViewById(R.id.signInButton).setOnClickListener(v -> {
-            Intent intent = new Intent(getContext(), SettingsActivity.class);
+            Intent intent = new Intent(getContext(), LoginActivity.class);
             getContext().startActivity(intent);
         });
 
@@ -76,7 +77,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
     public void reloadingPage()
     {
         profileNameText.setText("Van Vat Employee");
-        ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/viet2007ht/avatar.png", profileAvatarImage);
+        ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/api/avatar/784d4412-a6b8-5495-92b8-f2db74b338dd", profileAvatarImage);
 
         profileSwipeRefreshLayout.setRefreshing(false);
     }

@@ -326,7 +326,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             {
                 Future<Bitmap> bitmapFuture = Executors.newSingleThreadExecutor().submit(() -> {
                     try {
-                        Bitmap thumbnailBitmap = ImageHelper.getImageBitmapFromNetwork(context, "https://account.vanvatcorp.com/viet2007ht/avatar.png");
+                        Bitmap thumbnailBitmap = ImageHelper.getImageBitmapFromNetwork(context, "https://account.vanvatcorp.com/api/avatar/9da1e7af-25f8-5543-8a56-5c69f8143e0f");
 
                         cacheAuthorAvatarBitmap = thumbnailBitmap;
                         return thumbnailBitmap;

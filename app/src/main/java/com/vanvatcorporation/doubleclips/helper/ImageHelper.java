@@ -11,6 +11,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
@@ -312,5 +313,12 @@ public class ImageHelper {
             LoggingManager.LogExceptionToNoteOverlay(context, e);
         }
         return null;
+    }
+
+    public static Bitmap createTransparentBitmap(int width, int height) {
+        Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(b);
+        canvas.drawColor(Color.TRANSPARENT); // Fills the entire bitmap with transparency
+        return b;
     }
 }

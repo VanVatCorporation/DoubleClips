@@ -280,6 +280,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                     exoPlayer.getThumbnailView().setVisibility(View.GONE);
                 }
 
+                // TODO: Research a way to register postSeen() on video completion/half completion.
+
             });
 
             exoPlayer.getExoPlayer().setAudioAttributes(
@@ -294,6 +296,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             // Prepare and play
             exoPlayer.getExoPlayer().prepare();
             exoPlayer.getExoPlayer().setPlayWhenReady(true);
+
 
         } catch (Exception e) {
             LoggingManager.LogExceptionToNoteOverlay(this, e);
@@ -390,6 +393,17 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             jsonObject.put("username", "vie2007ht");
             jsonObject.put("templateId", templateId);
             postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-bookmark", jsonObject.toString(), runnable);
+        } catch (JSONException e) {
+            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+        }
+    }
+    public void postSeenTemplate(String templateId, RunnableImpl runnable)
+    {
+        try {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("username", "vie2007ht");
+            jsonObject.put("templateId", templateId);
+            postJson("https://app.vanvatcorp.com/doubleclips/api/seen-template", jsonObject.toString(), runnable);
         } catch (JSONException e) {
             LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
         }
@@ -509,13 +523,6 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                         }
                     }
                 });
-
-                // TODO: Send request to server. POST /heart/{templateId}, send accountUsername along with its password
-                //  server check in database if user has hearted the templateId, then it will decide user has
-                //  already hearted the template or not to remove or add heart accordingly.
-                //  For template database, save the heartCount. For user, save the list of heartTemplate in templateId
-                //  .
-                //  The same goes to bookmark.
             });
             holder.commentButton.setOnClickListener(v -> {
                 commentsAreaScreen.open();
