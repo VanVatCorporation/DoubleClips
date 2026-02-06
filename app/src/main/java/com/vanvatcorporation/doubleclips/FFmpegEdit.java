@@ -737,8 +737,8 @@ public class FFmpegEdit {
 
                 .append(getConditionThree(
                         timeUnit,
-                        String.valueOf(prevKeyframe.getLocalTime()),
-                        String.valueOf(nextKeyframe.getLocalTime()), "~")
+                        String.valueOf(getTimeInTimebase(timeUnit, valueType, prevKeyframe, clip)),
+                        String.valueOf(getTimeInTimebase(timeUnit, valueType, nextKeyframe, clip)), "~")
                 ).append(",")
                 // insert the expr here
                 // previous: nextKeyframe.value.getValue(valueType)
@@ -754,9 +754,7 @@ public class FFmpegEdit {
         // Get global time for Speed as it use T as Timebase, global Time.
         return generateEasing(prevKey.value.getValue(type),
                 nextKey.value.getValue(type),
-                Objects.equals(timeUnit, "T") ?
-                        prevKey.getGlobalTime(clip) :
-                        prevKey.getLocalTime(),
+                getTimeInTimebase(timeUnit, type, prevKey, clip),
                 (nextKey.getLocalTime() - prevKey.getLocalTime()),
                 prevKey.easing,
                 timeUnit);
@@ -1080,6 +1078,17 @@ public class FFmpegEdit {
             default:
                 return "";
         }
+    }
+
+
+    public static float getTimeInTimebase(String timebase, EditingActivity.VideoProperties.ValueType type, EditingActivity.Keyframe keyframe, EditingActivity.Clip clip)
+    {
+        return Objects.equals(timebase, "T") ||
+                // PosX PosY (Overlay expr) the t is actually the T, which mean it take the global timebase
+                Objects.equals(type, EditingActivity.VideoProperties.ValueType.PosX) ||
+                Objects.equals(type, EditingActivity.VideoProperties.ValueType.PosY) ?
+                keyframe.getGlobalTime(clip) :
+                keyframe.getLocalTime();
     }
 
 
