@@ -277,7 +277,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         commandText.setText(cmd);
     }
     private void generateTemplateCommand() {
-        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, false);
+        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, true);
         String cmd = generateCmdFull(this, renderSettings);
         commandText.setText(cmd);
     }
@@ -335,8 +335,8 @@ public class ExportActivity extends AppCompatActivityImpl {
                                         logStr = logStr.substring(logStr.length() - Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS);
                                     logText.setText(logStr);
                                     // Already handled above.
-//                                    if (scrollLockCheckbox.isChecked())
-//                                        logScroll.fullScroll(View.FOCUS_DOWN);
+                                    if (scrollLockCheckbox.isChecked())
+                                        logScroll.fullScroll(View.FOCUS_DOWN);
                                 });
                             }
                         }

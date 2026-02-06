@@ -404,7 +404,7 @@ public class FFmpegEdit {
                                 .append("colortemperature=temperature='").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Temperature)).append("',")
                                 .append("zoompan=z=zoom*'").append(scaleXExpr).append("':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'").append(scaleZoompan).append(",")
                                 // TODO: Use geq is super slow. Research a better way, like only render affected frame.
-                                .append("format=yuva420p,geq=lum_expr='lum(X,Y)':a='").append(opacityExpr).append("',")
+                                .append("format=yuva420p,geq=r='r(X,Y)':a='alpha(X,Y)*").append(opacityExpr).append("',")
                                 .append("setpts='(PTS-STARTPTS)/").append(speedExpr).append("+").append(clip.startTime).append("/TB'").append(",");
                     } else {
                         // If possible then merge the keyframe to clip
