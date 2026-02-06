@@ -387,16 +387,16 @@ public class FFmpegEdit {
                         String brightnessExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.Brightness);
                         String temperatureExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.Temperature);
 
-                        String scaleXCmd = templateSettings.settings.isStretchToFull() ?
-                                String.valueOf(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)) :
-                                "iw*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
-                        String scaleYCmd = templateSettings.settings.isStretchToFull() ?
-                                String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
-                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX); // in the ih* here, it should be ValueType.ScaleY, but for the temporal scaling then it will be scaleX too
+//                        String scaleXCmd = templateSettings.settings.isStretchToFull() ?
+//                                String.valueOf(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)) :
+//                                "iw*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
+//                        String scaleYCmd = templateSettings.settings.isStretchToFull() ?
+//                                String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
+//                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX); // in the ih* here, it should be ValueType.ScaleY, but for the temporal scaling then it will be scaleX too
+//
+//                        String scaleZoompan = templateSettings.settings.isStretchToFull() ? ":s=" + scaleXCmd + "x" + scaleYCmd : "";
 
-                        String scaleZoompan = templateSettings.settings.isStretchToFull() ? ":s=" + scaleXCmd + "x" + scaleYCmd : "";
-
-                        filterComplex.append("scale=w='").append(scaleXCmd).append("':h='").append(scaleYCmd).append("',")
+                        filterComplex.append("scale=w='iw*").append(scaleXExpr).append("':h='ih*").append(scaleYExpr).append("':eval=frame,")
                                 //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
                                 .append("rotate='").append(rotationExpr).append("':ow=rotw('").append(rotationExpr).append("'):oh=roth('").append(rotationExpr).append("')")
                                 // TODO: FillColor is not applied yet. Add FillColor to each clip as "Background Fill Color".
@@ -405,7 +405,7 @@ public class FFmpegEdit {
                                 .append("':s='").append(saturationExpr)
                                 .append("':b='").append(brightnessExpr).append("',")
                                 .append("colortemperature=temperature='").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Temperature)).append("',")
-                                .append("zoompan=z=zoom*'").append(scaleXExpr).append("':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'").append(scaleZoompan).append(",")
+                               // .append("zoompan=z=zoom*'").append(scaleXExpr).append("':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'").append(scaleZoompan).append(",")
                                 // TODO: Use geq is super slow. Research a better way, like only render affected frame.
                                 .append("format=yuva420p,geq=r='r(X,Y)':a='alpha(X,Y)*").append(opacityExpr).append("',")
                                 .append("setpts='(PTS-STARTPTS)/").append(speedExpr).append("+").append(clip.startTime).append("/TB'").append(",");
@@ -715,9 +715,13 @@ public class FFmpegEdit {
         EditingActivity.Keyframe nextKeyframe = keyframes.get(startIndex + 1);
 
         // Input time for zoompan expression, time for other.
+//        String timeUnit =
+//                (valueType == EditingActivity.VideoProperties.ValueType.ScaleX || valueType == EditingActivity.VideoProperties.ValueType.ScaleY) ?
+//                        "it" :
+//                        valueType == EditingActivity.VideoProperties.ValueType.Speed || valueType == EditingActivity.VideoProperties.ValueType.Opacity ?
+//                                "T" : "t";
+        // TODO: If zooming feature is up, then use "it" for it. Scale isn't it based.
         String timeUnit =
-                (valueType == EditingActivity.VideoProperties.ValueType.ScaleX || valueType == EditingActivity.VideoProperties.ValueType.ScaleY) ?
-                        "it" :
                         valueType == EditingActivity.VideoProperties.ValueType.Speed || valueType == EditingActivity.VideoProperties.ValueType.Opacity ?
                                 "T" : "t";
 
