@@ -48,12 +48,15 @@ import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.Executors;
 
 public class FFmpegEdit {
@@ -1086,8 +1089,8 @@ public class FFmpegEdit {
     public static class FfmpegFilterComplexTags {
         // TODO: Change to Queue<> as ArrayList insert won't be trustworthy.
         private final ArrayList<String> usableTag = new ArrayList<>();
-        private final Map<EditingActivity.Clip, String> tagsMapToUsableTagIndex = new HashMap<>();
-        private final Map<EditingActivity.Clip, EditingActivity.Clip> tagsMergedClipMap = new HashMap<>();
+        private final Map<EditingActivity.Clip, String> tagsMapToUsableTagIndex = new LinkedHashMap<>();
+        private final Map<EditingActivity.Clip, EditingActivity.Clip> tagsMergedClipMap = new LinkedHashMap<>();
 
         public int getTagCount()
         {
