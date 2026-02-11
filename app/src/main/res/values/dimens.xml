@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ============================================= -->
+    <!-- Material Design 3 Dimensions -->
+    <!-- ============================================= -->
+    
+    <!-- Spacing Scale (4dp baseline) -->
+    <dimen name="spacing_none">0dp</dimen>
+    <dimen name="spacing_xs">4dp</dimen>
+    <dimen name="spacing_sm">8dp</dimen>
+    <dimen name="spacing_md">12dp</dimen>
+    <dimen name="spacing_base">16dp</dimen>
+    <dimen name="spacing_lg">24dp</dimen>
+    <dimen name="spacing_xl">32dp</dimen>
+    <dimen name="spacing_xxl">48dp</dimen>
+    <dimen name="spacing_xxxl">64dp</dimen>
+    
+    <!-- Corner Radius (Material 3 Shape System) -->
+    <dimen name="corner_none">0dp</dimen>
+    <dimen name="corner_xs">4dp</dimen>
+    <dimen name="corner_sm">8dp</dimen>
+    <dimen name="corner_md">12dp</dimen>
+    <dimen name="corner_base">16dp</dimen>
+    <dimen name="corner_lg">20dp</dimen>
+    <dimen name="corner_xl">28dp</dimen>
+    <dimen name="corner_full">9999dp</dimen>
+    
+    <!-- Elevation (Material Design elevation levels) -->
+    <dimen name="elevation_0">0dp</dimen>
+    <dimen name="elevation_1">1dp</dimen>
+    <dimen name="elevation_2">2dp</dimen>
+    <dimen name="elevation_3">3dp</dimen>
+    <dimen name="elevation_4">4dp</dimen>
+    <dimen name="elevation_6">6dp</dimen>
+    <dimen name="elevation_8">8dp</dimen>
+    <dimen name="elevation_12">12dp</dimen>
+    <dimen name="elevation_16">16dp</dimen>
+    <dimen name="elevation_24">24dp</dimen>
+    
+    <!-- Typography Sizes -->
+    <dimen name="text_display_large">57sp</dimen>
+    <dimen name="text_display_medium">45sp</dimen>
+    <dimen name="text_display_small">36sp</dimen>
+    
+    <dimen name="text_headline_large">32sp</dimen>
+    <dimen name="text_headline_medium">28sp</dimen>
+    <dimen name="text_headline_small">24sp</dimen>
+    
+    <dimen name="text_title_large">22sp</dimen>
+    <dimen name="text_title_medium">16sp</dimen>
+    <dimen name="text_title_small">14sp</dimen>
+    
+    <dimen name="text_body_large">16sp</dimen>
+    <dimen name="text_body_medium">14sp</dimen>
+    <dimen name="text_body_small">12sp</dimen>
+    
+    <dimen name="text_label_large">14sp</dimen>
+    <dimen name="text_label_medium">12sp</dimen>
+    <dimen name="text_label_small">11sp</dimen>
+    
+    <!-- Component Sizes -->
+    <dimen name="icon_size_xs">16dp</dimen>
+    <dimen name="icon_size_sm">20dp</dimen>
+    <dimen name="icon_size_md">24dp</dimen>
+    <dimen name="icon_size_lg">32dp</dimen>
+    <dimen name="icon_size_xl">48dp</dimen>
+    
+    <dimen name="avatar_size_xs">24dp</dimen>
+    <dimen name="avatar_size_sm">32dp</dimen>
+    <dimen name="avatar_size_md">40dp</dimen>
+    <dimen name="avatar_size_lg">56dp</dimen>
+    <dimen name="avatar_size_xl">80dp</dimen>
+    <dimen name="avatar_size_xxl">120dp</dimen>
+    
+    <dimen name="button_height">40dp</dimen>
+    <dimen name="button_height_large">48dp</dimen>
+    <dimen name="button_min_width">64dp</dimen>
+    
+    <dimen name="fab_size_sm">40dp</dimen>
+    <dimen name="fab_size_md">56dp</dimen>
+    <dimen name="fab_size_lg">96dp</dimen>
+    
+    <!-- Progress & Loading -->
+    <dimen name="progress_indicator_size_sm">20dp</dimen>
+    <dimen name="progress_indicator_size_md">40dp</dimen>
+    <dimen name="progress_indicator_size_lg">64dp</dimen>
+    
+    <!-- Card & Container -->
+    <dimen name="card_elevation">@dimen/elevation_1</dimen>
+    <dimen name="card_corner_radius">@dimen/corner_base</dimen>
+    <dimen name="card_padding">@dimen/spacing_base</dimen>
+    
+    <!-- Bottom Navigation -->
+    <dimen name="bottom_nav_height">80dp</dimen>
+    <dimen name="bottom_nav_icon_size">24dp</dimen>
+    <dimen name="bottom_nav_label_size">12sp</dimen>
+    
+    <!-- Top App Bar -->
+    <dimen name="top_app_bar_height">64dp</dimen>
+    <dimen name="top_app_bar_height_large">96dp</dimen>
+    
+    <!-- Divider -->
+    <dimen name="divider_thickness">1dp</dimen>
+    
+    <!-- Touch Target -->
+    <dimen name="touch_target_min">48dp</dimen>
+    
+</resources>

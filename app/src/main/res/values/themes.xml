@@ -1,22 +1,82 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.DoubleClips" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+    <!-- ============================================= -->
+    <!-- Material Design 3 Base Theme -->
+    <!-- ============================================= -->
+    <style name="Theme.DoubleClips" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/md_theme_light_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_theme_light_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_theme_light_onPrimaryContainer</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/md_theme_light_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_light_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/md_theme_light_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_theme_light_onSecondaryContainer</item>
+        
+        <!-- Tertiary brand color -->
+        <item name="colorTertiary">@color/md_theme_light_tertiary</item>
+        <item name="colorOnTertiary">@color/md_theme_light_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/md_theme_light_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/md_theme_light_onTertiaryContainer</item>
+        
+        <!-- Error colors -->
+        <item name="colorError">@color/md_theme_light_error</item>
+        <item name="colorOnError">@color/md_theme_light_onError</item>
+        <item name="colorErrorContainer">@color/md_theme_light_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/md_theme_light_onErrorContainer</item>
+        
+        <!-- Background & Surface -->
+        <item name="android:colorBackground">@color/md_theme_light_background</item>
+        <item name="colorOnBackground">@color/md_theme_light_onBackground</item>
+        <item name="colorSurface">@color/md_theme_light_surface</item>
+        <item name="colorOnSurface">@color/md_theme_light_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_light_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_light_onSurfaceVariant</item>
+        
+        <!-- Surface containers -->
+        <item name="colorSurfaceContainer">@color/md_theme_light_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/md_theme_light_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/md_theme_light_surfaceContainerHighest</item>
+        <item name="colorSurfaceContainerLow">@color/md_theme_light_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerLowest">@color/md_theme_light_surfaceContainerLowest</item>
+        
+        <!-- Outline -->
+        <item name="colorOutline">@color/md_theme_light_outline</item>
+        <item name="colorOutlineVariant">@color/md_theme_light_outlineVariant</item>
+        
+        <!-- Inverse colors -->
+        <item name="colorSurfaceInverse">@color/md_theme_light_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/md_theme_light_inverseOnSurface</item>
+        <item name="colorPrimaryInverse">@color/md_theme_light_inversePrimary</item>
+        
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/md_theme_light_primary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        
+        <!-- Navigation bar -->
+        <item name="android:navigationBarColor">@color/md_theme_light_surface</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        
+        <!-- System window insets -->
         <item name="android:fitsSystemWindows">true</item>
         <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
-
+        
+        <!-- Shape appearances -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Material3.SmallComponent</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Material3.MediumComponent</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Material3.LargeComponent</item>
+        
+        <!-- Component styles -->
+        <item name="materialButtonStyle">@style/Widget.App.Button.Filled</item>
+        <item name="textInputStyle">@style/Widget.App.TextInputLayout.Outlined</item>
+        <item name="materialCardViewStyle">@style/Widget.App.CardView.Elevated</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.App.MaterialAlertDialog</item>
+        <item name="circularProgressIndicatorStyle">@style/Widget.App.CircularProgressIndicator</item>
     </style>
 
+    <!-- Full Screen Theme variant -->
     <style name="Theme.DoubleClips.FullScreen" parent="@style/Theme.DoubleClips">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
@@ -24,25 +84,10 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
-
-    <style name="rounded4pxImageView" parent="">
+    <!-- Define the missing ShapeAppearance style -->
+    <style name="ShapeAppearance.App" parent="ShapeAppearance.MaterialComponents.SmallComponent">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">4dp</item>
+        <item name="cornerSize">8dp</item>
     </style>
 
-
-    <style name="roundedImageView" parent="">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">16dp</item>
-    </style>
-    <style name="upperRoundedImageView" parent="">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSizeBottomLeft">16dp</item>
-        <item name="cornerSizeBottomRight">16dp</item>
-    </style>
-    <style name="lowerRoundedImageView" parent="">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSizeTopLeft">16dp</item>
-        <item name="cornerSizeTopRight">16dp</item>
-    </style>
 </resources>

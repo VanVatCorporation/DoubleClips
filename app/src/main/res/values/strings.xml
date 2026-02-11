@@ -88,4 +88,12 @@
     <string name="settings_account_saved_templates">Saved Templates</string>
     <string name="settings_account_log_out">Log out</string>
     <string name="settings_account_sign_in">Sign in</string>
+    <string name="login_title">Login</string>
+    <string name="register_button">Register</string>
+    <string name="login_username_email">Email/Username</string>
+    <string name="login_password">Password</string>
+    <string name="login_save_password">Remember me</string>
+    <string name="login_button">Login</string>
+    <string name="login_warning_untrusted_installation">Warning, Untrusted instance!</string>
+    <string name="login_warning_untrusted_installation_general">Untrusted Instance of App</string>
 </resources>

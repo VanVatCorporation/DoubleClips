@@ -1,64 +1,108 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="@dimen/spacing_lg">
 
+    <!-- Title -->
     <TextView
         android:id="@+id/title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/alert_add_new_project_title"
-        android:textSize="26sp"/>
+        android:text="@string/alert_add_new_project_title"
+        android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+        android:textColor="?attr/colorOnSurface" />
 
+    <!-- Choice Buttons Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_marginTop="@dimen/spacing_lg"
         android:gravity="center"
-        android:layout_marginTop="16dp">
+        android:orientation="horizontal">
 
-        <RelativeLayout
-            android:layout_width="125dp"
-            android:layout_height="175dp">
-            <ImageView
-                android:id="@+id/newButton"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"/>
-            <ImageView
-                android:layout_width="125dp"
-                android:layout_height="125dp"
-                android:src="@drawable/baseline_add_24"/>
+        <!-- New Project Option -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/newButton"
+            style="@style/Widget.Material3.CardView.Outlined"
+            android:layout_width="0dp"
+            android:layout_height="220dp"
+            android:layout_marginEnd="@dimen/spacing_sm"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="@dimen/corner_base"
+            app:strokeColor="?attr/colorOutline"
+            app:strokeWidth="1dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_alignParentBottom="true"
-                android:text="@string/add_project_choice_new"
-                style="?android:attr/buttonBarButtonStyle"/>
-        </RelativeLayout>
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_base">
 
-        <RelativeLayout
-            android:layout_width="125dp"
-            android:layout_height="175dp"
-            android:layout_marginStart="16dp">
-            <ImageView
-                android:id="@+id/importButton"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"/>
-            <ImageView
-                android:layout_width="125dp"
-                android:layout_height="125dp"
-                android:src="@drawable/baseline_save_alt_24"/>
+                <ImageView
+                    android:layout_width="@dimen/icon_size_xl"
+                    android:layout_height="@dimen/icon_size_xl"
+                    android:src="@drawable/baseline_add_24"
+                    app:tint="?attr/colorPrimary" />
 
-            <TextView
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_base"
+                    android:text="@string/add_project_choice_new"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="?attr/colorOnSurface" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Import Project Option -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/importButton"
+            style="@style/Widget.Material3.CardView.Outlined"
+            android:layout_width="0dp"
+            android:layout_height="220dp"
+            android:layout_marginStart="@dimen/spacing_sm"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            app:cardCornerRadius="@dimen/corner_base"
+            app:strokeColor="?attr/colorOutline"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_alignParentBottom="true"
-                android:text="@string/add_project_choice_import"
-                style="?android:attr/buttonBarButtonStyle"/>
-        </RelativeLayout>
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="@dimen/spacing_base">
+
+                <ImageView
+                    android:layout_width="@dimen/icon_size_xl"
+                    android:layout_height="@dimen/icon_size_xl"
+                    android:src="@drawable/baseline_save_alt_24"
+                    app:tint="?attr/colorSecondary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_base"
+                    android:text="@string/add_project_choice_import"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="?attr/colorOnSurface" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
+
 </LinearLayout>

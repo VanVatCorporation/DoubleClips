@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ============================================= -->
+    <!-- Material Design 3 Component Styles -->
+    <!-- ============================================= -->
+    
+    <!-- Button Styles -->
+    <style name="Widget.App.Button.Filled" parent="Widget.Material3.Button">
+        <item name="android:minHeight">@dimen/button_height_large</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.LabelLarge</item>
+        <item name="cornerRadius">@dimen/corner_base</item>
+        <item name="elevation">@dimen/elevation_2</item>
+    </style>
+    
+    <style name="Widget.App.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">@dimen/button_height_large</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.LabelLarge</item>
+        <item name="cornerRadius">@dimen/corner_base</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+    
+    <style name="Widget.App.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">@dimen/button_height_large</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.LabelLarge</item>
+    </style>
+    
+    <style name="Widget.App.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:minHeight">@dimen/button_height_large</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.LabelLarge</item>
+        <item name="cornerRadius">@dimen/corner_base</item>
+    </style>
+    
+    <!-- Extended FAB Style -->
+    <style name="Widget.App.ExtendedFloatingActionButton" parent="Widget.Material3.ExtendedFloatingActionButton.Primary">
+        <item name="cornerRadius">@dimen/corner_base</item>
+        <item name="elevation">@dimen/elevation_6</item>
+    </style>
+    
+    <!-- Card Styles -->
+    <style name="Widget.App.CardView.Elevated" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">@dimen/corner_base</item>
+        <item name="cardElevation">@dimen/elevation_1</item>
+        <item name="contentPadding">@dimen/spacing_base</item>
+    </style>
+    
+    <style name="Widget.App.CardView.Filled" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">@dimen/corner_base</item>
+        <item name="contentPadding">@dimen/spacing_base</item>
+    </style>
+    
+    <style name="Widget.App.CardView.Outlined" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardCornerRadius">@dimen/corner_base</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">@dimen/spacing_base</item>
+    </style>
+    
+    <!-- Text Input Layout Styles -->
+    <style name="Widget.App.TextInputLayout.Filled" parent="Widget.Material3.TextInputLayout.FilledBox">
+        <item name="boxCornerRadiusTopStart">@dimen/corner_xs</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/corner_xs</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/corner_none</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/corner_none</item>
+        <item name="hintTextAppearance">@style/TextAppearance.Material3.BodySmall</item>
+    </style>
+    
+    <style name="Widget.App.TextInputLayout.Outlined" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">@dimen/corner_xs</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/corner_xs</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/corner_xs</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/corner_xs</item>
+        <item name="hintTextAppearance">@style/TextAppearance.Material3.BodySmall</item>
+    </style>
+    
+    <!-- ShapeableImageView Styles (Enhanced) -->
+    <style name="ShapeAppearance.App.Circle">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+    
+    <style name="ShapeAppearance.App.SmallRounded">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_xs</item>
+    </style>
+    
+    <style name="ShapeAppearance.App.MediumRounded">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_md</item>
+    </style>
+    
+    <style name="ShapeAppearance.App.LargeRounded">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_base</item>
+    </style>
+    
+    <style name="ShapeAppearance.App.TopRounded">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">@dimen/corner_base</item>
+        <item name="cornerSizeTopRight">@dimen/corner_base</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+    
+    <style name="ShapeAppearance.App.BottomRounded">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">0dp</item>
+        <item name="cornerSizeTopRight">0dp</item>
+        <item name="cornerSizeBottomLeft">@dimen/corner_base</item>
+        <item name="cornerSizeBottomRight">@dimen/corner_base</item>
+    </style>
+    
+    <!-- Legacy Compatibility Styles (map old styles to new) -->
+    <style name="rounded4pxImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_xs</item>
+    </style>
+    
+    <style name="roundedImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">@dimen/corner_base</item>
+    </style>
+    
+    <style name="upperRoundedImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeBottomLeft">@dimen/corner_base</item>
+        <item name="cornerSizeBottomRight">@dimen/corner_base</item>
+    </style>
+    
+    <style name="lowerRoundedImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">@dimen/corner_base</item>
+        <item name="cornerSizeTopRight">@dimen/corner_base</item>
+    </style>
+    
+    <!-- Navigation Bar Styles -->
+    <style name="Widget.App.BottomNavigationView" parent="Widget.Material3.BottomNavigationView">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.App.BottomNavigationView</item>
+        <item name="elevation">@dimen/elevation_3</item>
+    </style>
+    
+    <style name="ThemeOverlay.App.BottomNavigationView" parent="">
+        <item name="colorSurface">@color/md_theme_light_surfaceContainer</item>
+        <item name="colorOnSurface">@color/md_theme_light_onSurface</item>
+        <item name="colorPrimary">@color/md_theme_light_primary</item>
+    </style>
+    
+    <!-- Dialog Styles -->
+    <style name="ThemeOverlay.App.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="dialogCornerRadius">@dimen/corner_lg</item>
+        <item name="android:backgroundDimAmount">0.5</item>
+    </style>
+    
+    <!-- Progress Bar Styles -->
+    <style name="Widget.App.CircularProgressIndicator" parent="Widget.Material3.CircularProgressIndicator">
+        <item name="indicatorSize">@dimen/progress_indicator_size_md</item>
+        <item name="trackThickness">4dp</item>
+    </style>
+    
+    <style name="Widget.App.LinearProgressIndicator" parent="Widget.Material3.LinearProgressIndicator">
+        <item name="trackThickness">4dp</item>
+        <item name="trackCornerRadius">@dimen/corner_xs</item>
+    </style>
+    
+    <!-- Surface Styles -->
+    <style name="Widget.App.Surface" parent="">
+        <item name="android:background">@color/md_theme_light_surface</item>
+    </style>
+    
+    <style name="Widget.App.SurfaceContainer" parent="">
+        <item name="android:background">@color/md_theme_light_surfaceContainer</item>
+    </style>
+    
+    <style name="Widget.App.SurfaceContainerHigh" parent="">
+        <item name="android:background">@color/md_theme_light_surfaceContainerHigh</item>
+    </style>
+    
+</resources>

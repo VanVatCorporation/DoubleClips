@@ -1,32 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- ============================================= -->
+    <!-- Material Design 3 Color System -->
+    <!-- ============================================= -->
+    
+    <!-- Base Colors (for reference) -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Light Theme - Primary Colors (Deep Blue) -->
+    <color name="md_theme_light_primary">#4A5FFF</color>
+    <color name="md_theme_light_onPrimary">#FFFFFF</color>
+    <color name="md_theme_light_primaryContainer">#DDE1FF</color>
+    <color name="md_theme_light_onPrimaryContainer">#000C66</color>
+    
+    <!-- Light Theme - Secondary Colors (Teal/Cyan) -->
+    <color name="md_theme_light_secondary">#00BCD4</color>
+    <color name="md_theme_light_onSecondary">#FFFFFF</color>
+    <color name="md_theme_light_secondaryContainer">#B3E5FC</color>
+    <color name="md_theme_light_onSecondaryContainer">#004D5C</color>
+    
+    <!-- Light Theme - Tertiary Colors (Coral/Orange Accent) -->
+    <color name="md_theme_light_tertiary">#FF6B35</color>
+    <color name="md_theme_light_onTertiary">#FFFFFF</color>
+    <color name="md_theme_light_tertiaryContainer">#FFDDD0</color>
+    <color name="md_theme_light_onTertiaryContainer">#5C1A00</color>
+    
+    <!-- Light Theme - Error Colors -->
+    <color name="md_theme_light_error">#BA1A1A</color>
+    <color name="md_theme_light_onError">#FFFFFF</color>
+    <color name="md_theme_light_errorContainer">#FFDAD6</color>
+    <color name="md_theme_light_onErrorContainer">#410002</color>
+    
+    <!-- Light Theme - Background & Surface -->
+    <color name="md_theme_light_background">#FDFBFF</color>
+    <color name="md_theme_light_onBackground">#1A1B1F</color>
+    <color name="md_theme_light_surface">#FDFBFF</color>
+    <color name="md_theme_light_onSurface">#1A1B1F</color>
+    <color name="md_theme_light_surfaceVariant">#E3E1EC</color>
+    <color name="md_theme_light_onSurfaceVariant">#45464F</color>
+    
+    <!-- Light Theme - Surface Containers -->
+    <color name="md_theme_light_surfaceContainerLowest">#FFFFFF</color>
+    <color name="md_theme_light_surfaceContainerLow">#F7F5FF</color>
+    <color name="md_theme_light_surfaceContainer">#F1EFFA</color>
+    <color name="md_theme_light_surfaceContainerHigh">#EBE9F4</color>
+    <color name="md_theme_light_surfaceContainerHighest">#E6E3EE</color>
+    
+    <!-- Light Theme - Outline -->
+    <color name="md_theme_light_outline">#757680</color>
+    <color name="md_theme_light_outlineVariant">#C6C5D0</color>
+    
+    <!-- Light Theme - Inverse Colors -->
+    <color name="md_theme_light_inverseSurface">#2F3034</color>
+    <color name="md_theme_light_inverseOnSurface">#F1EFF4</color>
+    <color name="md_theme_light_inversePrimary">#B8C3FF</color>
+    
+    <!-- Light Theme - Other -->
+    <color name="md_theme_light_scrim">#000000</color>
+    <color name="md_theme_light_shadow">#000000</color>
+    
+    
+    <!-- ============================================= -->
+    <!-- Dark Theme Colors -->
+    <!-- ============================================= -->
+    
+    <!-- Dark Theme - Primary Colors -->
+    <color name="md_theme_dark_primary">#B8C3FF</color>
+    <color name="md_theme_dark_onPrimary">#0024A5</color>
+    <color name="md_theme_dark_primaryContainer">#2742D6</color>
+    <color name="md_theme_dark_onPrimaryContainer">#DDE1FF</color>
+    
+    <!-- Dark Theme - Secondary Colors -->
+    <color name="md_theme_dark_secondary">#80D8FF</color>
+    <color name="md_theme_dark_onSecondary">#00657A</color>
+    <color name="md_theme_dark_secondaryContainer">#00829E</color>
+    <color name="md_theme_dark_onSecondaryContainer">#B3E5FC</color>
+    
+    <!-- Dark Theme - Tertiary Colors -->
+    <color name="md_theme_dark_tertiary">#FFB59E</color>
+    <color name="md_theme_dark_onTertiary">#7A2A00</color>
+    <color name="md_theme_dark_tertiaryContainer">#A63F0A</color>
+    <color name="md_theme_dark_onTertiaryContainer">#FFDDD0</color>
+    
+    <!-- Dark Theme - Error Colors -->
+    <color name="md_theme_dark_error">#FFB4AB</color>
+    <color name="md_theme_dark_onError">#690005</color>
+    <color name="md_theme_dark_errorContainer">#93000A</color>
+    <color name="md_theme_dark_onErrorContainer">#FFDAD6</color>
+    
+    <!-- Dark Theme - Background & Surface -->
+    <color name="md_theme_dark_background">#1A1B1F</color>
+    <color name="md_theme_dark_onBackground">#E3E1E6</color>
+    <color name="md_theme_dark_surface">#1A1B1F</color>
+    <color name="md_theme_dark_onSurface">#E3E1E6</color>
+    <color name="md_theme_dark_surfaceVariant">#45464F</color>
+    <color name="md_theme_dark_onSurfaceVariant">#C6C5D0</color>
+    
+    <!-- Dark Theme - Surface Containers -->
+    <color name="md_theme_dark_surfaceContainerLowest">#0F1014</color>
+    <color name="md_theme_dark_surfaceContainerLow">#1A1B1F</color>
+    <color name="md_theme_dark_surfaceContainer">#1E1F23</color>
+    <color name="md_theme_dark_surfaceContainerHigh">#292A2E</color>
+    <color name="md_theme_dark_surfaceContainerHighest">#343539</color>
+    
+    <!-- Dark Theme - Outline -->
+    <color name="md_theme_dark_outline">#8F909A</color>
+    <color name="md_theme_dark_outlineVariant">#45464F</color>
+    
+    <!-- Dark Theme - Inverse Colors -->
+    <color name="md_theme_dark_inverseSurface">#E3E1E6</color>
+    <color name="md_theme_dark_inverseOnSurface">#2F3034</color>
+    <color name="md_theme_dark_inversePrimary">#4A5FFF</color>
+    
+    <!-- Dark Theme - Other -->
+    <color name="md_theme_dark_scrim">#000000</color>
+    <color name="md_theme_dark_shadow">#000000</color>
+    
+    
+    <!-- ============================================= -->
+    <!-- Legacy/Backward Compatibility Colors -->
+    <!-- (Keep for existing code that might reference these) -->
+    <!-- ============================================= -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
     <color name="gray">#FFAAAAAA</color>
     <color name="red">#FFFF0000</color>
-
-
     <color name="fadeGray">#88AAAAAA</color>
-
-
-    <color name="colorPrimaryBackground">#FFFFFFFF</color>
-    <color name="colorSoftBackground">#FAF3E0</color>
-    <color name="colorSoftBlueBackground">#BBDEFB</color>
+    
+    <!-- Legacy custom app colors (now mapped to Material 3 equivalents) -->
+    <color name="colorPrimaryBackground">@color/md_theme_light_background</color>
+    <color name="colorSoftBackground">@color/md_theme_light_surfaceContainerHigh</color>
+    <color name="colorSoftBlueBackground">@color/md_theme_light_secondaryContainer</color>
     <color name="colorGrayGlassBackground">#80E0E0E0</color>
-    <color name="colorGlassBackground">#80BBDEFB</color>
-    <color name="colorPrimaryButton">#FF000000</color>
-    <color name="colorHighlightedButton">#FFEB5406</color>
-
-
-
-    <color name="colorPalette1_1">#003285</color>
-    <color name="colorPalette1_2">#2A629A</color>
-    <color name="colorPalette1_3">#FF7F3E</color>
-    <color name="colorPalette1_4">#FFDA78</color>
-
+    <color name="colorGlassBackground">#80B3E5FC</color>
+    <color name="colorPrimaryButton">@color/md_theme_light_primary</color>
+    <color name="colorHighlightedButton">@color/md_theme_light_tertiary</color>
+    
+    <!-- Legacy palette colors (can be replaced gradually) -->
+    <color name="colorPalette1_1">@color/md_theme_light_primaryContainer</color>
+    <color name="colorPalette1_2">@color/md_theme_light_primary</color>
+    <color name="colorPalette1_3">@color/md_theme_light_tertiary</color>
+    <color name="colorPalette1_4">@color/md_theme_light_tertiaryContainer</color>
+    
+    <!-- ============================================= -->
+    <!-- Utility & Functional Colors -->
+    <!-- ============================================= -->
+    <color name="transparent">#00000000</color>
+    <color name="overlay_dark">#80000000</color>
+    <color name="overlay_light">#80FFFFFF</color>
+    
+    <!-- State colors for interactive elements -->
+    <color name="ripple_light">#1F000000</color>
+    <color name="ripple_dark">#1FFFFFFF</color>
+    
 </resources>
