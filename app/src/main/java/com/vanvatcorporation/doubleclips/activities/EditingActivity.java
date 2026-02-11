@@ -76,7 +76,6 @@ import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecif
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
-import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
@@ -98,7 +97,6 @@ import com.vanvatcorporation.doubleclips.utils.TimelineUtils;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -141,7 +139,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-    private HorizontalScrollView toolbarDefault, toolbarClips, toolbarTrack;
+    private HorizontalScrollView toolbarDefault, toolbarClip, toolbarTrack, toolbarClips;
 
 
 
@@ -165,6 +163,18 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     static ArrayList<Clip> selectedClips = new ArrayList<>();
     boolean isClipSelectMultiple;
+    boolean getClipSelectMultiple() { return isClipSelectMultiple;}
+    void setClipSelectMultiple(boolean value) {
+        isClipSelectMultiple = value;
+
+        // Convert from selectedClip to selectedClips
+        if(value && (selectedClip != null))
+            selectingClip(selectedClip);
+
+        // Convert from selectedClips to selectedClip
+        if(!value && (selectedClips != null && !selectedClips.isEmpty() && selectedClips.get(0) != null))
+            selectingClip(selectedClips.get(0));
+    }
 
     static CommandManager actionManager = new CommandManager();
 
@@ -1195,6 +1205,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         editingToolsZone.addView(toolbarTrack, paramsTrack);
         toolbarTrack.setVisibility(View.GONE);
 
+        toolbarClip = (HorizontalScrollView) LayoutInflater.from(this).inflate(R.layout.view_toolbar_clip, null);
+        RelativeLayout.LayoutParams paramsClip = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        paramsClip.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        editingToolsZone.addView(toolbarClip, paramsClip);
+        toolbarClip.setVisibility(View.GONE);
+
         toolbarClips = (HorizontalScrollView) LayoutInflater.from(this).inflate(R.layout.view_toolbar_clips, null);
         RelativeLayout.LayoutParams paramsClips = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         paramsClips.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
@@ -1298,8 +1314,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             if(selectedTrack != null) {
-                isClipSelectMultiple = true;
-                ((NavigationIconLayout)toolbarClips.findViewById(R.id.selectMultipleButton)).getIconView().setColorFilter(0xFFFF0000, PorterDuff.Mode.SRC_ATOP);
+                setClipSelectMultiple(true);
 
                 deselectingClip();
 
@@ -1345,32 +1360,26 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-        // ===========================       CLIPS ZONE       ====================================
+        // ===========================       CLIP ZONE       ====================================
 
 
-        toolbarClips.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 selectedClip.deleteClip(timeline, this);
-                updateCurrentClipEnd();
-            }
-            if(selectedClips != null) {
-                for (Clip selectedClip : selectedClips) {
-                    selectedClip.deleteClip(timeline, this);
-                }
                 updateCurrentClipEnd();
             }
 
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
 
         });
-        toolbarClips.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
             List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
                 selectedClip.splitClip(this, timeline, currentTime);
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
-        toolbarClips.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 Clip cloneClip = new Clip(selectedClip);
                 cloneClip.startTime = selectedClip.startTime + selectedClip.duration;
@@ -1380,31 +1389,27 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
-        toolbarClips.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 editingSpecific(selectedClip.type);
             }
-            else if(!selectedClips.isEmpty())
-            {
-                editingMultiple();
-            }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
-        toolbarClips.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 addKeyframe(selectedClip, currentTime);
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
-        toolbarClips.findViewById(R.id.selectMultipleButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.selectMultipleButton).setOnClickListener(v -> {
             // Todo: Not fully implemented yet. The idea is to remake the whole thing, get the "array" of selected clip is completed
             // now if one clip is move then the whole array move along. Also ghost will be as well
 
-            isClipSelectMultiple = !isClipSelectMultiple;
+            setClipSelectMultiple(!getClipSelectMultiple());
 
-            ((NavigationIconLayout)toolbarClips.findViewById(R.id.selectMultipleButton)).getIconView().setColorFilter((isClipSelectMultiple ? 0xFFFF0000 : 0xFFFFFFFF), PorterDuff.Mode.SRC_ATOP);
+            //((NavigationIconLayout) toolbarClip.findViewById(R.id.selectMultipleButton)).getIconView().setColorFilter((isClipSelectMultiple ? 0xFFFF0000 : 0xFFFFFFFF), PorterDuff.Mode.SRC_ATOP);
         });
-        toolbarClips.findViewById(R.id.applyKeyframeToAllClip).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.applyKeyframeToAllClip).setOnClickListener(v -> {
 
             if(selectedTrack != null && selectedClip != null) {
 
@@ -1425,7 +1430,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
 
         });
-        toolbarClips.findViewById(R.id.restateButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.restateButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 selectedClip.restate();
 
@@ -1438,11 +1443,95 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
-        toolbarClips.findViewById(R.id.exportClipButton).setOnClickListener(v -> {
+        toolbarClip.findViewById(R.id.exportClipButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 exportSingularClip(selectedClip);
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+        });
+
+        // ===========================       CLIP ZONE       ====================================
+
+
+
+        // ===========================       CLIPS ZONE       ====================================
+
+
+        toolbarClips.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
+            if(selectedClips != null) {
+                List<Clip> affectedClips = new ArrayList<>(selectedClips);
+                for (Clip selectedClip : affectedClips) {
+                    selectedClip.deleteClip(timeline, this);
+                }
+                updateCurrentClipEnd();
+            }
+
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+
+        });
+        toolbarClips.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
+            if(selectedClips != null) {
+                if (selectedTrack != null)
+                    for (Clip clip : selectedClips) {
+
+                        // TODO: Get the last Clip startTime + duration to append the clone Clips.
+                        //  But user can choose between track so...
+                        //  Sort the clip following its track id, then get the last clip of that track, then clone each track separately.
+                        Clip cloneClip = new Clip(clip);
+                        cloneClip.startTime = clip.startTime + clip.duration;
+                        addClipToTrack(selectedTrack, cloneClip);
+                    }
+                else
+                    new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+
+            }
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+        });
+        toolbarClips.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
+            if(!selectedClips.isEmpty())
+            {
+                editingMultiple();
+            }
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+        });
+        toolbarClips.findViewById(R.id.selectMultipleButton).setOnClickListener(v -> {
+            // Todo: Not fully implemented yet. The idea is to remake the whole thing, get the "array" of selected clip is completed
+            // now if one clip is move then the whole array move along. Also ghost will be as well
+
+            setClipSelectMultiple(!getClipSelectMultiple());
+
+            //((NavigationIconLayout) toolbarClips.findViewById(R.id.selectMultipleButton)).getIconView().setColorFilter((isClipSelectMultiple ? 0xFFFF0000 : 0xFFFFFFFF), PorterDuff.Mode.SRC_ATOP);
+        });
+        toolbarClips.findViewById(R.id.applyKeyframeToAllClip).setOnClickListener(v -> {
+
+            // TODO: Make a menu that choose the available clips in the track to clone,
+            //  temporary clone Keyframes from the first chosen clip.
+            if(selectedClips != null) {
+                for (Clip clip : selectedClips) {
+                    if(clip != selectedClips.get(0))
+                    {
+                        clip.importKeyframes(this, selectedClips.get(0).keyframes);
+                    }
+                }
+            }
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+
+        });
+        toolbarClips.findViewById(R.id.restateButton).setOnClickListener(v -> {
+            if(selectedClips != null) {
+
+                for (Clip clip : selectedClips) {
+                    clip.restate();
+                }
+
+                // TODO: Find a way to specifically build only the edited clip. Not entire timeline
+                //  this is just for testing. Resource-consuming asf.
+                regeneratingTimelineRenderer();
+
+
+
+            }
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
         });
 
         // ===========================       CLIPS ZONE       ====================================
@@ -1624,42 +1713,93 @@ public class EditingActivity extends AppCompatActivityImpl {
                 Keyframe selectedKeyframe = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
                 if(selectedKeyframe != null)
                 {
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosX)), VideoProperties.ValueType.PosX);
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosY)), VideoProperties.ValueType.PosY);
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Rot)), VideoProperties.ValueType.Rot);
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)), VideoProperties.ValueType.ScaleX);
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)), VideoProperties.ValueType.ScaleY);
-                    selectedKeyframe.value.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Hue)), VideoProperties.ValueType.Hue);
+                    selectedKeyframe.value.setAllValue(
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosX)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosY)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
 
-                    selectedKeyframe.value.setValue(Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgress(), 0, 1), VideoProperties.ValueType.Opacity);
-                    selectedKeyframe.value.setValue(Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgress(), 0.01f, 10), VideoProperties.ValueType.Speed);
-                    selectedKeyframe.value.setValue(Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgress(), -10, 10), VideoProperties.ValueType.Saturation);
-                    selectedKeyframe.value.setValue(Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgress(), -10, 10), VideoProperties.ValueType.Brightness);
-                    selectedKeyframe.value.setValue(Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgress(), 1000, 40000), VideoProperties.ValueType.Temperature);
+                            Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
+                            Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                            Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
+                            Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
+                            Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
+
+                            );
+
+                    selectedKeyframe.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
                 }
                 else {
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosX)), VideoProperties.ValueType.PosX);
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosY)), VideoProperties.ValueType.PosY);
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Rot)), VideoProperties.ValueType.Rot);
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleX)), VideoProperties.ValueType.ScaleX);
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleY)), VideoProperties.ValueType.ScaleY);
-                    selectedClip.videoProperties.setValue(ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Hue)), VideoProperties.ValueType.Hue);
 
-                    selectedClip.videoProperties.setValue(Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgress(), 0, 1), VideoProperties.ValueType.Opacity);
-                    selectedClip.videoProperties.setValue(Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgress(), 0.01f, 10), VideoProperties.ValueType.Speed);
-                    selectedClip.videoProperties.setValue(Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgress(), -10, 10), VideoProperties.ValueType.Saturation);
-                    selectedClip.videoProperties.setValue(Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgress(), -10, 10), VideoProperties.ValueType.Brightness);
-                    selectedClip.videoProperties.setValue(Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgress(), 1000, 40000), VideoProperties.ValueType.Temperature);
+                    new AlertDialog.Builder(this)
+                            .setTitle("Missing Keyframe")
+                            .setMessage("There is no keyframe at this timestamp. How would you like to apply these property changes?")
+                            .setPositiveButton("New Keyframe", (dialog, which) -> {
+
+                                addKeyframe(selectedClip, currentTime);
+
+
+                                Keyframe insertionKeyframe = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
+
+                                if(insertionKeyframe == null) {
+                                    LoggingManager.LogToToast(this, "Keyframe insertion error.");
+                                }
+                                else {
+
+                                    insertionKeyframe.value.setAllValue(
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PosX)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PosY)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
+
+                                            Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
+                                            Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                                            Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
+                                            Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
+                                            Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
+
+                                    );
+
+                                    insertionKeyframe.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
+
+                                    LoggingManager.LogToToast(this, "New keyframe added at " + currentTime);
+                                }
+                            })
+                            .setNeutralButton("Apply to Clip", (dialog, which) -> {
+
+                                selectedClip.videoProperties.setAllValue(
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosX)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosY)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Rot)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleX)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleY)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Hue)),
+
+                                        Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
+                                        Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                                        Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
+                                        Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
+                                        Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
+
+                                );
+
+                            })
+                            .setNegativeButton("Revert", (dialog, which) -> {
+                                // Dismiss the dialog and potentially refresh the UI fields to original values
+                                dialog.dismiss();
+                                LoggingManager.LogToToast(this, "Changes discarded");
+                            })
+                            .show();
+
                 }
 
                 selectedClip.setMute(clipEditSpecificAreaScreen.muteAudioCheckbox.isChecked());
                 selectedClip.setLockedForTemplate(clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.isChecked());
                 selectedClip.setReverse(clipEditSpecificAreaScreen.reverseCheckbox.isChecked());
-
-                Keyframe k = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
-                if(k != null)
-                    k.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
-                else LoggingManager.LogToToast(this, "There are 0 keyframe at this time.");
 
                 updateClipLayouts();
                 updateCurrentClipEnd();
@@ -2738,7 +2878,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     private void selectingClip(Clip selectedClip)
     {
-        if(isClipSelectMultiple)
+        if(getClipSelectMultiple())
         {
             this.selectedClip = null;
             if(selectedClips.contains(selectedClip))
@@ -2750,6 +2890,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 selectedClips.add(selectedClip);
                 selectedClip.select();
+                toolbarClip.setVisibility(View.GONE);
                 toolbarClips.setVisibility(View.VISIBLE);
             }
         }
@@ -2764,7 +2905,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 selectedClip.select();
                 this.selectedClip = selectedClip;
-                toolbarClips.setVisibility(View.VISIBLE);
+                toolbarClip.setVisibility(View.VISIBLE);
+                toolbarClips.setVisibility(View.GONE);
             }
             if(currentTime < selectedClip.startTime)
                 setCurrentTime(selectedClip.startTime);
@@ -2799,9 +2941,10 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
     private void deselectingClip()
     {
+        toolbarClip.setVisibility(View.GONE);
         toolbarClips.setVisibility(View.GONE);
-        if(isClipSelectMultiple)
-            selectedClips.clear();
+//        if(getClipSelectMultiple())
+        selectedClips.clear();
 
         for (Track track : timeline.tracks) {
             for (Clip clip : track.clips) {
@@ -4396,6 +4539,21 @@ frameRate = 60;
                     break;
 
             }
+        }
+
+        public void setAllValue(float valuePosX, float valuePosY, float valueRot, float valueScaleX, float valueScaleY, float valueHue, float valueOpacity, float valueSpeed, float valueSaturation, float valueBrightness, float valueTemperature) {
+            setValue(valuePosX, VideoProperties.ValueType.PosX);
+            setValue(valuePosY, VideoProperties.ValueType.PosY);
+            setValue(valueRot, VideoProperties.ValueType.Rot);
+            setValue(valueScaleX, VideoProperties.ValueType.ScaleX);
+            setValue(valueScaleY, VideoProperties.ValueType.ScaleY);
+            setValue(valueHue, VideoProperties.ValueType.Hue);
+
+            setValue(valueOpacity, VideoProperties.ValueType.Opacity);
+            setValue(valueSpeed, VideoProperties.ValueType.Speed);
+            setValue(valueSaturation, VideoProperties.ValueType.Saturation);
+            setValue(valueBrightness, VideoProperties.ValueType.Brightness);
+            setValue(valueTemperature, VideoProperties.ValueType.Temperature);
         }
 
         public enum ValueType {

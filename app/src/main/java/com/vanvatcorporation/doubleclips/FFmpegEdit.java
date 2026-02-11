@@ -44,19 +44,17 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
+import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.Executors;
 
 public class FFmpegEdit {
@@ -392,11 +390,23 @@ public class FFmpegEdit {
 //                                "iw*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
 //                        String scaleYCmd = templateSettings.settings.isStretchToFull() ?
 //                                String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
-//                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX); // in the ih* here, it should be ValueType.ScaleY, but for the temporal scaling then it will be scaleX too
+//                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
+
+                        String scaleXStretchExpr = (templateSettings.settings.isStretchToFull() ?
+                                String.valueOf(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)) :
+                                "iw") + "*" + scaleXExpr;
+                        String scaleYStretchExpr = (templateSettings.settings.isStretchToFull() ?
+                                String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
+                                "ih") + "*" + scaleYExpr;
 //
 //                        String scaleZoompan = templateSettings.settings.isStretchToFull() ? ":s=" + scaleXCmd + "x" + scaleYCmd : "";
 
-                        filterComplex.append("scale=w='iw*").append(scaleXExpr).append("':h='ih*").append(scaleYExpr).append("':eval=frame,")
+                        filterComplex
+                                .append("setpts='(PTS-STARTPTS)/").append(speedExpr).append("+").append(clip.startTime).append("/TB'").append(",")
+                                .append("scale=w='").append(scaleXStretchExpr).append("':h='").append(scaleYStretchExpr).append("':eval=frame,")
+//                                .append("pad=width=").append("'iw'").append(":height=").append("'ih'").append(":x=-1:y=-1:color=black:eval=frame,")
+//                                .append("pad=width=max(iw\\,ih*(16/9)):height=ow/(16/9):x=(ow-iw)/2:y=(oh-ih)/2:eval=frame,")
+                                //.append("crop=iw:ih:(iw-ow)/2:(ih-oh)/2,")
                                 //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
                                 .append("rotate='").append(rotationExpr).append("':ow=rotw('").append(rotationExpr).append("'):oh=roth('").append(rotationExpr).append("')")
                                 // TODO: FillColor is not applied yet. Add FillColor to each clip as "Background Fill Color".
@@ -407,8 +417,7 @@ public class FFmpegEdit {
                                 .append("colortemperature=temperature='").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Temperature)).append("',")
                                // .append("zoompan=z=zoom*'").append(scaleXExpr).append("':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'").append(scaleZoompan).append(",")
                                 // TODO: Use geq is super slow. Research a better way, like only render affected frame.
-                                .append("format=yuva420p,geq=r='r(X,Y)':a='alpha(X,Y)*").append(opacityExpr).append("',")
-                                .append("setpts='(PTS-STARTPTS)/").append(speedExpr).append("+").append(clip.startTime).append("/TB'").append(",");
+                                .append("format=yuva420p,geq=r='r(X,Y)':a='alpha(X,Y)*").append(opacityExpr).append("',");
                     } else {
                         // If possible then merge the keyframe to clip
                         clip.mergingVideoPropertiesFromSingleKeyframe();
@@ -423,7 +432,7 @@ public class FFmpegEdit {
                                 "iw*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
                         String scaleYCmd = templateSettings.settings.isStretchToFull() ?
                                 String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
-                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX); // in the ih* here, it should be ValueType.ScaleY, but for the temporal scaling then it will be scaleX too
+                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
                         filterComplex.append("scale=").append(scaleXCmd).append(":").append(scaleYCmd).append(",")                                //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
                                 .append("rotate=").append(radiansRotation).append(":ow=rotw(").append(radiansRotation).append("):oh=roth(").append(radiansRotation).append(")")
                                 .append(":fillcolor=0x00000000").append(",")
@@ -586,7 +595,7 @@ public class FFmpegEdit {
         FfmpegFilterComplexTags.FilterComplexInfo baseInfo = tags.useTag(baseTag);
         while(tags.tagsMapToUsableTagIndex.size() > 0)
         {
-            EditingActivity.Clip clip = (EditingActivity.Clip) tags.tagsMapToUsableTagIndex.keySet().toArray()[0];
+            EditingActivity.Clip clip = tags.tagsMapToUsableTagIndex.get(0).getKey();
 
             String prevOutputLabel = "[layer-" + (layer - 1 ) + "]";
             String outputLabel = "[layer-" + layer + "]";
@@ -709,7 +718,9 @@ public class FFmpegEdit {
     {
         StringBuilder keyframeExprString = new StringBuilder();
 
-        if(startIndex + 1 >= keyframes.size()) return String.valueOf(clip.videoProperties.getValue(valueType)); // Default value
+        // TODO: Add a 1.0 or fallback clip.videoProperties (reset properties) keyframe right after the clip duration, as it will filter out the keyframe 'else' ffmpeg.
+        if(startIndex + 1 >= keyframes.size()) return String.valueOf(keyframes.get(startIndex).value.getValue(valueType)); // Default value (prevKeyframe)
+//        if(startIndex + 1 >= keyframes.size()) return String.valueOf(clip.videoProperties.getValue(valueType)); // Default value
 
         EditingActivity.Keyframe prevKeyframe = keyframes.get(startIndex);
         EditingActivity.Keyframe nextKeyframe = keyframes.get(startIndex + 1);
@@ -1075,6 +1086,8 @@ public class FFmpegEdit {
         {
             case "~":
                 return "between(" + a + "," + b + "," + c +")";
+            case "---":
+                return "---";
             default:
                 return "";
         }
@@ -1085,8 +1098,11 @@ public class FFmpegEdit {
     {
         return Objects.equals(timebase, "T") ||
                 // PosX PosY (Overlay expr) the t is actually the T, which mean it take the global timebase
+                // Edit 2: Scale too??? well idk but scale also need the T
                 Objects.equals(type, EditingActivity.VideoProperties.ValueType.PosX) ||
-                Objects.equals(type, EditingActivity.VideoProperties.ValueType.PosY) ?
+                Objects.equals(type, EditingActivity.VideoProperties.ValueType.PosY) ||
+                Objects.equals(type, EditingActivity.VideoProperties.ValueType.ScaleX) ||
+                Objects.equals(type, EditingActivity.VideoProperties.ValueType.ScaleY) ?
                 keyframe.getGlobalTime(clip) :
                 keyframe.getLocalTime();
     }
@@ -1100,10 +1116,87 @@ public class FFmpegEdit {
 
 
     public static class FfmpegFilterComplexTags {
-        // TODO: Change to Queue<> as ArrayList insert won't be trustworthy.
+        public static class MapUsableTag implements BaseMapTag<EditingActivity.Clip, String> {
+            public EditingActivity.Clip key;
+            public String value;
+
+            public MapUsableTag(EditingActivity.Clip key, String value) {
+                this.key = key;
+                this.value = value;
+            }
+
+            @Override
+            public EditingActivity.Clip getKey() {
+                return key;
+            }
+
+            @Override
+            public String getValue() {
+                return value;
+            }
+        }
+
+        public static class MapMergedClip implements BaseMapTag<EditingActivity.Clip, EditingActivity.Clip> {
+            public EditingActivity.Clip key;
+            public EditingActivity.Clip value;
+
+            public MapMergedClip(EditingActivity.Clip key, EditingActivity.Clip value) {
+                this.key = key;
+                this.value = value;
+            }
+
+            @Override
+            public EditingActivity.Clip getKey() {
+                return key;
+            }
+
+            @Override
+            public EditingActivity.Clip getValue() {
+                return value;
+            }
+        }
+
+
+        public interface BaseMapTag<K, V> {
+            K getKey();
+
+            V getValue();
+        }
+
+        public static class MapTag<K, V, T extends BaseMapTag<K, V>> extends ArrayList<T> {
+
+            // Key-based lookup (mimics Map.get)
+            public V getValueByKey(K key) {
+                for (T item : this) {
+                    if (Objects.equals(item.getKey(), key)) {
+                        return item.getValue();
+                    }
+                }
+                return null;
+            }
+
+            // Check if key exists
+            public boolean containsKey(K key) {
+                for (T item : this) {
+                    if (Objects.equals(item.getKey(), key)) return true;
+                }
+                return false;
+            }
+
+            // Remove by key
+            public void removeByKey(K key) {
+                removeIf(item -> Objects.equals(item.getKey(), key));
+            }
+
+            // Since it extends ArrayList, you already have:
+            // add(T element) -> adds to end
+            // add(int index, T element) -> inserts at position
+        }
+
+
         private final ArrayList<String> usableTag = new ArrayList<>();
-        private final Map<EditingActivity.Clip, String> tagsMapToUsableTagIndex = new LinkedHashMap<>();
-        private final Map<EditingActivity.Clip, EditingActivity.Clip> tagsMergedClipMap = new LinkedHashMap<>();
+        private final MapTag<EditingActivity.Clip, String, MapUsableTag> tagsMapToUsableTagIndex = new MapTag<>();
+        private final MapTag<EditingActivity.Clip, EditingActivity.Clip, MapMergedClip> tagsMergedClipMap = new MapTag<>();
 
         public int getTagCount()
         {
@@ -1138,14 +1231,15 @@ public class FFmpegEdit {
 
 
         public FilterComplexInfo useTag(EditingActivity.Clip key) {
-            if(usableTag.contains(tagsMapToUsableTagIndex.get(key)))
+
+            if(usableTag.contains(tagsMapToUsableTagIndex.getValueByKey(key)))
             {
-                String retrieveTag = tagsMapToUsableTagIndex.get(key);
+                String retrieveTag = tagsMapToUsableTagIndex.getValueByKey(key);
                 int indexTag = usableTag.indexOf(retrieveTag);
                 FilterComplexInfo info = new FilterComplexInfo(indexTag, retrieveTag);
 
                 usableTag.remove(indexTag);
-                tagsMapToUsableTagIndex.remove(key);
+                tagsMapToUsableTagIndex.removeByKey(key);
                 return info;
             }
 //            else if(tagsMergedClipMap.containsKey(key) && usableTag.contains(tagsMapToUsableTagIndex.get(tagsMergedClipMap.get(key))))
@@ -1156,16 +1250,16 @@ public class FFmpegEdit {
             return null;
         }
         public FilterComplexInfo useTag(EditingActivity.Clip key, EditingActivity.Clip mergingKey) {
-            if(usableTag.contains(tagsMapToUsableTagIndex.get(key)))
+            if(usableTag.contains(tagsMapToUsableTagIndex.getValueByKey(key)))
             {
-                String retrieveTag = tagsMapToUsableTagIndex.get(key);
+                String retrieveTag = tagsMapToUsableTagIndex.getValueByKey(key);
                 int indexTag = usableTag.indexOf(retrieveTag);
                 FilterComplexInfo info = new FilterComplexInfo(indexTag, retrieveTag);
 
                 usableTag.remove(indexTag);
-                tagsMapToUsableTagIndex.remove(key);
+                tagsMapToUsableTagIndex.removeByKey(key);
 
-                tagsMergedClipMap.put(key, mergingKey);
+                tagsMergedClipMap.add(new MapMergedClip(key, mergingKey));
                 return info;
             }
             return null;
@@ -1173,21 +1267,32 @@ public class FFmpegEdit {
         public void storeTag(EditingActivity.Clip key, String tag) {
             usableTag.add(tag);
 
-            tagsMapToUsableTagIndex.put(key, tag);
+            tagsMapToUsableTagIndex.add(new MapUsableTag(key, tag));
         }
         public void storeTag(EditingActivity.Clip key, String tag, int index) {
             if(index < 0) index = 0;
             if(index >= usableTag.size()) index = usableTag.size() - 1;
             usableTag.add(index, tag);
 
-            tagsMapToUsableTagIndex.put(key, tag);
+            tagsMapToUsableTagIndex.add(index, new MapUsableTag(key, tag));
         }
 
 
-        public EditingActivity.Clip getKeyFromTag(String tag)
-        {
-            for (Map.Entry<EditingActivity.Clip, String> entry : tagsMapToUsableTagIndex.entrySet()) {
-                if (entry.getValue().equals(tag)) {
+//        public EditingActivity.Clip getKeyFromTag(String tag)
+//        {
+//            for (Map.Entry<EditingActivity.Clip, String> entry : tagsMapToUsableTagIndex.entrySet()) {
+//                if (entry.getValue().equals(tag)) {
+//                    return entry.getKey();
+//                }
+//            }
+//            return null;
+//        }
+
+        public EditingActivity.Clip getKeyFromTag(String tag) {
+            // tagsMapToUsableTagIndex is an ArrayList of MapUsableTag
+            for (MapUsableTag entry : tagsMapToUsableTagIndex) {
+                // Use the getter from the BaseMapTag interface
+                if (Objects.equals(entry.getValue(), tag)) {
                     return entry.getKey();
                 }
             }
@@ -1200,14 +1305,14 @@ public class FFmpegEdit {
             if(tagsMapToUsableTagIndex.containsKey(clipKey))
                 return clipKey;
             if(tagsMergedClipMap.containsKey(clipKey))
-                return tagsMergedClipMap.get(clipKey);
+                return tagsMergedClipMap.getValueByKey(clipKey);
             return null;
         }
 
 
 
 
-        static class FilterComplexInfo {
+        public static class FilterComplexInfo {
             public int index;
             public String tag;
             public FilterComplexInfo(int index, String tag)

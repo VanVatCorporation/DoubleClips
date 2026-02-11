@@ -375,8 +375,8 @@ public class ExportActivity extends AppCompatActivityImpl {
         // Request permission to create a file
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("video/*");
-        intent.putExtra(Intent.EXTRA_TITLE, "export");
+        intent.setType("video/mp4"); // Previously video/*, specific later
+        intent.putExtra(Intent.EXTRA_TITLE, "export.mp4");
 
         if(!exportAsTemplate)
             filePickerLauncher.launch(Intent.createChooser(intent, "Select Export"));
