@@ -56,7 +56,7 @@ DoubleClips is an open-source, ready-to-use video editor with functionality simi
 - Minimum SDK: 24 (Nougat, Android 7.0)
 - FFmpeg Support (You can check if your device supports it by opening the app).
 
-And that's actually it! High-end devices render quickly, low-end devices render slowly, but the functionality remains the same!
+And that’s about it! High-end devices render faster, low-end devices take longer, but the functionality stays the same!
 
 ## 🤝 Contributing
 
