@@ -10,9 +10,9 @@
     android:layout_marginEnd="16dp"
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
-    app:strokeColor="@color/md_theme_light_outline"
+    app:strokeColor="?attr/colorOutline"
     app:strokeWidth="0.5dp"
-    app:cardBackgroundColor="@color/md_theme_light_surfaceContainerLow">
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -43,7 +43,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/title"
-                android:textColor="@color/black"
+                android:textColor="?android:attr/textColorPrimary"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:ellipsize="end"
@@ -55,7 +55,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="dd/mm/yyyy"
-                android:textColor="@color/ios_gray_text"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -69,14 +69,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="hh:mm:ss"
-                    android:textColor="@color/ios_gray_text"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="12sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text=" • "
-                    android:textColor="@color/ios_gray_text"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="12sp" />
 
                 <TextView
@@ -84,7 +84,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="1024MB"
-                    android:textColor="@color/ios_gray_text"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="12sp" />
 
             </LinearLayout>
@@ -100,7 +100,7 @@
             android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/baseline_menu_24"
-            app:tint="@color/ios_gray_text"
+            app:tint="?attr/colorOnSurfaceVariant"
             android:contentDescription="Options" />
 
     </RelativeLayout>

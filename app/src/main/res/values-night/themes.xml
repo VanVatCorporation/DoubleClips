@@ -52,11 +52,11 @@
         <item name="colorPrimaryInverse">@color/md_theme_dark_inversePrimary</item>
         
         <!-- Status bar -->
-        <item name="android:statusBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:statusBarColor">@color/md_theme_dark_background</item>
         <item name="android:windowLightStatusBar">false</item>
         
         <!-- Navigation bar -->
-        <item name="android:navigationBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:navigationBarColor">@color/md_theme_dark_background</item>
         <item name="android:windowLightNavigationBar">false</item>
         
         <!-- System window insets -->
@@ -68,7 +68,7 @@
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Material3.MediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Material3.LargeComponent</item>
         
-        <!-- Component styles -->
+         <!-- Component styles -->
         <item name="materialButtonStyle">@style/Widget.App.Button.Filled</item>
         <item name="textInputStyle">@style/Widget.App.TextInputLayout.Outlined</item>
         <item name="materialCardViewStyle">@style/Widget.App.CardView.Elevated</item>
