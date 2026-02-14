@@ -37,7 +37,8 @@ public class ProfileAreaScreen extends BaseAreaScreen {
     TextView profileNameText;
     ShapeableImageView profileAvatarImage;
 
-    RelativeLayout signInScreen;
+    View profileHeader;
+    View signInScreen;
     Button logOutButton;
 
 
@@ -66,6 +67,8 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         profileSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         profileNameText = findViewById(R.id.profileName);
         profileAvatarImage = findViewById(R.id.profileAvatarImage);
+        
+        profileHeader = findViewById(R.id.profileHeader);
         signInScreen = findViewById(R.id.signInScreen);
 
         findViewById(R.id.settingsButton).setOnClickListener(v -> {
@@ -105,17 +108,19 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         {
             profileNameText.setText(AuthRepository.getInstance(getContext()).getCurrentUser().getUsername());
             ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com" + AuthRepository.getInstance(getContext()).getCurrentUser().getAvatarUrl(), profileAvatarImage);
-            logOutButton.setEnabled(true);
-
+            
+            profileHeader.setVisibility(View.VISIBLE);
             signInScreen.setVisibility(View.GONE);
+            logOutButton.setVisibility(View.VISIBLE);
         }
         else
         {
-            profileNameText.setText("Log in to see your profile.");
-            profileAvatarImage.setImageBitmap(ImageHelper.createTransparentBitmap(100, 100));
-            logOutButton.setEnabled(false);
-
+            profileNameText.setText("");
+            profileAvatarImage.setImageResource(R.drawable.logo); // Default logo if needed, though hidden
+            
+            profileHeader.setVisibility(View.GONE);
             signInScreen.setVisibility(View.VISIBLE);
+            logOutButton.setVisibility(View.GONE); // Hide logout if not signed in
         }
 
         profileSwipeRefreshLayout.setRefreshing(false);

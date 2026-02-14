@@ -1,185 +1,212 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-
-    <RelativeLayout
-        android:id="@+id/titleFrame"
-        android:layout_width="match_parent"
-        android:layout_height="150dp">
-
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-
-
-            android:background="@color/colorPalette1_2"
-
-            app:shapeAppearanceOverlay="@style/upperRoundedImageView"
-            app:strokeColor="@color/colorSoftBackground"
-            app:strokeWidth="1dp" />
-
-
-
-        <RelativeLayout
-            android:id="@+id/addProjectPanel"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/profileAvatarImage"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:layout_margin="15dp"
-
-
-                android:background="@color/colorPalette1_4"
-
-                app:shapeAppearanceOverlay="@style/roundedImageView"
-                app:strokeColor="@color/colorSoftBlueBackground"
-                app:strokeWidth="1dp" />
-
-            <TextView
-                android:id="@+id/profileName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_toEndOf="@id/profileAvatarImage"
-                android:layout_alignTop="@id/profileAvatarImage"
-                android:layout_marginStart="10dp"
-                android:layout_marginTop="0dp"
-                android:layout_marginEnd="25dp"
-                android:layout_marginBottom="0dp"
-                android:gravity="start|center"
-                android:text="Van Vat Employee"
-                android:textColor="@color/colorPrimaryBackground"
-                android:textSize="24sp" />
-
-
-
-            <RelativeLayout
-                android:id="@+id/signInScreen"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_margin="10dp"
-
-
-                    android:background="@color/fadeGray"
-
-                    app:shapeAppearanceOverlay="@style/roundedImageView"
-                    app:strokeColor="@color/colorSoftBlueBackground"
-                    app:strokeWidth="1dp" />
-                <Button
-                    android:id="@+id/signInButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_centerInParent="true"
-                    android:text="@string/settings_account_sign_in"/>
-
-            </RelativeLayout>
-
-
-        </RelativeLayout>
-
-
-    </RelativeLayout>
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    android:orientation="vertical">
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="match_parent">
 
-        android:layout_below="@id/titleFrame"
-        android:layout_marginStart="5dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-
-        android:layout_marginBottom="5dp">
-
-
-        <RelativeLayout
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-
-
-                android:background="@color/colorPalette1_4"
-
-                app:shapeAppearanceOverlay="@style/roundedImageView"
-                app:strokeColor="@color/colorSoftBlueBackground"
-                app:strokeWidth="1dp" />
-
+            android:layout_height="match_parent"
+            android:scrollbars="none">
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
+                android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="10dp">
+                android:padding="16dp"
+                android:gravity="center_horizontal">
 
-                <com.vanvatcorporation.doubleclips.impl.SectionView
+                <!-- Profile Header (Visible when logged in) -->
+                <LinearLayout
+                    android:id="@+id/profileHeader"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:sectionTitle="@string/settings_group_general">
-                    <Button
-                        android:id="@+id/settingsButton"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:layout_marginBottom="24dp">
+
+                    <com.google.android.material.imageview.ShapeableImageView
+                        android:id="@+id/profileAvatarImage"
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:scaleType="centerCrop"
+                        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="?attr/colorOutline"
+                        android:src="@drawable/logo" />
+
+                    <TextView
+                        android:id="@+id/profileName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/main_settings" />
+                        android:layout_marginTop="16dp"
+                        android:text="User Name"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="24sp"
+                        android:textStyle="bold" />
 
-                </com.vanvatcorporation.doubleclips.impl.SectionView>
-                <com.vanvatcorporation.doubleclips.impl.SectionView
+                </LinearLayout>
+
+                <!-- Sign In Prompt (Visible when logged out) -->
+                <LinearLayout
+                    android:id="@+id/signInScreen"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:sectionTitle="@string/settings_group_account">
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:layout_marginBottom="24dp"
+                    android:visibility="gone">
 
-                    <Button
-                        android:id="@+id/statisticsButton"
+                    <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/settings_account_statistics"/>
-                    <Button
-                        android:id="@+id/savedTemplateButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/settings_account_saved_templates"/>
+                        android:text="Sign in to sync your projects and access templates."
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:gravity="center"
+                        android:layout_marginBottom="16dp"/>
 
                     <Button
-                        android:id="@+id/logOutButton"
+                        android:id="@+id/signInButton"
+                        style="@style/Widget.Material3.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:backgroundTint="@color/red"
-                        android:text="@string/settings_account_log_out"/>
+                        android:text="@string/settings_account_sign_in" />
+
+                </LinearLayout>
+
+                <!-- Settings Group: General -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_group_general"
+                    android:textAllCaps="true"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="8dp"
+                    android:layout_marginStart="4dp"/>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0.5dp"
+                    app:strokeColor="?attr/colorOutline"
+                    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <Button
+                            android:id="@+id/settingsButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/main_settings"
+                            android:textAlignment="viewStart"
+                            android:textColor="?android:attr/textColorPrimary"
+                            app:icon="@drawable/baseline_settings_24"
+                            app:iconTint="?android:attr/textColorPrimary"/>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <Space
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp" />
+
+                <!-- Settings Group: Account -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_group_account"
+                    android:textAllCaps="true"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="8dp"
+                    android:layout_marginStart="4dp"/>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="0.5dp"
+                    app:strokeColor="?attr/colorOutline"
+                    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <Button
+                            android:id="@+id/statisticsButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_account_statistics"
+                            android:textAlignment="viewStart"
+                            android:textColor="?android:attr/textColorPrimary"
+                            app:icon="@drawable/baseline_bar_chart_24"
+                            app:iconTint="?android:attr/textColorPrimary"/>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:layout_marginStart="16dp"
+                            android:layout_marginEnd="16dp"/>
+
+                        <Button
+                            android:id="@+id/savedTemplateButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_account_saved_templates"
+                            android:textAlignment="viewStart"
+                            android:textColor="?android:attr/textColorPrimary"
+                            app:icon="@drawable/baseline_favorite_24"
+                            app:iconTint="?android:attr/textColorPrimary"/>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:layout_marginStart="16dp"
+                            android:layout_marginEnd="16dp"/>
 
 
+                        <Button
+                            android:id="@+id/logOutButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_account_log_out"
+                            android:textAlignment="viewStart"
+                            android:textColor="@color/red"
+                            app:icon="@drawable/baseline_logout_24"
+                            app:iconTint="@color/red"/>
 
-                </com.vanvatcorporation.doubleclips.impl.SectionView>
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
 
-        </RelativeLayout>
-
+        </ScrollView>
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-
-    <ProgressBar
-        android:id="@+id/progressBarFetchingBook"
-        style="?android:attr/progressBarStyle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:layout_marginTop="4dp"
-        android:visibility="gone" />
-
 
 </com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen>
