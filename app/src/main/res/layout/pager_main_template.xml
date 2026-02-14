@@ -5,126 +5,85 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    android:orientation="vertical">
 
-
-
-
-
-
-
-    <RelativeLayout
-        android:id="@+id/titleFrame"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="150dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-
-        <com.google.android.material.imageview.ShapeableImageView
+        <!-- Header Title -->
+        <TextView
+            android:id="@+id/title"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/main_template"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="32sp"
+            android:textStyle="bold" />
 
-
-
-            android:background="@color/colorPalette1_2"
-
-            app:strokeColor="@color/colorSoftBackground"
-            app:strokeWidth="1dp"
-            app:shapeAppearanceOverlay="@style/upperRoundedImageView"/>
-
-
-        <RelativeLayout
-            android:id="@+id/titlePanel"
+        <!-- Search Bar -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="50dp">
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="0.5dp"
+            app:strokeColor="?attr/colorOutline"
+            app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
 
-            <TextView
-                android:id="@+id/title"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginStart="25dp"
-                android:layout_marginTop="0dp"
-                android:layout_marginEnd="25dp"
-                android:layout_marginBottom="0dp"
-                android:gravity="start|center"
-                android:text="@string/main_template"
-                android:textColor="@color/colorPrimaryBackground"
-                android:textSize="24sp" />
-
-        </RelativeLayout>
-        <RelativeLayout
-            android:id="@+id/addProjectPanel"
-            android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:layout_below="@id/titlePanel">
             <SearchView
                 android:id="@+id/searchView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@null"
+                android:iconifiedByDefault="false"
+                android:queryBackground="@null"
+                android:queryHint="Search templates..."
+                android:searchIcon="@drawable/baseline_search_24" />
 
-                android:layout_marginStart="5dp"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                android:layout_marginBottom="5dp"
+        </com.google.android.material.card.MaterialCardView>
 
-                android:tooltipText="Search for template"/>
-
-        </RelativeLayout>
-
-
-    </RelativeLayout>
-
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-        android:id="@+id/swipeRefreshLayout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-
-        android:layout_marginStart="5dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:layout_marginBottom="5dp"
-
-        android:layout_below="@id/titleFrame">
-
-
-        <RelativeLayout
+        <!-- Template List -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipeRefreshLayout"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <com.google.android.material.imageview.ShapeableImageView
+            <RelativeLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="match_parent">
 
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/templateRecyclerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="80dp"
+                    android:clipToPadding="false"/>
 
+                <ProgressBar
+                    android:id="@+id/progressBarFetchingBook"
+                    style="?android:attr/progressBarStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:visibility="gone" />
 
-                android:background="@color/colorPalette1_4"
+            </RelativeLayout>
 
-                app:strokeColor="@color/colorSoftBlueBackground"
-                app:strokeWidth="1dp"
-                app:shapeAppearanceOverlay="@style/roundedImageView"/>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/templateRecyclerView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"/>
-
-        </RelativeLayout>
-
-
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
-
-    <ProgressBar
-        android:id="@+id/progressBarFetchingBook"
-        style="?android:attr/progressBarStyle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:layout_marginTop="4dp"
-        android:visibility="gone" />
-
-
+    </LinearLayout>
 
 </com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen>

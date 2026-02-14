@@ -1,177 +1,142 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="3dp"
-    android:layout_marginStart="3dp"
-    android:layout_marginEnd="3dp"
-    android:gravity="center">
-    <com.google.android.material.imageview.ShapeableImageView
+    android:layout_margin="6dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="0.5dp"
+    app:strokeColor="?attr/colorOutline"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+
+    <LinearLayout
+        android:id="@+id/wholeView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
-
-        android:background="@color/colorPalette1_4"
-
-        app:strokeColor="@color/colorGlassBackground"
-        app:strokeWidth="1dp"
-        app:shapeAppearanceOverlay="@style/roundedImageView"/>
-
-
-    <RelativeLayout
-        android:id="@+id/previewLayout"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content">
-
+        <!-- Template Preview Image -->
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/previewImage"
-            android:layout_width="150dp"
-            android:layout_height="150dp"
-            android:layout_marginStart="5dp"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="5dp"
-            android:layout_marginBottom="5dp"
-            android:scaleType="centerCrop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:src="@drawable/logo" />
 
+        <!-- Info Area -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
 
-            android:background="@color/colorGlassBackground"
+            <!-- Title -->
+            <TextView
+                android:id="@+id/titleText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/title"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end" />
 
-            app:strokeColor="@color/colorPrimaryBackground"
-            app:strokeWidth="0dp"
-            app:shapeAppearanceOverlay="@style/roundedImageView"/>
-
-
-        <RelativeLayout
-            android:layout_width="wrap_content"
-            android:layout_height="15dp"
-            android:orientation="horizontal"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="0dp"
-            android:layout_marginEnd="0dp"
-            android:layout_marginBottom="5dp"
-            android:layout_alignBottom="@id/previewImage"
-            android:gravity="center">
-
-            <com.google.android.material.imageview.ShapeableImageView
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-
-                android:layout_alignStart="@id/templateInfoLayout"
-                android:layout_alignEnd="@id/templateInfoLayout"
-
-
-                android:background="@color/colorGlassBackground"
-
-                app:strokeColor="@color/colorPrimaryBackground"
-                app:strokeWidth="0dp"
-                app:shapeAppearanceOverlay="@style/rounded4pxImageView"/>
-
-
+            <!-- Author -->
             <LinearLayout
-                android:id="@+id/templateInfoLayout"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center">
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp">
 
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/authorAvatar"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:scaleType="centerCrop"
+                    app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Full" />
+
+                <TextView
+                    android:id="@+id/authorText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="\@author"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+            <!-- Stats -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- Views -->
                 <ImageView
-                    android:layout_width="15dp"
-                    android:layout_height="15dp"
-                    android:src="@drawable/baseline_preview_24"/>
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/baseline_preview_24"
+                    app:tint="?attr/colorOnSurfaceVariant" />
                 <TextView
                     android:id="@+id/viewCount"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="11sp"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="3M" />
+                    android:layout_marginStart="4dp"
+                    android:text="1k"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="11sp" />
 
+                <Space
+                    android:layout_width="12dp"
+                    android:layout_height="wrap_content" />
+
+                <!-- Hearts -->
                 <ImageView
-                    android:layout_width="15dp"
-                    android:layout_height="15dp"
-                    android:layout_marginStart="5dp"
-                    android:src="@drawable/baseline_favorite_24"/>
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/baseline_favorite_24"
+                    app:tint="?attr/colorOnSurfaceVariant" />
                 <TextView
                     android:id="@+id/heartCount"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="11sp"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="83.4k" />
+                    android:layout_marginStart="4dp"
+                    android:text="500"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="11sp" />
 
+                <Space
+                    android:layout_width="12dp"
+                    android:layout_height="wrap_content" />
+
+                <!-- Uses -->
                 <ImageView
-                    android:layout_width="15dp"
-                    android:layout_height="15dp"
-                    android:layout_marginStart="5dp"
-                    android:src="@drawable/baseline_web_stories_24"/>
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/baseline_web_stories_24"
+                    app:tint="?attr/colorOnSurfaceVariant" />
                 <TextView
                     android:id="@+id/useCount"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="11sp"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="25k" />
+                    android:layout_marginStart="4dp"
+                    android:text="20"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="11sp" />
 
             </LinearLayout>
 
-        </RelativeLayout>
+        </LinearLayout>
 
+    </LinearLayout>
 
-    </RelativeLayout>
-
-    <TextView
-        android:id="@+id/titleText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="5dp"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="5dp"
-        android:layout_marginBottom="0dp"
-        android:layout_below="@id/previewLayout"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="@color/colorPrimaryButton"
-        android:text="replacable template name" />
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/titleText">
-
-        <TextView
-            android:id="@+id/authorText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="5dp"
-            android:layout_marginTop="0dp"
-            android:layout_marginEnd="5dp"
-            android:layout_marginBottom="0dp"
-            android:layout_centerVertical="true"
-            android:layout_toEndOf="@id/authorAvatar"
-            android:textSize="12sp"
-            android:textStyle="italic"
-            android:textColor="@color/colorPrimaryButton"
-            android:text="\@authorname" />
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:id="@+id/authorAvatar"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="5dp"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="0dp"
-            android:layout_marginBottom="5dp"
-            android:scaleType="centerCrop"
-
-
-            android:background="@color/colorGlassBackground"
-
-            app:strokeColor="@color/colorPrimaryBackground"
-            app:strokeWidth="0dp"
-            app:shapeAppearanceOverlay="@style/rounded4pxImageView"/>
-
-    </RelativeLayout>
-
-
-
-</RelativeLayout>
+</com.google.android.material.card.MaterialCardView>
