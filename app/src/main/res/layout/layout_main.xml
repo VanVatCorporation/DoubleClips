@@ -8,106 +8,16 @@
         android:id="@+id/mainViewPager"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/belowNavigationFrame">
-
-
+        android:layout_above="@id/bottomNavigation">
     </com.vanvatcorporation.doubleclips.impl.ViewPagerImpl>
 
-    <RelativeLayout
-        android:id="@+id/belowNavigationFrame"
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
         android:layout_width="match_parent"
-        android:layout_height="50dp"
-
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginBottom="20dp"
-
+        android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:gravity="center">
-
-
-        <com.google.android.material.imageview.ShapeableImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-
-
-
-            android:background="@color/colorPalette1_2"
-
-            app:strokeColor="@color/colorSoftBackground"
-            app:strokeWidth="1dp"
-            app:shapeAppearanceOverlay="@style/roundedImageView"/>
-
-        <LinearLayout
-            android:id="@+id/belowNavigationBar"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
-
-            <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                android:id="@+id/navigationElement1"
-                android:layout_width="75dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                app:navIcon="@drawable/baseline_home_24"
-                app:navText="@string/main_homepage">
-
-            </com.vanvatcorporation.doubleclips.impl.NavigationIconLayout>
-
-            <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                android:id="@+id/navigationElement2"
-                android:layout_width="75dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                app:navText="@string/main_template"
-                app:navIcon="@drawable/baseline_download_24" >
-            </com.vanvatcorporation.doubleclips.impl.NavigationIconLayout>
-
-            <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                android:id="@+id/navigationElement3"
-                android:layout_width="75dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                app:navText="@string/main_search"
-                app:navIcon="@drawable/baseline_search_24">
-            </com.vanvatcorporation.doubleclips.impl.NavigationIconLayout>
-
-            <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                android:id="@+id/navigationElement4"
-                android:layout_width="75dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                app:navText="@string/main_storage"
-                app:navIcon="@drawable/baseline_history_24">
-            </com.vanvatcorporation.doubleclips.impl.NavigationIconLayout>
-
-            <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                android:id="@+id/navigationElement5"
-                android:layout_width="75dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                app:navText="@string/main_profile"
-                app:navIcon="@drawable/baseline_person_24">
-            </com.vanvatcorporation.doubleclips.impl.NavigationIconLayout>
-
-        </LinearLayout>
-    </RelativeLayout>
-
-
-
-
-
-
+        android:background="?attr/colorSurfaceContainer"
+        app:menu="@menu/bottom_nav_menu"
+        app:labelVisibilityMode="labeled" />
 
 </RelativeLayout>

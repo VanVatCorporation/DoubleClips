@@ -161,20 +161,27 @@ public class MainActivity extends AppCompatActivityImpl {
         // Start initializing critical modules ----------------------------------------------------------
 
 
-        findViewById(R.id.navigationElement1).setOnClickListener(v -> {
-            viewPager.setCurrentItem(0, true);
-        });
-        findViewById(R.id.navigationElement2).setOnClickListener(v -> {
-            viewPager.setCurrentItem(1, true);
-        });
-        findViewById(R.id.navigationElement3).setOnClickListener(v -> {
-            viewPager.setCurrentItem(2, true);
-        });
-        findViewById(R.id.navigationElement4).setOnClickListener(v -> {
-            viewPager.setCurrentItem(3, true);
-        });
-        findViewById(R.id.navigationElement5).setOnClickListener(v -> {
-            viewPager.setCurrentItem(4, true);
+        // Initialize BottomNavigationView
+        com.google.android.material.bottomnavigation.BottomNavigationView bottomNavigationView = findViewById(R.id.bottomNavigation);
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.message_homepage) {
+                viewPager.setCurrentItem(0, true);
+                return true;
+            } else if (itemId == R.id.message_template) {
+                viewPager.setCurrentItem(1, true);
+                return true;
+            } else if (itemId == R.id.message_search) {
+                viewPager.setCurrentItem(2, true);
+                return true;
+            } else if (itemId == R.id.message_storage) {
+                viewPager.setCurrentItem(3, true);
+                return true;
+            } else if (itemId == R.id.message_profile) {
+                viewPager.setCurrentItem(4, true);
+                return true;
+            }
+            return false;
         });
 
 
@@ -185,33 +192,36 @@ public class MainActivity extends AppCompatActivityImpl {
         profileAreaScreen = (ProfileAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_profile, null);
 
 
-        View belowNavigationBar = findViewById(R.id.belowNavigationBar);
-
-        View navigationButton1 = belowNavigationBar.findViewById(R.id.navigationElement1);
-        View navigationButton2 = belowNavigationBar.findViewById(R.id.navigationElement2);
-        View navigationButton3 = belowNavigationBar.findViewById(R.id.navigationElement3);
-        View navigationButton4 = belowNavigationBar.findViewById(R.id.navigationElement4);
-        View navigationButton5 = belowNavigationBar.findViewById(R.id.navigationElement5);
-
-        View[] navigationButtons = {navigationButton1, navigationButton2, navigationButton3, navigationButton4, navigationButton5};
-
-
-        ((NavigationIconLayout) navigationButton1).runAnimation(NavigationIconLayout.AnimationType.SELECTED);
-
-
         viewPager = findViewById(R.id.mainViewPager);
         viewPager.insertView(homeAreaScreen, templateAreaScreen, View3, View4, profileAreaScreen);
         viewPager.setupActions(
                 new RunnableImpl2() {
                     @Override
                     public <T, T2> void runWithParam(T param, T2 param2) {
-                        int lastPosition = (int) param;
                         int position = (int) param2;
 
+                        int menuItemId = -1;
+                        switch (position) {
+                            case 0:
+                                menuItemId = R.id.message_homepage;
+                                break;
+                            case 1:
+                                menuItemId = R.id.message_template;
+                                break;
+                            case 2:
+                                menuItemId = R.id.message_search;
+                                break;
+                            case 3:
+                                menuItemId = R.id.message_storage;
+                                break;
+                            case 4:
+                                menuItemId = R.id.message_profile;
+                                break;
+                        }
 
-                        ((NavigationIconLayout) navigationButtons[position]).runAnimation(NavigationIconLayout.AnimationType.SELECTED);
-                        ((NavigationIconLayout) navigationButtons[lastPosition]).runAnimation(NavigationIconLayout.AnimationType.UNSELECTED);
-
+                        if (menuItemId != -1) {
+                            bottomNavigationView.getMenu().findItem(menuItemId).setChecked(true);
+                        }
                     }
                 }
         );
