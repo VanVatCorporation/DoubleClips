@@ -2,126 +2,107 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="120dp"
-    android:layout_marginStart="@dimen/spacing_sm"
-    android:layout_marginTop="@dimen/spacing_sm"
-    android:layout_marginEnd="@dimen/spacing_sm">
-
-    <!-- Project Card -->
-    <com.google.android.material.card.MaterialCardView
-        style="@style/Widget.Material3.CardView.Elevated"
+    android:layout_height="110dp"
+    android:layout_marginTop="10dp"
+    android:layout_marginStart="25dp"
+    android:layout_marginEnd="25dp">
+    <com.google.android.material.imageview.ShapeableImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-        app:cardCornerRadius="@dimen/corner_base"
-        app:cardElevation="@dimen/elevation_1"
-        app:strokeColor="?attr/colorOutlineVariant"
-        app:strokeWidth="0.5dp">
 
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="@dimen/spacing_sm">
 
-            <!-- Preview Thumbnail -->
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/previewImage"
-                android:layout_width="85dp"
-                android:layout_height="85dp"
-                android:layout_centerVertical="true"
-                android:background="?attr/colorSurfaceContainer"
-                android:scaleType="centerCrop"
-                app:shapeAppearanceOverlay="@style/ShapeAppearance.App.MediumRounded"
-                app:strokeColor="?attr/colorOutline"
-                app:strokeWidth="1dp" />
+        android:background="@color/colorPalette1_4"
 
-            <!-- Content Area -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-                android:layout_marginStart="@dimen/spacing_sm"
-                android:layout_toStartOf="@id/moreButton"
-                android:layout_toEndOf="@id/previewImage"
-                android:orientation="vertical">
+        app:strokeColor="@color/colorGlassBackground"
+        app:strokeWidth="1dp"
+        app:shapeAppearanceOverlay="@style/roundedImageView"/>
 
-                <!-- Title -->
-                <TextView
-                    android:id="@+id/titleText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="2"
-                    android:text="@string/title"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
+    <com.google.android.material.imageview.ShapeableImageView
+        android:id="@+id/previewImage"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:scaleType="centerCrop"
 
-                <!-- Date -->
-                <TextView
-                    android:id="@+id/dateText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_xs"
-                    android:text="dd/mm/yyyy"
-                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
 
-                <!-- Size -->
-                <TextView
-                    android:id="@+id/sizeText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="1024MB"
-                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+        android:background="@color/colorGlassBackground"
 
-            </LinearLayout>
+        app:strokeColor="@color/colorPrimaryBackground"
+        app:strokeWidth="2dp"
+        app:shapeAppearanceOverlay="@style/roundedImageView"/>
 
-            <!-- Duration Badge -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/durationBadge"
-                style="@style/Widget.Material3.CardView.Filled"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignBottom="@id/previewImage"
-                android:layout_alignEnd="@id/previewImage"
-                android:layout_marginEnd="-4dp"
-                android:layout_marginBottom="-4dp"
-                app:cardBackgroundColor="?attr/colorTertiaryContainer"
-                app:cardCornerRadius="@dimen/corner_xs"
-                app:cardElevation="@dimen/elevation_2">
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="0dp"
+        android:layout_toStartOf="@id/moreButton"
+        android:layout_toEndOf="@id/previewImage"
+        android:layout_alignTop="@+id/previewImage"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="@string/title" />
 
-                <TextView
-                    android:id="@+id/durationText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="@dimen/spacing_xs"
-                    android:paddingTop="2dp"
-                    android:paddingEnd="@dimen/spacing_xs"
-                    android:paddingBottom="2dp"
-                    android:text="hh:mm:ss"
-                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                    android:textColor="?attr/colorOnTertiaryContainer"
-                    android:textStyle="bold" />
+    <ImageButton
+        android:id="@+id/moreButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/baseline_menu_24"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignTop="@+id/previewImage"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="More options" />
 
-            </com.google.android.material.card.MaterialCardView>
 
-            <!-- More Options Button -->
-            <ImageButton
-                android:id="@+id/moreButton"
-                android:layout_width="@dimen/touch_target_min"
-                android:layout_height="@dimen/touch_target_min"
-                android:layout_alignParentEnd="true"
-                android:layout_centerVertical="true"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="More options"
-                android:src="@drawable/baseline_menu_24"
-                app:tint="?attr/colorOnSurfaceVariant" />
+    <TextView
+        android:id="@+id/dateText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="0dp"
+        android:layout_toEndOf="@id/previewImage"
+        android:layout_below="@+id/titleText"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="dd/mm/yyyy" />
 
-        </RelativeLayout>
+    <TextView
+        android:id="@+id/sizeText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:layout_toEndOf="@id/previewImage"
+        android:layout_below="@+id/dateText"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="1024MB" />
 
-    </com.google.android.material.card.MaterialCardView>
+    <TextView
+        android:id="@+id/durationText"
+        android:layout_width="75dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="0dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:layout_below="@+id/previewImage"
+        android:gravity="center"
+        android:textColor="@color/colorPrimaryButton"
+        android:text="hh:mm:ss" />
+
 
 </RelativeLayout>

@@ -1,223 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:layout_height="match_parent">
 
-    <!-- Header Frame -->
+
     <RelativeLayout
         android:id="@+id/titleFrame"
         android:layout_width="match_parent"
-        android:layout_height="180dp">
+        android:layout_height="150dp">
 
-        <!-- Header Background -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
+
+        <com.google.android.material.imageview.ShapeableImageView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:cardBackgroundColor="?attr/colorPrimaryContainer"
-            app:cardCornerRadius="0dp"
-            app:cardElevation="@dimen/elevation_2"
-            app:shapeAppearanceOverlay="@style/ShapeAppearance.App.BottomRounded"
-            app:strokeWidth="0dp" />
 
-        <!-- Profile Header Content -->
+
+            android:background="@color/colorPalette1_2"
+
+            app:shapeAppearanceOverlay="@style/upperRoundedImageView"
+            app:strokeColor="@color/colorSoftBackground"
+            app:strokeWidth="1dp" />
+
+
+
         <RelativeLayout
             android:id="@+id/addProjectPanel"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:padding="@dimen/spacing_lg">
+            android:layout_height="match_parent">
 
-            <!-- Profile Avatar -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/avatarCard"
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="@dimen/avatar_size_xxl"
-                android:layout_height="@dimen/avatar_size_xxl"
-                app:cardCornerRadius="60dp"
-                app:cardElevation="@dimen/elevation_4"
-                app:strokeWidth="0dp">
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/profileAvatarImage"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:layout_margin="15dp"
 
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/profileAvatarImage"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="?attr/colorSecondaryContainer"
-                    android:scaleType="centerCrop"
-                    app:shapeAppearanceOverlay="@style/ShapeAppearance.App.Circle" />
 
-            </com.google.android.material.card.MaterialCardView>
+                android:background="@color/colorPalette1_4"
 
-            <!-- Profile Name -->
+                app:shapeAppearanceOverlay="@style/roundedImageView"
+                app:strokeColor="@color/colorSoftBlueBackground"
+                app:strokeWidth="1dp" />
+
             <TextView
                 android:id="@+id/profileName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignTop="@id/avatarCard"
-                android:layout_marginStart="@dimen/spacing_base"
-                android:layout_marginTop="@dimen/spacing_md"
-                android:layout_toEndOf="@id/avatarCard"
+                android:layout_toEndOf="@id/profileAvatarImage"
+                android:layout_alignTop="@id/profileAvatarImage"
+                android:layout_marginStart="10dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginEnd="25dp"
+                android:layout_marginBottom="0dp"
+                android:gravity="start|center"
                 android:text="Van Vat Employee"
-                android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
-                android:textColor="?attr/colorOnPrimaryContainer" />
+                android:textColor="@color/colorPrimaryBackground"
+                android:textSize="24sp" />
 
-            <!-- Sign In Overlay (shown when not logged in) -->
-            <com.google.android.material.card.MaterialCardView
+
+
+            <RelativeLayout
                 android:id="@+id/signInScreen"
-                style="@style/Widget.Material3.CardView.Filled"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:cardBackgroundColor="#E6E3E1EC"
-                app:cardCornerRadius="@dimen/corner_base"
-                app:cardElevation="@dimen/elevation_1">
-
-                <LinearLayout
+                android:layout_height="match_parent">
+                <com.google.android.material.imageview.ShapeableImageView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:gravity="center"
-                    android:orientation="vertical">
+                    android:layout_margin="10dp"
 
-                    <ImageView
-                        android:layout_width="@dimen/icon_size_xl"
-                        android:layout_height="@dimen/icon_size_xl"
-                        android:alpha="0.6"
-                        android:src="@drawable/baseline_person_24"
-                        app:tint="?attr/colorOnSurface" />
 
-                    <Button
-                        android:id="@+id/signInButton"
-                        style="@style/Widget.Material3.Button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_base"
-                        android:text="@string/settings_account_sign_in" />
+                    android:background="@color/fadeGray"
 
-                </LinearLayout>
+                    app:shapeAppearanceOverlay="@style/roundedImageView"
+                    app:strokeColor="@color/colorSoftBlueBackground"
+                    app:strokeWidth="1dp" />
+                <Button
+                    android:id="@+id/signInButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:text="@string/settings_account_sign_in"/>
 
-            </com.google.android.material.card.MaterialCardView>
+            </RelativeLayout>
+
 
         </RelativeLayout>
 
+
     </RelativeLayout>
 
-    <!-- Settings List with Swipe Refresh -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+
         android:layout_below="@id/titleFrame"
-        android:layout_marginStart="@dimen/spacing_sm"
-        android:layout_marginTop="@dimen/spacing_sm"
-        android:layout_marginEnd="@dimen/spacing_sm"
-        android:layout_marginBottom="@dimen/spacing_sm">
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+
+        android:layout_marginBottom="5dp">
+
 
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <!-- Background Card -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+            <com.google.android.material.imageview.ShapeableImageView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-                app:cardCornerRadius="@dimen/corner_base"
-                app:cardElevation="@dimen/elevation_0"
-                app:strokeColor="?attr/colorOutlineVariant"
+
+
+                android:background="@color/colorPalette1_4"
+
+                app:shapeAppearanceOverlay="@style/roundedImageView"
+                app:strokeColor="@color/colorSoftBlueBackground"
                 app:strokeWidth="1dp" />
 
-            <!-- Settings Content -->
-            <ScrollView
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
 
-                <LinearLayout
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:orientation="vertical"
+                android:padding="10dp">
+
+                <com.vanvatcorporation.doubleclips.impl.SectionView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:clipToPadding="false"
-                    android:orientation="vertical"
-                    android:padding="@dimen/spacing_base">
-
-                    <!-- General Settings Section -->
-                    <com.vanvatcorporation.doubleclips.impl.SectionView
-                        android:layout_width="match_parent"
+                    app:sectionTitle="@string/settings_group_general">
+                    <Button
+                        android:id="@+id/settingsButton"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:sectionTitle="@string/settings_group_general">
+                        android:text="@string/main_settings" />
 
-                        <Button
-                            android:id="@+id/settingsButton"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="start|center_vertical"
-                            android:text="@string/main_settings"
-                            app:icon="@android:drawable/ic_menu_preferences"
-                            app:iconGravity="start" />
+                </com.vanvatcorporation.doubleclips.impl.SectionView>
+                <com.vanvatcorporation.doubleclips.impl.SectionView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:sectionTitle="@string/settings_group_account">
 
-                    </com.vanvatcorporation.doubleclips.impl.SectionView>
-
-                    <!-- Account Settings Section -->
-                    <com.vanvatcorporation.doubleclips.impl.SectionView
-                        android:layout_width="match_parent"
+                    <Button
+                        android:id="@+id/statisticsButton"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_base"
-                        app:sectionTitle="@string/settings_group_account">
+                        android:text="@string/settings_account_statistics"/>
+                    <Button
+                        android:id="@+id/savedTemplateButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_account_saved_templates"/>
 
-                        <Button
-                            android:id="@+id/statisticsButton"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="start|center_vertical"
-                            android:text="@string/settings_account_statistics"
-                            app:icon="@android:drawable/ic_menu_info_details"
-                            app:iconGravity="start" />
+                    <Button
+                        android:id="@+id/logOutButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:backgroundTint="@color/red"
+                        android:text="@string/settings_account_log_out"/>
 
-                        <Button
-                            android:id="@+id/savedTemplateButton"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/spacing_sm"
-                            android:gravity="start|center_vertical"
-                            android:text="@string/settings_account_saved_templates"
-                            app:icon="@drawable/baseline_favorite_24"
-                            app:iconGravity="start" />
 
-                        <Button
-                            android:id="@+id/logOutButton"
-                            style="@style/Widget.Material3.Button.TonalButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="@dimen/spacing_base"
-                            android:backgroundTint="?attr/colorErrorContainer"
-                            android:gravity="start|center_vertical"
-                            android:text="@string/settings_account_log_out"
-                            android:textColor="?attr/colorOnErrorContainer"
-                            app:icon="@android:drawable/ic_menu_close_clear_cancel"
-                            app:iconGravity="start"
-                            app:iconTint="?attr/colorOnErrorContainer" />
 
-                    </com.vanvatcorporation.doubleclips.impl.SectionView>
+                </com.vanvatcorporation.doubleclips.impl.SectionView>
 
-                </LinearLayout>
-
-            </ScrollView>
+            </LinearLayout>
 
         </RelativeLayout>
 
+
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <!-- Loading Indicator -->
-    <com.google.android.material.progressindicator.CircularProgressIndicator
+
+    <ProgressBar
         android:id="@+id/progressBarFetchingBook"
-        style="@style/Widget.App.CircularProgressIndicator"
-        android:layout_width="@dimen/progress_indicator_size_md"
-        android:layout_height="@dimen/progress_indicator_size_md"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_centerInParent="true"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:indicatorColor="?attr/colorPrimary" />
+        android:layout_marginTop="4dp"
+        android:visibility="gone" />
+
 
 </com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen>
