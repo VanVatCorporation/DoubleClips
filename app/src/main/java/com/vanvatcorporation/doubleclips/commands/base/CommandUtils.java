@@ -10,6 +10,14 @@ public class CommandUtils {
     public interface Command {
         void execute();
         void undo();
+        
+        /**
+         * Return a human-readable description of this command.
+         * Useful for debugging and potential undo history UI.
+         */
+//        default String toString() {
+//            return "Command";
+//        }
     }
 
 

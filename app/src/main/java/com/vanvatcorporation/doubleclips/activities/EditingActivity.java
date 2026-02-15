@@ -76,6 +76,11 @@ import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecif
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
+import com.vanvatcorporation.doubleclips.commands.AddClipCommand;
+import com.vanvatcorporation.doubleclips.commands.DeleteClipCommand;
+import com.vanvatcorporation.doubleclips.commands.SplitClipCommand;
+import com.vanvatcorporation.doubleclips.commands.BatchCommand;
+import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
@@ -112,7 +117,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
     //List<Track> trackList = new ArrayList<>();
-    Timeline timeline = new Timeline();
+    public Timeline timeline = new Timeline();
     MainAreaScreen.ProjectData properties;
     VideoSettings settings;
 
@@ -158,7 +163,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
     static TransitionClip selectedKnot = null;
-    static Clip selectedClip = null;
+    public static Clip selectedClip = null;
     public static Track selectedTrack = null;
 
     static ArrayList<Clip> selectedClips = new ArrayList<>();
@@ -1058,19 +1063,31 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         });
 
+
         undoButton = findViewById(R.id.undoButton);
-        undoButton.setOnClickListener(v -> {
-            actionManager.undo();
-            undoButton.setEnabled(actionManager.isUndoAvailable());
-        });
         undoButton.setEnabled(actionManager.isUndoAvailable());
+        undoButton.setOnClickListener(v -> {
+            if (actionManager.isUndoAvailable()) {
+                actionManager.undo();
+            }
+        });
 
         redoButton = findViewById(R.id.redoButton);
-        redoButton.setOnClickListener(v -> {
-            actionManager.redo();
-            redoButton.setEnabled(actionManager.isRedoAvailable());
-        });
         redoButton.setEnabled(actionManager.isRedoAvailable());
+        redoButton.setOnClickListener(v -> {
+            if (actionManager.isRedoAvailable()) {
+                actionManager.redo();
+            }
+        });
+        
+        // Set up state change listener to update button states automatically
+        actionManager.setStateChangeListener((canUndo, canRedo) -> {
+            undoButton.setEnabled(canUndo);
+            redoButton.setEnabled(canRedo);
+        });
+        
+        // Initialize button states
+        updateUndoRedoButtons();
 
         exportButton = findViewById(R.id.exportButton);
         exportButton.setOnClickListener(v -> {
@@ -1365,17 +1382,18 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         toolbarClip.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
-                selectedClip.deleteClip(timeline, this);
+                // Use command for undo/redo support
+                executeCommand(new DeleteClipCommand(this, selectedClip));
                 updateCurrentClipEnd();
             }
-
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
 
         });
         toolbarClip.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
             List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
-                selectedClip.splitClip(this, timeline, currentTime);
+                // Use command for undo/redo support
+                executeCommand(new SplitClipCommand(this, selectedClip, currentTime));
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
@@ -1383,8 +1401,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(selectedClip != null) {
                 Clip cloneClip = new Clip(selectedClip);
                 cloneClip.startTime = selectedClip.startTime + selectedClip.duration;
-                if(selectedTrack != null)
-                    addClipToTrack(selectedTrack, cloneClip);
+                if(selectedTrack != null) {
+                    // Use command for undo/redo support
+                    executeCommand(new AddClipCommand(this, selectedTrack, cloneClip));
+                }
                 else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
@@ -1458,34 +1478,35 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
         toolbarClips.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
-            if(selectedClips != null) {
+            if(selectedClips != null && !selectedClips.isEmpty()) {
+                // Use BatchCommand to delete multiple clips
+                BatchCommand batchDelete = new BatchCommand("Delete Multiple Clips");
                 List<Clip> affectedClips = new ArrayList<>(selectedClips);
-                for (Clip selectedClip : affectedClips) {
-                    selectedClip.deleteClip(timeline, this);
+                for (Clip clip : affectedClips) {
+                    batchDelete.addCommand(new DeleteClipCommand(this, clip));
                 }
+                executeCommand(batchDelete);
                 updateCurrentClipEnd();
             }
-
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
 
         });
         toolbarClips.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
-            if(selectedClips != null) {
-                if (selectedTrack != null)
+            if(selectedClips != null && !selectedClips.isEmpty()) {
+                if (selectedTrack != null) {
+                    // Use BatchCommand to clone multiple clips
+                    BatchCommand batchClone = new BatchCommand("Clone Multiple Clips");
                     for (Clip clip : selectedClips) {
-
-                        // TODO: Get the last Clip startTime + duration to append the clone Clips.
-                        //  But user can choose between track so...
-                        //  Sort the clip following its track id, then get the last clip of that track, then clone each track separately.
                         Clip cloneClip = new Clip(clip);
                         cloneClip.startTime = clip.startTime + clip.duration;
-                        addClipToTrack(selectedTrack, cloneClip);
+                        batchClone.addCommand(new AddClipCommand(this, selectedTrack, cloneClip));
                     }
+                    executeCommand(batchClone);
+                }
                 else
                     new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
-
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
         });
         toolbarClips.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
             if(!selectedClips.isEmpty())
@@ -2140,12 +2161,37 @@ public class EditingActivity extends AppCompatActivityImpl {
         return track;
     }
 
+    /**
+     * Execute a command through the command manager.
+     * This is the preferred way to perform editing operations.
+     */
+    public void executeCommand(CommandUtils.Command cmd) {
+        actionManager.executeCommand(cmd);
+    }
+    
+    /**
+     * Update undo/redo button states.
+     * Called by the CommandManager state change listener.
+     */
+    private void updateUndoRedoButtons() {
+        if (undoButton != null) {
+            undoButton.setEnabled(actionManager.isUndoAvailable());
+        }
+        if (redoButton != null) {
+            redoButton.setEnabled(actionManager.isRedoAvailable());
+        }
+    }
+
+    /**
+     * Legacy method for adding clip to track.
+     * Consider using AddClipCommand instead for undo/redo support.
+     */
     public void addClipToTrack(Track track, Clip data) {
         addClipToTrackUi(track.viewRef, data);
 
         track.addClip(data);
     }
-    private void addClipToTrackUi(TrackFrameLayout trackLayout, Clip data)
+    public void addClipToTrackUi(TrackFrameLayout trackLayout, Clip data)
     {
         ImageGroupView clipView = new ImageGroupView(this);
         TrackFrameLayout.LayoutParams params = new TrackFrameLayout.LayoutParams(
@@ -2939,7 +2985,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     {
         this.selectedKnot = selectedKnot;
     }
-    private void deselectingClip()
+    public void deselectingClip()
     {
         toolbarClip.setVisibility(View.GONE);
         toolbarClips.setVisibility(View.GONE);
