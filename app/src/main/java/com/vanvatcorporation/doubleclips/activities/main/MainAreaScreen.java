@@ -58,7 +58,17 @@ import java.util.Objects;
 public class MainAreaScreen extends BaseAreaScreen {
     public ProjectData currentExportingProject;
 
-
+    // Sort preference keys
+    private static final String PREF_SORT_BY    = "project_sort_by";
+    private static final String PREF_SORT_ORDER = "project_sort_order";
+    // Sort-by values
+    public static final String SORT_BY_DATE     = "date";
+    public static final String SORT_BY_NAME     = "name";
+    public static final String SORT_BY_DURATION = "duration";
+    public static final String SORT_BY_SIZE     = "size";
+    // Sort-order values
+    public static final String SORT_ORDER_DESC  = "desc"; // newest / A→Z / largest
+    public static final String SORT_ORDER_ASC   = "asc";  // oldest / Z→A / smallest
 
     public ActivityResultLauncher<Intent> filePickerLauncher;
     public ActivityResultLauncher<Intent> fileCreatorLauncher;
@@ -71,6 +81,7 @@ public class MainAreaScreen extends BaseAreaScreen {
 
     public TextView titleText;
     public View addNewProjectButton;
+    public android.widget.ImageButton sortButton;
 
     public MainAreaScreen(Context context) {
         super(context);
@@ -98,6 +109,8 @@ public class MainAreaScreen extends BaseAreaScreen {
         projectSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         titleText = findViewById(R.id.title);
         addNewProjectButton = findViewById(R.id.addProjectButton);
+        sortButton = findViewById(R.id.sortButton);
+        sortButton.setOnClickListener(v -> showSortDialog());
 
 
         titleText.setOnClickListener(v -> {
@@ -217,6 +230,8 @@ public class MainAreaScreen extends BaseAreaScreen {
             if(!previewDir.exists())
                 previewDir.mkdirs();
 
+
+            applySortAndRefresh();
             enterEditing(getContext(), data);
         }
     }
@@ -246,7 +261,98 @@ public class MainAreaScreen extends BaseAreaScreen {
 
         }
 
+        applySortAndRefresh();
         projectSwipeRefreshLayout.setRefreshing(false);
+    }
+
+    /** Shows the sort bottom-sheet and saves the chosen preference. */
+    private void showSortDialog() {
+        android.app.Dialog dialog = new android.app.Dialog(getContext(), com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
+        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_sort_projects, null);
+        dialog.setContentView(dialogView);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            dialog.getWindow().setGravity(android.view.Gravity.BOTTOM);
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext());
+        String currentSortBy    = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
+        String currentSortOrder = prefs.getString(PREF_SORT_ORDER, SORT_ORDER_DESC);
+
+        com.google.android.material.chip.ChipGroup sortByGroup    = dialogView.findViewById(R.id.sortByChipGroup);
+        com.google.android.material.chip.ChipGroup sortOrderGroup = dialogView.findViewById(R.id.sortOrderChipGroup);
+
+        // Pre-select current sort-by chip
+        switch (currentSortBy) {
+            case SORT_BY_NAME:     sortByGroup.check(R.id.chipSortName);     break;
+            case SORT_BY_DURATION: sortByGroup.check(R.id.chipSortDuration); break;
+            case SORT_BY_SIZE:     sortByGroup.check(R.id.chipSortSize);     break;
+            default:               sortByGroup.check(R.id.chipSortDate);     break;
+        }
+        // Pre-select current order chip
+        if (SORT_ORDER_ASC.equals(currentSortOrder)) {
+            sortOrderGroup.check(R.id.chipOrderOldest);
+        } else {
+            sortOrderGroup.check(R.id.chipOrderNewest);
+        }
+
+        dialogView.findViewById(R.id.applySortButton).setOnClickListener(v -> {
+            // Resolve chosen sort-by
+            String chosenSortBy;
+            int checkedSortById = sortByGroup.getCheckedChipId();
+            if      (checkedSortById == R.id.chipSortName)     chosenSortBy = SORT_BY_NAME;
+            else if (checkedSortById == R.id.chipSortDuration) chosenSortBy = SORT_BY_DURATION;
+            else if (checkedSortById == R.id.chipSortSize)     chosenSortBy = SORT_BY_SIZE;
+            else                                               chosenSortBy = SORT_BY_DATE;
+
+            // Resolve chosen order
+            String chosenOrder = (sortOrderGroup.getCheckedChipId() == R.id.chipOrderOldest)
+                    ? SORT_ORDER_ASC : SORT_ORDER_DESC;
+
+            // Persist
+            prefs.edit()
+                    .putString(PREF_SORT_BY, chosenSortBy)
+                    .putString(PREF_SORT_ORDER, chosenOrder)
+                    .apply();
+
+            dialog.dismiss();
+            applySortAndRefresh();
+        });
+
+        dialog.show();
+    }
+
+    /** Sorts projectList in-place according to the saved preference and notifies the adapter. */
+    public void applySortAndRefresh() {
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext());
+        String sortBy    = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
+        String sortOrder = prefs.getString(PREF_SORT_ORDER, SORT_ORDER_DESC);
+        boolean descending = SORT_ORDER_DESC.equals(sortOrder);
+
+        java.util.Comparator<ProjectData> comparator;
+        switch (sortBy) {
+            case SORT_BY_NAME:
+                comparator = java.util.Comparator.comparing(ProjectData::getProjectTitle,
+                        String.CASE_INSENSITIVE_ORDER);
+                if (descending) comparator = comparator.reversed();
+                break;
+            case SORT_BY_DURATION:
+                comparator = java.util.Comparator.comparingLong(ProjectData::getProjectDuration);
+                if (descending) comparator = comparator.reversed();
+                break;
+            case SORT_BY_SIZE:
+                comparator = java.util.Comparator.comparingLong(ProjectData::getProjectSize);
+                if (descending) comparator = comparator.reversed();
+                break;
+            default: // SORT_BY_DATE
+                comparator = java.util.Comparator.comparingLong(ProjectData::getProjectTimestamp);
+                if (descending) comparator = comparator.reversed();
+                break;
+        }
+
+        projectList.sort(comparator);
+        projectAdapter.notifyDataSetChanged();
     }
     public static void enterEditing(Context context, MainAreaScreen.ProjectData projectItem)
     {

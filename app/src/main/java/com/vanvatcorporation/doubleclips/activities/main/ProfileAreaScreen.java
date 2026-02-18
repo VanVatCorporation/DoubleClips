@@ -107,7 +107,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
         {
             profileNameText.setText(AuthRepository.getInstance(getContext()).getCurrentUser().getUsername());
-            ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com" + AuthRepository.getInstance(getContext()).getCurrentUser().getAvatarUrl(), profileAvatarImage);
+            ImageHelper.getImageBitmapFromNetwork(getContext(), "https://account.vanvatcorp.com/api/avatar/" + AuthRepository.getInstance(getContext()).getCurrentUser().getId(), profileAvatarImage);
             
             profileHeader.setVisibility(View.VISIBLE);
             signInScreen.setVisibility(View.GONE);

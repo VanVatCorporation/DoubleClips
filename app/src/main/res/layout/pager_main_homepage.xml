@@ -60,19 +60,37 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Section Title (mapped to 'title' ID for debug access) -->
-        <TextView
-            android:id="@+id/title"
+        <!-- Section Title + Sort Button -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:layout_marginStart="24dp"
-            android:layout_marginEnd="24dp"
+            android:layout_marginEnd="16dp"
             android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:text="Recent Projects"
-            android:textColor="?android:attr/textColorPrimary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Recent Projects"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/sortButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/baseline_sort_24"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Sort projects"
+                app:tint="?android:attr/textColorSecondary" />
+
+        </LinearLayout>
 
         <!-- Project List -->
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
