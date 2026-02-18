@@ -515,42 +515,62 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             holder.commentCount.setText("" + data.getComments().size());//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
             holder.bookmarkCount.setText("" + data.getBookmarkCount());//NumberHelper.abbreviateNumber(Random.Range(1, 500000))); // data.clipCount
 
+            // 1. Initial State - Heart
+            updateHeartUI(holder, data);
+
+            // 2. Initial State - Bookmark
+            updateBookmarkUI(holder, data);
+
+
             holder.heartButton.setOnClickListener(v -> {
+                // Optimistic Update
+                boolean newState = !data.isLiked;
+                data.isLiked = newState;
+                data.setHeartCount(data.getHeartCount() + (newState ? 1 : -1));
+                updateHeartUI(holder, data);
 
                 postToggleLike(data.getTemplateId(), new RunnableImpl() {
-
                     @Override
                     public <T> void runWithParam(T param) {
                         try {
-                            boolean isLike = new JSONObject((String) param).getBoolean("isLiked");
+                            // Sync with Server Response if needed
+                            boolean serverIsLike = new JSONObject((String) param).getBoolean("isLiked");
+                            // If mismatch, correct it? For now, trust optimistic or server.
+                            // Let's ensure data remains consistent with server
+                            if (data.isLiked != serverIsLike) {
+                                data.isLiked = serverIsLike;
+                                data.setHeartCount(data.getHeartCount() + (serverIsLike ? 1 : -1)); // Re-adjust
+                                holder.itemView.post(() -> updateHeartUI(holder, data));
+                            }
 
-                            data.setHeartCount(data.getHeartCount() + (isLike ? 1 : -1));
-                            holder.heartCount.setText("" + data.getHeartCount());
-                            holder.heartButton.setImageResource(isLike ? R.drawable.baseline_favorite_24 : R.drawable.baseline_favorite_border_24);
                         } catch (JSONException e) {
                             LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
                         }
                     }
                 });
             });
+
             holder.commentButton.setOnClickListener(v -> {
                 commentsAreaScreen.open();
-//                data.getComments().add(new TemplateAreaScreen.TemplateData.TemplateComment());
-//                holder.commentCount.setText("" + data.getComments().size());
-
             });
+
             holder.bookmarkButton.setOnClickListener(v -> {
+                // Optimistic Update
+                boolean newState = !data.isBookmarked;
+                data.isBookmarked = newState;
+                data.setBookmarkCount(data.getBookmarkCount() + (newState ? 1 : -1));
+                updateBookmarkUI(holder, data);
 
                 postToggleBookmark(data.getTemplateId(), new RunnableImpl() {
-
                     @Override
                     public <T> void runWithParam(T param) {
                         try {
-                            boolean isBookmark = new JSONObject((String) param).getBoolean("isBookmarked");
-
-                            data.setBookmarkCount(data.getBookmarkCount() + (isBookmark ? 1 : -1));
-                            holder.bookmarkCount.setText("" + data.getBookmarkCount());
-                            holder.bookmarkButton.setImageResource(isBookmark ? R.drawable.baseline_bookmark_24 : R.drawable.baseline_bookmark_border_24);
+                             boolean serverIsBookmarked = new JSONObject((String) param).getBoolean("isBookmarked");
+                             if (data.isBookmarked != serverIsBookmarked) {
+                                 data.isBookmarked = serverIsBookmarked;
+                                 data.setBookmarkCount(data.getBookmarkCount() + (serverIsBookmarked ? 1 : -1));
+                                 holder.itemView.post(() -> updateBookmarkUI(holder, data));
+                             }
                         } catch (JSONException e) {
                             LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
                         }
@@ -613,6 +633,28 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
             }
         }
-    }
+        }
+
+        private void updateHeartUI(VideoAdapter.VideoViewHolder holder, TemplateAreaScreen.TemplateData data) {
+            holder.heartCount.setText("" + data.getHeartCount());
+            if (data.isLiked) {
+                holder.heartButton.setImageResource(R.drawable.baseline_favorite_24);
+                holder.heartButton.setColorFilter(holder.itemView.getContext().getColor(R.color.red));
+            } else {
+                holder.heartButton.setImageResource(R.drawable.baseline_favorite_border_24);
+                holder.heartButton.setColorFilter(holder.itemView.getContext().getColor(R.color.white));
+            }
+        }
+
+        private void updateBookmarkUI(VideoAdapter.VideoViewHolder holder, TemplateAreaScreen.TemplateData data) {
+            holder.bookmarkCount.setText("" + data.getBookmarkCount());
+            if (data.isBookmarked) {
+                holder.bookmarkButton.setImageResource(R.drawable.baseline_bookmark_24);
+                holder.bookmarkButton.setColorFilter(holder.itemView.getContext().getColor(R.color.ios_yellow));
+            } else {
+                holder.bookmarkButton.setImageResource(R.drawable.baseline_bookmark_border_24);
+                holder.bookmarkButton.setColorFilter(holder.itemView.getContext().getColor(R.color.white));
+            }
+        }
 
 }

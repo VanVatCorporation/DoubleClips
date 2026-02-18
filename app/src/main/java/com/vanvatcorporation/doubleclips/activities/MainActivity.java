@@ -4,13 +4,10 @@ import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -18,32 +15,16 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.PopupMenu;
-import android.widget.ProgressBar;
-import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.arthenica.ffmpegkit.Statistics;
 import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.BuildConfig;
-import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -51,40 +32,20 @@ import com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
-import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.User;
-import com.vanvatcorporation.doubleclips.ext.rajawali.RajawaliExample;
-import com.vanvatcorporation.doubleclips.helper.CompressionHelper;
-import com.vanvatcorporation.doubleclips.helper.DateHelper;
-import com.vanvatcorporation.doubleclips.helper.IOHelper;
-import com.vanvatcorporation.doubleclips.helper.IOImageHelper;
-import com.vanvatcorporation.doubleclips.helper.ImageHelper;
 import com.vanvatcorporation.doubleclips.helper.NotificationHelper;
 import com.vanvatcorporation.doubleclips.helper.ProgressCompressionHelper;
-import com.vanvatcorporation.doubleclips.helper.StringFormatHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
-import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.vanvatcorporation.doubleclips.impl.ViewPagerImpl;
-import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl2;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 import com.vanvatcorporation.doubleclips.popups.CompressionPopup;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
-import java.io.Serializable;
 import java.net.URL;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -341,79 +302,68 @@ public class MainActivity extends AppCompatActivityImpl {
 
 
     void loadCurrentIssuesAndShow() {
+        // Show the custom dialog immediately (like iOS .onAppear), with a spinner.
+        // Then fetch issues in the background and update the UI.
+        runOnUiThread(() -> {
+            android.app.Dialog dialog = new android.app.Dialog(this, com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
+            View dialogView = LayoutInflater.from(this).inflate(R.layout.popup_early_access, null);
+            dialog.setContentView(dialogView);
 
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-
-        Future<String> future = executorService.submit(() -> {
-
-
-            StringBuilder issueBuilder = new StringBuilder("None");
-
-            try {
-
-                URL url = new URL("https://app.vanvatcorp.com/doubleclips/api/fetch-issues");
-                HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-
-                // Read the response
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-                reader.close();
-
-                System.err.println(response);
-                String[] issues = new Gson().newBuilder().setPrettyPrinting().create().fromJson(response.toString(), String[].class);
-
-                System.err.println(issues.length);
-                issueBuilder = new StringBuilder();
-                for (String issue : issues) {
-                    issueBuilder.append("•").append(issue).append("\n");
-                }
-                if(issues.length == 0)
-                {
-                    issueBuilder.append("None");
-                }
-            }
-            catch (Exception e)
-            {
-                issueBuilder.append("Failed to get issues from server.");
+            // Make it a bottom-sheet style (full width, rounded top corners)
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                dialog.getWindow().setGravity(android.view.Gravity.BOTTOM);
+                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
             }
 
-            return issueBuilder.toString();
-        });
+            android.widget.LinearLayout issuesLoadingView = dialogView.findViewById(R.id.issuesLoadingView);
+            android.widget.TextView issuesText = dialogView.findViewById(R.id.issuesText);
 
+            // Wire up buttons
+            dialogView.findViewById(R.id.earlyAccessOkButton).setOnClickListener(v -> dialog.dismiss());
+            dialogView.findViewById(R.id.earlyAccessDontShowButton).setOnClickListener(v -> {
+                PreferenceManager.getDefaultSharedPreferences(this).edit()
+                        .putBoolean("early_access_issues_notification", false).apply();
+                dialog.dismiss();
+            });
 
+            dialog.show();
 
+            // Fetch issues in background, then update the issues box
+            Executors.newSingleThreadExecutor().execute(() -> {
+                StringBuilder issueBuilder = new StringBuilder();
+                try {
+                    URL url = new URL("https://app.vanvatcorp.com/doubleclips/api/fetch-issues");
+                    HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
 
-        // TODO: future block the main thread which will take longer to open. Temporary switch to branch thread for now.
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+                    String[] issues = new Gson().newBuilder().create().fromJson(response.toString(), String[].class);
+                    if (issues == null || issues.length == 0) {
+                        issueBuilder.append("None");
+                    } else {
+                        for (String issue : issues) {
+                            issueBuilder.append("• ").append(issue).append("\n");
+                        }
+                    }
+                } catch (Exception e) {
+                    issueBuilder.append("Failed to get issues from server.");
+                }
 
-            String issueCrafted;
-            try {
-                issueCrafted = future.get();
-            } catch (Exception e) {
-                issueCrafted = "Failed to get issues from server.";
-            }
-            new AlertDialog.Builder(this)
-                    .setTitle("Early access warning")
-                    .setMessage("This app will undergo many core changes in the near future. " +
-                            "If you update to the latest version and find that your project can’t be edited or modified, " +
-                            "don’t panic—just click the three-line menu button and select “Share project” to create a backup. " +
-                            "Your work is still there; it just needs to be migrated to the new version. " +
-                            "Then visit our GitHub page and submit an issue including the version. Thank you for using our app." +
-                            "\nHere's the brief summary of found issues this version currently have:\n\n" +
-                            issueCrafted +
-                            "\n\nThis popup can be enable in Settings, and usually take about a few kilobyte of internet depending on how many the issue is.")
-                    .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                    .setNegativeButton("Don't show again", (dialog, which) -> {
-                        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("early_access_issues_notification", false).apply();
-                        dialog.dismiss();
-                    }).create().show();
-
+                final String result = issueBuilder.toString().trim();
+                runOnUiThread(() -> {
+                    issuesLoadingView.setVisibility(View.GONE);
+                    issuesText.setText(result);
+                    issuesText.setVisibility(View.VISIBLE);
+                });
+            });
         });
     }
 

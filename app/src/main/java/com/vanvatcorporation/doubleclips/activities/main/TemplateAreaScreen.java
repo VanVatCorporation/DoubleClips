@@ -119,15 +119,12 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         ExecutorService executorService = Executors.newSingleThreadExecutor();
 
         executorService.execute(() -> {
-
-
             try {
-
+                // 1. Fetch Templates
                 URL url = new URL("https://app.vanvatcorp.com/doubleclips/api/fetch-templates");
                 HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
 
-                // Read the response
                 BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String line;
@@ -136,11 +133,21 @@ public class TemplateAreaScreen extends BaseAreaScreen {
                 }
                 reader.close();
 
-
-
                 TemplateData[] serverData = new Gson().newBuilder().create().fromJson(response.toString(), TemplateData[].class);
 
+                // 2. Fetch User Interactions (Liked & Bookmarked IDs)
+                List<String> likedIds = fetchStringList("https://app.vanvatcorp.com/doubleclips/api/fetch-liked-templates");
+                List<String> bookmarkedIds = fetchStringList("https://app.vanvatcorp.com/doubleclips/api/fetch-bookmarked-templates");
 
+                // 3. Map Interactions to Templates
+                for (TemplateData data : serverData) {
+                    if (likedIds.contains(data.getTemplateId())) {
+                        data.isLiked = true;
+                    }
+                    if (bookmarkedIds.contains(data.getTemplateId())) {
+                        data.isBookmarked = true;
+                    }
+                }
 
                 templateSwipeRefreshLayout.post(() -> {
                     templateAdapter.notifyDataSetChanged();
@@ -162,6 +169,33 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             }
         });
 
+    }
+
+    private List<String> fetchStringList(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            // Add auth headers (cookies) if managed automatically or manually
+            String cookie = android.webkit.CookieManager.getInstance().getCookie(urlString);
+            if (cookie != null) {
+                connection.setRequestProperty("Cookie", cookie);
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+
+            String[] ids = new Gson().fromJson(response.toString(), String[].class);
+            return ids != null ? Arrays.asList(ids) : new ArrayList<>();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
     }
 
     public void reloadingProject()
@@ -224,6 +258,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private int useCount;
         private int heartCount;
         private ArrayList<TemplateComment> comments = new ArrayList<>();
+        public boolean isLiked;
+        public boolean isBookmarked;
         private int bookmarkCount;
 
 
