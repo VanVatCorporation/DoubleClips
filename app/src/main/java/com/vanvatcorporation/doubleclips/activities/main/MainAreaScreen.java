@@ -112,37 +112,67 @@ public class MainAreaScreen extends BaseAreaScreen {
         });
 
         addNewProjectButton.setOnClickListener(v -> {
-            //pickingContent();
+            // Two-step bottom-sheet: Option Picker → Name Form (with slide animation)
+            android.app.Dialog dialog = new android.app.Dialog(getContext(), com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
+            View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.popup_add_project, null);
+            dialog.setContentView(dialogView);
 
-            AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                dialog.getWindow().setGravity(android.view.Gravity.BOTTOM);
+                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            }
 
-            // Inflate your custom layout
-            LayoutInflater inflater = LayoutInflater.from(getContext());
-            View dialogView = inflater.inflate(R.layout.popup_add_project, null);
-            builder.setView(dialogView);
+            android.widget.ViewFlipper viewFlipper = dialogView.findViewById(R.id.viewFlipper);
+            com.google.android.material.textfield.TextInputEditText projectTitleInput = dialogView.findViewById(R.id.projectTitleInput);
+            com.google.android.material.button.MaterialButton createProjectButton = dialogView.findViewById(R.id.createProjectButton);
 
-            // Get references to the EditText and Buttons in your custom layout
-            ImageView newButton = dialogView.findViewById(R.id.newButton);
-            ImageView importButton = dialogView.findViewById(R.id.importButton);
-
-            // Create the AlertDialog
-            AlertDialog dialog = builder.create();
-
-            // Set button click listeners
-            newButton.setOnClickListener(vok -> {
-                addNewProject();
-                dialog.dismiss();
+            // Step 1 → Step 2: slide left (forward)
+            dialogView.findViewById(R.id.newProjectCard).setOnClickListener(vok -> {
+                viewFlipper.setInAnimation(getContext(), R.anim.slide_in_right);
+                viewFlipper.setOutAnimation(getContext(), R.anim.slide_out_left);
+                viewFlipper.showNext();
+                // Auto-focus the text field
+                projectTitleInput.requestFocus();
+                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(projectTitleInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
             });
 
-            importButton.setOnClickListener(vcan -> {
-
+            // Import option
+            dialogView.findViewById(R.id.importProjectCard).setOnClickListener(vcan -> {
                 importContent();
-
-                // Just dismiss the dialog
                 dialog.dismiss();
             });
 
-            // Show the dialog
+            // Step 2 → Step 1: slide right (back)
+            dialogView.findViewById(R.id.backButton).setOnClickListener(vback -> {
+                viewFlipper.setInAnimation(getContext(), R.anim.slide_in_left);
+                viewFlipper.setOutAnimation(getContext(), R.anim.slide_out_right);
+                viewFlipper.showPrevious();
+            });
+
+            // Create Project with typed name
+            createProjectButton.setOnClickListener(vcreate -> {
+                String title = projectTitleInput.getText() != null
+                        ? projectTitleInput.getText().toString().trim()
+                        : "";
+                if (title.isEmpty()) {
+                    projectTitleInput.setError("Please enter a project name");
+                    return;
+                }
+                dialog.dismiss();
+                addNewProjectWithName(title);
+            });
+
+            // Also handle IME "Done" action
+            projectTitleInput.setOnEditorActionListener((textView, actionId, event) -> {
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                    createProjectButton.performClick();
+                    return true;
+                }
+                return false;
+            });
+
             dialog.show();
         });
 
@@ -164,12 +194,17 @@ public class MainAreaScreen extends BaseAreaScreen {
 
     public void addNewProject() {
         String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
-
         String projectName = projectPath.substring(projectPath.lastIndexOf("/") + 1);
+        addNewProjectWithName(projectName);
+    }
+
+    public void addNewProjectWithName(String title) {
+        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
+
         File file = new File(projectPath);
         if(file.mkdirs()) //If directory created operation was success
         {
-            ProjectData data = new ProjectData(projectPath, projectName, new Date().getTime(), 31122007, 8032007);
+            ProjectData data = new ProjectData(projectPath, title, new Date().getTime(), 31122007, 8032007);
             data.version = BuildConfig.VERSION_NAME;
             projectList.add(data);
             projectAdapter.notifyItemInserted(projectList.size() - 1);
