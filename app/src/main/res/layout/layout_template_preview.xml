@@ -2,7 +2,8 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@android:color/black">
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/mediaViewPager"
@@ -10,38 +11,49 @@
         android:layout_height="match_parent"
         android:orientation="vertical"/>
 
+    <!-- Top Bar Area -->
+    <ImageButton
+        android:id="@+id/backButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="48dp"
+        android:layout_marginStart="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/baseline_keyboard_return_24"
+        app:tint="@android:color/white"
+        android:elevation="4dp"/>
+
+    <!-- Center Status Icons -->
     <ProgressBar
         android:id="@+id/mediaLoadingIcon"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:indeterminateTint="@android:color/white"
         android:layout_centerInParent="true"/>
+
     <ImageView
         android:id="@+id/mediaPausedIcon"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
         android:src="@drawable/baseline_play_circle_24"
+        app:tint="#80FFFFFF"
         android:visibility="gone"
         android:layout_centerInParent="true"/>
+
     <ImageView
         android:id="@+id/mediaPlaybackErrorIcon"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
         android:src="@drawable/baseline_warning_24"
+        app:tint="@android:color/white"
         android:visibility="gone"
         android:layout_centerInParent="true"/>
 
-    <ImageButton
-        android:id="@+id/backButton"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:src="@drawable/baseline_keyboard_return_24" />
-
+    <!-- Comment Overlay Container -->
     <RelativeLayout
         android:id="@+id/commentLayout"
         android:layout_width="match_parent"
-        android:layout_height="600dp"
-        android:layout_alignParentBottom="true"/>
-
-
+        android:layout_height="match_parent"
+        android:elevation="10dp"/>
 
 </RelativeLayout>

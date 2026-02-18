@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/message_homepage"
+        android:icon="@drawable/baseline_home_24"
+        android:title="@string/main_homepage" />
+    <item
+        android:id="@+id/message_template"
+        android:icon="@drawable/baseline_download_24"
+        android:title="@string/main_template" />
+    <item
+        android:id="@+id/message_search"
+        android:icon="@drawable/baseline_search_24"
+        android:title="@string/main_search" />
+    <item
+        android:id="@+id/message_storage"
+        android:icon="@drawable/baseline_history_24"
+        android:title="@string/main_storage" />
+    <item
+        android:id="@+id/message_profile"
+        android:icon="@drawable/baseline_person_24"
+        android:title="@string/main_profile" />
+</menu>

@@ -7,7 +7,9 @@
     <!-- Base Colors -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="ios_blue">#007AFF</color> <!-- System Blue -->
+    <color name="ios_blue">#007AFF</color>
+    <color name="ios_yellow">#FFCC00</color>
+    <!-- <color name="red">#FF3B30</color>  System Blue -->
     <color name="ios_gray_bg">#F2F2F7</color> <!-- System Grouped Background -->
     <color name="ios_gray_text">#8E8E93</color> <!-- System Gray -->
     <color name="ios_separator">#C6C6C8</color> <!-- System Separator -->

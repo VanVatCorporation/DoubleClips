@@ -11,6 +11,7 @@ public class CommandManager {
     private Deque<CommandUtils.Command> undoStack = new ArrayDeque<>();
     private Deque<CommandUtils.Command> redoStack = new ArrayDeque<>();
     private StateChangeListener stateChangeListener = null;
+    private CommandActionListener commandActionListener = null;
 
     /**
      * Interface for listening to undo/redo state changes.
@@ -18,6 +19,23 @@ public class CommandManager {
      */
     public interface StateChangeListener {
         void onStateChanged(boolean canUndo, boolean canRedo);
+    }
+
+    /**
+     * Interface for listening to command actions (execute, undo, redo).
+     * Used to display toast notifications.
+     */
+    public interface CommandActionListener {
+        void onCommandExecuted(CommandUtils.Command command);
+        void onCommandUndone(CommandUtils.Command command);
+        void onCommandRedone(CommandUtils.Command command);
+    }
+
+    /**
+     * Set listener for command actions
+     */
+    public void setCommandActionListener(CommandActionListener listener) {
+        this.commandActionListener = listener;
     }
 
     /**
@@ -40,6 +58,9 @@ public class CommandManager {
             undoStack.removeLast(); // prune oldest
         }
 
+        if (commandActionListener != null) {
+            commandActionListener.onCommandExecuted(cmd);
+        }
         notifyStateChanged();
     }
 
@@ -54,6 +75,9 @@ public class CommandManager {
             CommandUtils.Command cmd = undoStack.pop();
             cmd.undo();
             redoStack.push(cmd);
+            if (commandActionListener != null) {
+                commandActionListener.onCommandUndone(cmd);
+            }
             notifyStateChanged();
         }
     }
@@ -68,6 +92,9 @@ public class CommandManager {
             CommandUtils.Command cmd = redoStack.pop();
             cmd.execute();
             undoStack.push(cmd);
+            if (commandActionListener != null) {
+                commandActionListener.onCommandRedone(cmd);
+            }
             notifyStateChanged();
         }
     }

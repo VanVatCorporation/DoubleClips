@@ -386,27 +386,35 @@ public class MainActivity extends AppCompatActivityImpl {
         });
 
 
-        String issueCrafted;
-        try {
-            issueCrafted = future.get();
-        } catch (Exception e) {
-            issueCrafted = "Failed to get issues from server.";
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("Early access warning")
-                .setMessage("This app will undergo many core changes in the near future. " +
-                        "If you update to the latest version and find that your project can’t be edited or modified, " +
-                        "don’t panic—just click the three-line menu button and select “Share project” to create a backup. " +
-                        "Your work is still there; it just needs to be migrated to the new version. " +
-                        "Then visit our GitHub page and submit an issue including the version. Thank you for using our app." +
-                        "\nHere's the brief summary of found issues this version currently have:\n\n" +
-                        issueCrafted +
-                        "\n\nThis popup can be enable in Settings, and usually take about a few kilobyte of internet depending on how many the issue is.")
-                .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                .setNegativeButton("Don't show again", (dialog, which) -> {
-                    PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("early_access_issues_notification", false).apply();
-                    dialog.dismiss();
-                }).create().show();
+
+
+        // TODO: future block the main thread which will take longer to open. Temporary switch to branch thread for now.
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+
+            String issueCrafted;
+            try {
+                issueCrafted = future.get();
+            } catch (Exception e) {
+                issueCrafted = "Failed to get issues from server.";
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("Early access warning")
+                    .setMessage("This app will undergo many core changes in the near future. " +
+                            "If you update to the latest version and find that your project can’t be edited or modified, " +
+                            "don’t panic—just click the three-line menu button and select “Share project” to create a backup. " +
+                            "Your work is still there; it just needs to be migrated to the new version. " +
+                            "Then visit our GitHub page and submit an issue including the version. Thank you for using our app." +
+                            "\nHere's the brief summary of found issues this version currently have:\n\n" +
+                            issueCrafted +
+                            "\n\nThis popup can be enable in Settings, and usually take about a few kilobyte of internet depending on how many the issue is.")
+                    .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
+                    .setNegativeButton("Don't show again", (dialog, which) -> {
+                        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("early_access_issues_notification", false).apply();
+                        dialog.dismiss();
+                    }).create().show();
+
+        });
     }
 
 

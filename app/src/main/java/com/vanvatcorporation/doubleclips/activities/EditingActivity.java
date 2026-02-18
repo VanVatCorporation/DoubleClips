@@ -1088,6 +1088,24 @@ public class EditingActivity extends AppCompatActivityImpl {
         
         // Initialize button states
         updateUndoRedoButtons();
+        
+        // Set up command action listener for toast notifications
+        actionManager.setCommandActionListener(new CommandManager.CommandActionListener() {
+            @Override
+            public void onCommandExecuted(CommandUtils.Command command) {
+                // Don't show toast for regular executions, only for undo/redo
+            }
+
+            @Override
+            public void onCommandUndone(CommandUtils.Command command) {
+                showUndoRedoToast("Undo", command.toString(), R.drawable.baseline_undo_24);
+            }
+
+            @Override
+            public void onCommandRedone(CommandUtils.Command command) {
+                showUndoRedoToast("Redo", command.toString(), R.drawable.baseline_redo_24);
+            }
+        });
 
         exportButton = findViewById(R.id.exportButton);
         exportButton.setOnClickListener(v -> {
@@ -2190,6 +2208,33 @@ public class EditingActivity extends AppCompatActivityImpl {
         addClipToTrackUi(track.viewRef, data);
 
         track.addClip(data);
+    }
+
+    /**
+     * Show a fade-away toast notification for undo/redo actions.
+     * @param action "Undo" or "Redo"
+     * @param commandDescription Description of the command
+     * @param iconResId Icon resource ID
+     */
+    private void showUndoRedoToast(String action, String commandDescription, int iconResId) {
+        try {
+            LayoutInflater inflater = getLayoutInflater();
+            View layout = inflater.inflate(R.layout.toast_undo_redo, null);
+
+            ImageView icon = layout.findViewById(R.id.toastIcon);
+            TextView text = layout.findViewById(R.id.toastText);
+
+            icon.setImageResource(iconResId);
+            text.setText(action + ": " + commandDescription);
+
+            android.widget.Toast toast = new android.widget.Toast(getApplicationContext());
+            toast.setDuration(android.widget.Toast.LENGTH_SHORT);
+            toast.setView(layout);
+            toast.show();
+        } catch (Exception e) {
+            // Fallback to simple toast if custom layout fails
+            android.widget.Toast.makeText(this, action + ": " + commandDescription, android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
     public void addClipToTrackUi(TrackFrameLayout trackLayout, Clip data)
     {
