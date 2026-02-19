@@ -553,29 +553,6 @@ public class MainAreaScreen extends BaseAreaScreen {
                         EditProjectTitle(projectItem);
                         return true;
                     }
-                    else if(item.getItemId() == R.id.action_delete)
-                    {
-                        new AlertDialog.Builder(context)
-                                .setTitle(context.getString(R.string.alert_delete_project_confirmation_title))
-                                .setMessage(context.getString(R.string.alert_delete_project_confirmation_description))
-
-                                // Specifying a listener allows you to take an action before dismissing the dialog.
-                                // The dialog is automatically dismissed when a dialog button is clicked.
-                                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                                    // Continue with delete operation
-                                    IOHelper.deleteDir(projectItem.projectPath);
-                                    int index = projectList.indexOf(projectItem);
-                                    projectList.remove(projectItem);
-                                    projectAdapter.notifyItemRemoved(index);
-
-                                })
-
-                                // A null listener allows the button to dismiss the dialog and take no further action.
-                                .setNegativeButton(android.R.string.cancel, null)
-                                .setIconAttribute(android.R.attr.alertDialogIcon)
-                                .show();
-                        return true;
-                    }
                     else if(item.getItemId() == R.id.action_share)
                     {
                         // Add ffmpeg cmd for ready-to-use rendering in other platform. Can be made into template
@@ -620,6 +597,29 @@ public class MainAreaScreen extends BaseAreaScreen {
                         reloadingProject();
 
 
+                        return true;
+                    }
+                    else if(item.getItemId() == R.id.action_delete)
+                    {
+                        new AlertDialog.Builder(context)
+                                .setTitle(context.getString(R.string.alert_delete_project_confirmation_title))
+                                .setMessage(context.getString(R.string.alert_delete_project_confirmation_description))
+
+                                // Specifying a listener allows you to take an action before dismissing the dialog.
+                                // The dialog is automatically dismissed when a dialog button is clicked.
+                                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                                    // Continue with delete operation
+                                    IOHelper.deleteDir(projectItem.projectPath);
+                                    int index = projectList.indexOf(projectItem);
+                                    projectList.remove(projectItem);
+                                    projectAdapter.notifyItemRemoved(index);
+
+                                })
+
+                                // A null listener allows the button to dismiss the dialog and take no further action.
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .setIconAttribute(android.R.attr.alertDialogIcon)
+                                .show();
                         return true;
                     }
                     return false;
