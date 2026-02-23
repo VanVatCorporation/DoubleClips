@@ -196,15 +196,15 @@
                     <HorizontalScrollView
                         android:id="@+id/ruler_scroll"
                         android:layout_width="match_parent"
-                        android:layout_height="15sp"
+                        android:layout_height="28dp"
                         android:scrollbars="none"
                         android:fillViewport="true">
 
-                        <LinearLayout
+                        <com.vanvatcorporation.doubleclips.activities.TimelineRulerView
                             android:id="@+id/ruler_container"
                             android:layout_width="wrap_content"
                             android:layout_height="match_parent"
-                            android:orientation="horizontal" />
+                            android:background="#1A1A1A" />
                     </HorizontalScrollView>
 
                     <!-- 🧱 Vertical scroll for tracks -->

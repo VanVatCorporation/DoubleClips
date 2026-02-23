@@ -97,6 +97,7 @@ import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.vanvatcorporation.doubleclips.impl.TrackFrameLayout;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
+import com.vanvatcorporation.doubleclips.utils.AudioUtils;
 import com.vanvatcorporation.doubleclips.utils.TimelineUtils;
 
 import java.io.File;
@@ -121,7 +122,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     MainAreaScreen.ProjectData properties;
     VideoSettings settings;
 
-    private LinearLayout timelineTracksContainer, rulerContainer, trackInfoLayout;
+    private LinearLayout timelineTracksContainer, trackInfoLayout;
+    private TimelineRulerView rulerContainer;
     private RelativeLayout timelineWrapper, editingZone, previewZone, editingToolsZone, outerPreviewViewGroup, pausedCanvasAlertPanel;
     private HorizontalScrollView timelineScroll, rulerScroll;
     private ScrollView timelineVerticalScroll, trackInfoVerticalScroll;
@@ -149,7 +151,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
     private int trackCount = 0;
-    private final int TRACK_HEIGHT = 100;
+    private static final int TRACK_HEIGHT = 100;
     private static final float MIN_CLIP_DURATION = 0.1f; // in seconds
     public static int pixelsPerSecond = 100;
 
@@ -874,7 +876,12 @@ public class EditingActivity extends AppCompatActivityImpl {
                         if(clip.viewRef != null)
                         {
                             // After preview process, render the thumbnail
-                            clip.viewRef.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip)));
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip));
+                                clip.viewRef.post(() -> {
+                                    clip.viewRef.setFilledImageBitmap(retrieveBitmap);
+                                });
+                            });
                         }
                     }), () -> {
                         processingDescription.post(() -> {
@@ -1062,6 +1069,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                 stopPlayback(true);
             }
         });
+        playPauseButton.setOnLongClickListener(v -> {
+            regeneratingPreviewThumbnail();
+            return true;
+        });
 
 
         undoButton = findViewById(R.id.undoButton);
@@ -1139,6 +1150,12 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             centerOffset = timelineScroll.getWidth() / 2;
             timelineScroll.scrollTo(centerOffset, 0);
+
+            // Push centerOffset to ruler so 0s aligns with the centre playhead
+            rulerContainer.setStartOffset(centerOffset);
+            rulerContainer.setFps(Math.round(1f / frameInterval));
+            rulerContainer.setPixelsPerSecond(pixelsPerSecond);
+            rulerContainer.setTotalDuration(timeline.duration + 2f);
 
             // Add initial track after centerOffset is taken
             //addNewTrack();
@@ -2040,6 +2057,17 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         pausedCanvasAlertPanel.setVisibility(View.GONE);
     }
+    private void regeneratingPreviewThumbnail()
+    {
+        for (Clip clip : timeline.getStreamOfClip()) {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip));
+                clip.viewRef.post(() -> {
+                    clip.viewRef.setFilledImageBitmap(retrieveBitmap);
+                });
+            });
+        }
+    }
     private void releaseTimelineRenderer()
     {
         timelineRenderer.release();
@@ -2250,8 +2278,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         clipView.setBackgroundColor(0xFF000000);
         // Set the thumbnail using preview for less resource consumption.
         Executors.newSingleThreadExecutor().execute(() -> {
+            Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data));
             clipView.post(() -> {
-                clipView.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data)));
+                clipView.setFilledImageBitmap(retrieveBitmap);
             });
         });
 //        clipView.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data)));
@@ -2769,106 +2798,37 @@ public class EditingActivity extends AppCompatActivityImpl {
         track.viewRef.addView(endSpacer);
     }
     private void updateRuler(float totalSeconds, float interval) {
-        rulerContainer.removeAllViews();
-
-
-        // 👻 Add spacer to align 0s with center playhead
-        View startSpacerRuler = new View(this);
-        LinearLayout.LayoutParams spacerRulerParams = new LinearLayout.LayoutParams(
-                centerOffset,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        );
-        startSpacerRuler.setLayoutParams(spacerRulerParams);
-        rulerContainer.addView(startSpacerRuler); // Add spacer before any clips
-
-        for (float i = 0; i <= totalSeconds; i += interval) {
-            TextView tick = new TextView(this);
-            tick.setText(StringFormatHelper.smartRound(i, 1, true) + "s");
-            //tick.setTextColor(Color.BLACK);
-            tick.setTextSize(12);
-            tick.setGravity(Gravity.START | Gravity.BOTTOM);
-
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    (int) (pixelsPerSecond * interval), ViewGroup.LayoutParams.MATCH_PARENT
-            );
-            tick.setLayoutParams(params);
-            rulerContainer.addView(tick);
-        }
-
-        // Add end spacer to ruler
-        View rulerEndSpacer = new View(this);
-        rulerEndSpacer.setLayoutParams(new LinearLayout.LayoutParams(
-                centerOffset, ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        rulerContainer.addView(rulerEndSpacer);
+        // TimelineRulerView draws everything via Canvas — just update its parameters.
+        rulerContainer.setStartOffset(centerOffset);
+        rulerContainer.setFps(Math.round(1f / frameInterval));
+        rulerContainer.setPixelsPerSecond(pixelsPerSecond);
+        rulerContainer.setRulerInterval(interval);          // drives tick density
+        rulerContainer.setTotalDuration(totalSeconds + 2f); // +2s buffer
     }
     float currentRulerInterval = 1f;
     float changedRulerInterval = 1f;
 
     private void updateRulerEfficiently() {
-        if(pixelsPerSecond < 10 && pixelsPerSecond > 5)
-        {
-            changedRulerInterval = 32f;
-        }
-        // Recently updated. Below are tested.
-        if(pixelsPerSecond < 15 && pixelsPerSecond > 10)
-        {
-            changedRulerInterval = 16f;
-        }
-        if(pixelsPerSecond < 25 && pixelsPerSecond > 15)
-        {
-            changedRulerInterval = 8f;
-        }
-        if(pixelsPerSecond < 50 && pixelsPerSecond > 25)
-        {
-            changedRulerInterval = 4f;
-        }
-        if(pixelsPerSecond < 100 && pixelsPerSecond > 50)
-        {
-            changedRulerInterval = 2f;
-        }
-        if(pixelsPerSecond < 200 && pixelsPerSecond > 100)
-        {
-            changedRulerInterval = 1f;
-        }
-        if(pixelsPerSecond < 500 && pixelsPerSecond > 200)
-        {
-            changedRulerInterval = 0.5f;
-        }
-        if(pixelsPerSecond < 1000 && pixelsPerSecond > 500)
-        {
-            changedRulerInterval = 0.2f;
-        }
-        if(pixelsPerSecond < 2000 && pixelsPerSecond > 1000)
-        {
-            changedRulerInterval = 0.1f;
-        }
-        if(pixelsPerSecond < 5000 && pixelsPerSecond > 2000)
-        {
-            changedRulerInterval = 0.05f;
-        }
-        // Recently updated. Above are tested.
-        if(pixelsPerSecond < 10000 && pixelsPerSecond > 5000)
-        {
-            changedRulerInterval = 0.02f;
-        }
-        if(pixelsPerSecond < 20000 && pixelsPerSecond > 10000)
-        {
-            changedRulerInterval = 0.01f;
-        }
-        if(pixelsPerSecond < 50000 && pixelsPerSecond > 20000)
-        {
-            changedRulerInterval = 0.005f;
-        }
+        // All drawing is handled by TimelineRulerView.onDraw() — just push the new pps.
+        rulerContainer.setPixelsPerSecond(pixelsPerSecond);
 
+        // Determine the best major-tick interval for the current zoom.
+        if(pixelsPerSecond < 10  && pixelsPerSecond > 5)    { changedRulerInterval = 32f;    }
+        if(pixelsPerSecond < 15  && pixelsPerSecond > 10)   { changedRulerInterval = 16f;    }
+        if(pixelsPerSecond < 25  && pixelsPerSecond > 15)   { changedRulerInterval = 8f;     }
+        if(pixelsPerSecond < 50  && pixelsPerSecond > 25)   { changedRulerInterval = 4f;     }
+        if(pixelsPerSecond < 100 && pixelsPerSecond > 50)   { changedRulerInterval = 2f;     }
+        if(pixelsPerSecond < 200 && pixelsPerSecond > 100)  { changedRulerInterval = 1f;     }
+        if(pixelsPerSecond < 500 && pixelsPerSecond > 200)  { changedRulerInterval = 0.5f;   }
+        if(pixelsPerSecond < 1000 && pixelsPerSecond > 500) { changedRulerInterval = 0.2f;   }
+        if(pixelsPerSecond < 2000 && pixelsPerSecond > 1000){ changedRulerInterval = 0.1f;   }
+        if(pixelsPerSecond < 5000 && pixelsPerSecond > 2000){ changedRulerInterval = 0.05f;  }
+        if(pixelsPerSecond < 10000 && pixelsPerSecond > 5000) { changedRulerInterval = 0.02f; }
+        if(pixelsPerSecond < 20000 && pixelsPerSecond > 10000){ changedRulerInterval = 0.01f; }
+        if(pixelsPerSecond < 50000 && pixelsPerSecond > 20000){ changedRulerInterval = 0.005f;}
 
-        for (int i = 0; i < rulerContainer.getChildCount(); i++) {
-            View tick = rulerContainer.getChildAt(i);
-            if(!(tick instanceof TextView)) continue;
-            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) tick.getLayoutParams();
-            params.width = (int) (pixelsPerSecond * changedRulerInterval); // or pixelsPerSecond / 2 for 0.5s ticks
-            tick.setLayoutParams(params);
-        }
+        // Push the interval live so the ruler re-draws immediately during pinch-zoom.
+        rulerContainer.setRulerInterval(changedRulerInterval);
     }
 
     private void updateClipLayouts() {
@@ -3122,18 +3082,13 @@ public class EditingActivity extends AppCompatActivityImpl {
                 thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
                 break;
             case AUDIO:
-
-                drawable.setColorFilter(0xAA0000FF, PorterDuff.Mode.SRC_ATOP);
-                thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
-
-                //TODO: Failed...Visualizer isn't good
-//                Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-//
-//                PlayerVisualizerUtils.drawVisualizer(context, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), IOHelper.readFromFileAsRaw(context, filePath), new Canvas(bitmap));
-//
-//                thumbnails.add(bitmap);
-
-
+                try {
+                    thumbnails.add(AudioUtils.generateAudioWaveformBitmap(filePath, clip, pixelsPerSecond, TRACK_HEIGHT));
+                } catch (Exception e) {
+                    // Fallback to tinted placeholder on decode failure
+                    drawable.setColorFilter(0xAA1565C0, android.graphics.PorterDuff.Mode.SRC_ATOP);
+                    thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
+                }
                 break;
             case EFFECT:
                 drawable.setColorFilter(0xAAFFFF00, PorterDuff.Mode.SRC_ATOP);
@@ -5070,6 +5025,7 @@ frameRate = 60;
                         MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
 
                         // TODO: Uninitialized AudioTrack when splitting too many Clip. No reason.
+                        //  -> REASON: Too many initialize VIDEO, causing RAM to stall.
                         if(Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/"))
                         {
                             int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
