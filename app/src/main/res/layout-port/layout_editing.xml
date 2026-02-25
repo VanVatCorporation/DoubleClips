@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground">
 
 
+    <!-- ═══════════════════════════════════════════════════════════
+         PREVIEW ZONE  (takes all space above editingZone)
+         ═══════════════════════════════════════════════════════════ -->
     <RelativeLayout
         android:id="@+id/previewZone"
         android:layout_width="match_parent"
@@ -11,203 +16,312 @@
         android:layout_above="@id/editingZone">
 
 
+        <!-- ── TOP BAR ──────────────────────────────────────────── -->
+        <RelativeLayout
+            android:id="@+id/top_bar"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_alignParentTop="true"
+            android:background="?attr/colorSurface"
+            android:elevation="2dp">
 
+            <!-- Back -->
+            <ImageButton
+                android:id="@+id/backButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_centerVertical="true"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/baseline_keyboard_return_24"
+                app:tint="?android:attr/textColorPrimary" />
+
+            <!-- Settings -->
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/backButton"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/baseline_display_settings_24"
+                app:tint="?android:attr/textColorSecondary" />
+
+            <!-- Canvas info (centre) -->
+            <TextView
+                android:id="@+id/textCanvasControllerInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="Rot: 0"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="13sp" />
+
+            <!-- Export pill button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="12dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:text="Export"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:backgroundTint="@color/ios_blue"
+                app:cornerRadius="20dp"
+                app:rippleColor="@color/ripple_light" />
+
+        </RelativeLayout>
+
+        <!-- Bottom hairline under top bar -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_below="@id/top_bar"
+            android:background="?attr/colorOutlineVariant" />
+
+
+        <!-- ── PREVIEW CANVAS ────────────────────────────────────── -->
         <RelativeLayout
             android:id="@+id/outerPreviewViewGroup"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_below="@id/top_bar"
             android:layout_above="@id/controller_bar"
-            android:gravity="center">
+            android:gravity="center"
+            android:background="@color/black">
 
             <FrameLayout
                 android:id="@+id/previewViewGroup"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipChildren="false"
-                android:clipToPadding="false">
-            </FrameLayout>
+                android:clipToPadding="false" />
+
+            <!-- Canvas-paused overlay -->
             <RelativeLayout
                 android:id="@+id/pausedCanvasAlertPanel"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone">
+
                 <ImageView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:src="@color/gray"/>
+                    android:src="@color/gray" />
+
                 <TextView
                     android:id="@+id/pausedCanvasAlertPanelTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerInParent="true"
-                    android:text="Canvas was paused to save resource."/>
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:text="Canvas was paused to save resource." />
+
                 <Button
                     android:id="@+id/pausedCanvasAlertResumeButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerHorizontal="true"
                     android:layout_below="@id/pausedCanvasAlertPanelTitle"
-                    android:text="Resume"/>
+                    android:text="Resume" />
+
             </RelativeLayout>
 
-
         </RelativeLayout>
 
 
-
-        <RelativeLayout
-            android:id="@+id/top_bar"
+        <!-- ── CONTROLLER BAR ────────────────────────────────────── -->
+        <!-- Top hairline above controller bar -->
+        <View
+            android:id="@+id/controllerBarDivider"
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_alignParentTop="true">
-
-
-            <TextView
-                android:id="@+id/textCanvasControllerInfo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:text="Rot: 25"
-                android:textSize="20sp"
-                android:textStyle="bold"/>
-            <Button
-                android:id="@+id/exportButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:text="EXPORT"/>
-            <ImageButton
-                android:id="@+id/backButton"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:src="@drawable/baseline_keyboard_return_24"/>
-            <ImageButton
-                android:id="@+id/settingsButton"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_toEndOf="@id/backButton"
-                android:src="@drawable/baseline_display_settings_24"/>
-
-        </RelativeLayout>
+            android:layout_height="1dp"
+            android:layout_above="@id/controller_bar"
+            android:background="?attr/colorOutlineVariant" />
 
         <RelativeLayout
             android:id="@+id/controller_bar"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="52dp"
             android:layout_alignParentBottom="true"
-            android:layout_marginBottom="0dp">
+            android:background="?attr/colorSurface"
+            android:elevation="2dp">
 
-            <ImageButton
-                android:id="@+id/playPauseButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_centerInParent="true"
-                android:src="@drawable/baseline_play_circle_24" />
-
+            <!-- Undo -->
             <ImageButton
                 android:id="@+id/undoButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_toStartOf="@id/redoButton"
-                android:src="@drawable/baseline_undo_24" />
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_centerVertical="true"
+                android:layout_toStartOf="@id/playPauseButton"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/baseline_undo_24"
+                app:tint="?android:attr/textColorSecondary" />
 
+            <!-- Play / Pause (centre, larger) -->
+            <ImageButton
+                android:id="@+id/playPauseButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_centerInParent="true"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/baseline_play_circle_24"
+                app:tint="@color/ios_blue" />
+
+            <!-- Redo -->
             <ImageButton
                 android:id="@+id/redoButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_alignParentEnd="true"
-                android:src="@drawable/baseline_redo_24" />
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_centerVertical="true"
+                android:layout_toEndOf="@id/playPauseButton"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/baseline_redo_24"
+                app:tint="?android:attr/textColorSecondary" />
 
         </RelativeLayout>
 
-
     </RelativeLayout>
 
+
+    <!-- ═══════════════════════════════════════════════════════════
+         EDITING ZONE  (bottom panel, 300dp)
+         ═══════════════════════════════════════════════════════════ -->
     <RelativeLayout
         android:id="@+id/editingZone"
         android:layout_width="match_parent"
         android:layout_height="300dp"
-        android:layout_alignParentBottom="true">
+        android:layout_alignParentBottom="true"
+        android:background="?android:attr/colorBackground">
 
+        <!-- Top hairline separating editing zone from preview above -->
+        <View
+            android:id="@+id/editingZoneDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_alignParentTop="true"
+            android:background="?attr/colorOutlineVariant" />
+
+        <!-- ── TOOLS ZONE (scrollable toolbar, bottom) ─────────── -->
         <RelativeLayout
             android:id="@+id/editingToolsZone"
             android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:layout_alignParentBottom="true">
+            android:layout_height="66dp"
+            android:layout_alignParentBottom="true"
+            android:background="?attr/colorSurface"
+            android:elevation="4dp">
+
+            <!-- Hairline on top of tools zone -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_alignParentTop="true"
+                android:background="?attr/colorOutlineVariant" />
 
         </RelativeLayout>
 
+        <!-- ── TRACK ZONE ────────────────────────────────────────── -->
         <RelativeLayout
             android:id="@+id/editingTrackZone"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_above="@id/editingToolsZone">
+            android:layout_above="@id/editingToolsZone"
+            android:layout_below="@id/editingZoneDivider">
+
+            <!-- Timestamp bar -->
             <RelativeLayout
                 android:id="@+id/timestampBar"
                 android:layout_width="match_parent"
-                android:layout_height="20dp">
+                android:layout_height="20dp"
+                android:background="?android:attr/colorBackground"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+
                 <TextView
                     android:id="@+id/currentTimePosText"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
-                    android:text="00:06"/>
+                    android:gravity="center_vertical"
+                    android:text="00:00"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="11sp" />
+
                 <TextView
                     android:id="@+id/durationTimePosText"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:layout_alignParentEnd="true"
-                    android:gravity="end"
-                    android:text="00:32"/>
+                    android:gravity="center_vertical|end"
+                    android:text="00:00"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="11sp" />
 
             </RelativeLayout>
 
+            <!-- Timeline area -->
             <RelativeLayout
                 android:id="@+id/timelineArea"
-                android:layout_below="@id/timestampBar"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:layout_below="@id/timestampBar">
 
+                <!-- Track info sidebar -->
                 <ScrollView
                     android:id="@+id/trackInfoScroll"
-                    android:layout_marginTop="15sp"
                     android:layout_width="50dp"
-                    android:layout_height="match_parent">
+                    android:layout_height="match_parent"
+                    android:layout_marginTop="28dp"
+                    android:background="#1A1A1A"
+                    android:scrollbars="none">
+
                     <LinearLayout
                         android:id="@+id/trackInfoLayout"
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
+                        android:layout_height="wrap_content"
                         android:orientation="vertical">
 
                         <ImageButton
                             android:id="@+id/addTrackButton"
                             android:layout_width="50dp"
                             android:layout_height="50dp"
-                            android:src="@drawable/baseline_add_24"/>
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:src="@drawable/baseline_add_24"
+                            app:tint="@color/ios_blue" />
+
                     </LinearLayout>
                 </ScrollView>
 
+                <!-- Timeline wrapper (ruler + tracks + playhead) -->
                 <RelativeLayout
                     android:id="@+id/timeline_wrapper"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:layout_toEndOf="@id/trackInfoScroll">
 
+                    <!-- Ruler -->
                     <HorizontalScrollView
                         android:id="@+id/ruler_scroll"
                         android:layout_width="match_parent"
                         android:layout_height="28dp"
-                        android:scrollbars="none"
-                        android:fillViewport="true">
+                        android:fillViewport="true"
+                        android:scrollbars="none">
 
                         <com.vanvatcorporation.doubleclips.activities.TimelineRulerView
                             android:id="@+id/ruler_container"
                             android:layout_width="wrap_content"
                             android:layout_height="match_parent"
                             android:background="#1A1A1A" />
+
                     </HorizontalScrollView>
 
-                    <!-- 🧱 Vertical scroll for tracks -->
+                    <!-- Track scroll area -->
                     <ScrollView
                         android:id="@+id/trackVerticalScrollView"
                         android:layout_width="match_parent"
@@ -215,6 +329,7 @@
                         android:layout_below="@id/ruler_scroll"
                         android:fillViewport="true"
                         android:scrollbars="none">
+
                         <HorizontalScrollView
                             android:id="@+id/trackHorizontalScrollView"
                             android:layout_width="match_parent"
@@ -227,25 +342,24 @@
                                 android:layout_height="wrap_content"
                                 android:orientation="vertical"
                                 android:padding="0dp"
-                                android:background="#111111" /><!-- Previously padding was 8dp, but it interference with centerOffset -->
+                                android:background="#111111" />
+
                         </HorizontalScrollView>
                     </ScrollView>
 
-                    <!-- Static playhead -->
+                    <!-- Static red playhead (keep red per design intent) -->
                     <View
                         android:id="@+id/playhead"
                         android:layout_width="2dp"
                         android:layout_height="match_parent"
-                        android:layout_centerInParent="true"
+                        android:layout_centerHorizontal="true"
                         android:background="@android:color/holo_red_light" />
+
                 </RelativeLayout>
 
             </RelativeLayout>
 
-
-
         </RelativeLayout>
-
 
     </RelativeLayout>
 

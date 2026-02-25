@@ -1,21 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<merge xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Icon — centred, leaving room for label below -->
+    <ImageView
+        android:id="@+id/navigationIcon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_centerHorizontal="true"
+        android:layout_above="@+id/navigationText"
+        android:layout_marginBottom="2dp" />
+
+    <!-- Label — pinned to bottom -->
     <TextView
         android:id="@+id/navigationText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="5dp"
-        android:layout_centerHorizontal="true"
         android:layout_alignParentBottom="true"
-        android:textSize="12sp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="4dp"
+        android:textSize="10sp"
         android:maxLines="1"
-        android:textColor="@color/white" />
+        android:ellipsize="end" />
 
-    <ImageView
-        android:id="@+id/navigationIcon"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:layout_above="@+id/navigationText"
-        android:layout_centerInParent="true" />
 </merge>

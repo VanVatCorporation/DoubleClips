@@ -1,93 +1,103 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Track toolbar: shown when a track is selected -->
 <HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbarScrollView"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:layout_alignParentBottom="true"
-    android:background="@color/colorPrimaryBackground">
+    android:layout_width="match_parent"
+    android:layout_height="66dp"
+    android:scrollbars="none"
+    android:background="?attr/colorSurface">
+
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <!-- Context label -->
         <TextView
             android:id="@+id/title"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:gravity="center"
-            android:text="Track"/>
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:text="Track"
+            android:textColor="@color/ios_blue"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- Vertical divider -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="32dp"
+            android:background="?attr/colorOutlineVariant"
+            android:layout_marginEnd="4dp" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_perm_media_24"
-            app:navText="Add"/>
+            app:navText="Add" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/deleteTrackButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_delete_24"
-            app:navText="Delete"/>
+            app:navText="Delete" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/splitMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_content_cut_24"
-            app:navText="Split"/>
+            app:navText="Split" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addTextButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_text_increase_24"
-            app:navText="Text"/>
+            app:navText="Text" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addEffectButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_bubble_chart_24"
-            app:navText="Effect"/>
+            app:navText="Effect" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/selectAllButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_select_all_24"
-            app:navText="Selectall"/>
+            app:navText="Select All" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/autoSnapButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_commit_24"
-            app:navText="Autosnap"/>
+            app:navText="Auto Snap" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/importClipButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_data_object_24"
-            app:navText="Import"/>
+            app:navText="Import" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/exportTrackButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="60dp"
             app:navIcon="@drawable/baseline_upload_file_24"
-            app:navText="Export"/>
+            app:navText="Export" />
+
     </LinearLayout>
 </HorizontalScrollView>
