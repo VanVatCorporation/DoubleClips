@@ -93,7 +93,6 @@ import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.helper.StringFormatHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 import com.vanvatcorporation.doubleclips.impl.ImageGroupView;
-import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.vanvatcorporation.doubleclips.impl.TrackFrameLayout;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -2059,7 +2058,12 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
     private void regeneratingPreviewThumbnail()
     {
+
+        LoggingManager.LogToToast(this, "Begin prepare for thumbnail!");
+
         for (Clip clip : timeline.getStreamOfClip()) {
+            clip.viewRef.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF000000));
+            clip.viewRef.showLoading();
             Executors.newSingleThreadExecutor().execute(() -> {
                 Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip));
                 clip.viewRef.post(() -> {
@@ -2276,6 +2280,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         clipView.setX(getTimeInX(data.startTime));
         clipView.setLayoutParams(params);
         clipView.setBackgroundColor(0xFF000000);
+        clipView.showLoading();
         // Set the thumbnail using preview for less resource consumption.
         Executors.newSingleThreadExecutor().execute(() -> {
             Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data));
@@ -4958,7 +4963,7 @@ frameRate = 60;
                                     videoExtractor = new MediaExtractor();
                                     videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
 
-                                    int trackIndex = TimelineUtils.findVideoTrackIndex(videoExtractor);
+                                    int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
                                     videoExtractor.selectTrack(trackIndex);
 
                                     MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
@@ -5019,7 +5024,7 @@ frameRate = 60;
                         audioExtractor = new MediaExtractor();
                         audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
 
-                        int audioTrackIndex = TimelineUtils.findVideoTrackIndex(audioExtractor);
+                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
 
                         MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
@@ -5114,7 +5119,7 @@ frameRate = 60;
                         audioExtractor = new MediaExtractor();
                         audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
 
-                        int audioTrackIndex = TimelineUtils.findVideoTrackIndex(audioExtractor);
+                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
 
                         MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);

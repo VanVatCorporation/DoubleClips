@@ -316,9 +316,13 @@ public class ImageHelper {
     }
 
     public static Bitmap createTransparentBitmap(int width, int height) {
+        return createSolidColorBitmap(width, height, Color.TRANSPARENT);
+    }
+
+    public static Bitmap createSolidColorBitmap(int width, int height, int color) {
         Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(b);
-        canvas.drawColor(Color.TRANSPARENT); // Fills the entire bitmap with transparency
+        canvas.drawColor(color); // Fills the entire bitmap with transparency
         return b;
     }
 }

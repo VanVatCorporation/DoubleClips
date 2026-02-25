@@ -34,7 +34,7 @@ public class AudioUtils {
         MediaExtractor extractor = new MediaExtractor();
         extractor.setDataSource(filePath);
 
-        int audioTrack = TimelineUtils.findVideoTrackIndex(extractor);
+        int audioTrack = TimelineUtils.findMediaTrackIndex(extractor, EditingActivity.ClipType.AUDIO);
         extractor.selectTrack(audioTrack);
         android.media.MediaFormat audioFormat = extractor.getTrackFormat(audioTrack);
 
