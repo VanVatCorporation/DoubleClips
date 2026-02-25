@@ -1199,7 +1199,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 ViewGroup.LayoutParams.MATCH_PARENT,//ViewGroup.LayoutParams.MATCH_PARENT,
                 TRACK_HEIGHT
         ));
-        addNewTrackBlankTrackSpacer.setBackgroundColor(getColorFromAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh));
+        addNewTrackBlankTrackSpacer.setBackgroundColor(Color.parseColor("#222222"));
         addNewTrackBlankTrackSpacer.setPadding(4, 4, 4, 4);
         handleTrackInteraction(addNewTrackBlankTrackSpacer);
 
@@ -2173,7 +2173,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 ViewGroup.LayoutParams.MATCH_PARENT,//ViewGroup.LayoutParams.MATCH_PARENT,
                 TRACK_HEIGHT
         ));
-        track.setBackgroundColor(getColorFromAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh));
+        track.setBackgroundColor(Color.parseColor("#222222"));
         track.setPadding(4, 4, 4, 4);
 
         // 👻 Add spacer to align 0s with center playhead
@@ -5648,15 +5648,8 @@ frameRate = 60;
             trackLayers.clear();
         }
     }
-    /**
-     * Resolve a color from an Android theme attribute (e.g. colorSurfaceContainerHigh).
-     * Returns the theme's actual color value so dynamic views respect dark / light mode.
-     */
-    private int getColorFromAttr(int attrResId) {
-        android.util.TypedValue tv = new android.util.TypedValue();
-        getTheme().resolveAttribute(attrResId, tv, true);
-        return tv.data;
-    }
+
+
 
 }
 
