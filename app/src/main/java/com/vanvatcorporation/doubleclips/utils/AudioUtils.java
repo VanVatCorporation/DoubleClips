@@ -22,7 +22,8 @@ public class AudioUtils {
      * Inspired by CapCut / Adobe Premiere.
      */
     public static Bitmap generateAudioWaveformBitmap(String filePath, EditingActivity.Clip clip,
-                                                      float pixelsPerSecond, int trackHeight)
+                                                      float pixelsPerSecond, int trackHeight,
+                                                      int barWidth, int barGap)
             throws Exception {
 
         // ── Dimensions ────────────────────────────────────────────────────────
@@ -101,8 +102,8 @@ public class AudioUtils {
 
         // ── Downsample into bars ───────────────────────────────────────────────
         // TODO: Can be change based on user preference -> EditorPreference setting.
-        final int BAR_WIDTH  = 1;   // px default: 3
-        final int BAR_GAP    = 0;   // px between bars default: 1
+        final int BAR_WIDTH  = barWidth;   // px default: 3
+        final int BAR_GAP    = barGap;   // px between bars default: 1
         final int STRIDE     = BAR_WIDTH + BAR_GAP;
         final int barCount   = Math.max(1, bmpW / STRIDE);
         float[]   amps       = new float[barCount];

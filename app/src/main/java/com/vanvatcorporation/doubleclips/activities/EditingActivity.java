@@ -43,6 +43,7 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
@@ -213,7 +214,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
     };
     private boolean isPlaying = false;
+    private boolean isPlayingInReverse = false;
     private float previewFpsRuntime = -1f;
+    private static int thumbnailAudioBarWidth = 1, thumbnailAudioBarGap = 0;
     private Handler playbackHandler = new Handler(Looper.getMainLooper());
     private Runnable playbackLoop;
 
@@ -1986,6 +1989,14 @@ public class EditingActivity extends AppCompatActivityImpl {
             float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
             videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", activeFps));
             videoPropertiesEditSpecificAreaScreen.previewSpeedField.setText(String.format(java.util.Locale.US, "%.2f", activeFps / settings.frameRate));
+
+            videoPropertiesEditSpecificAreaScreen.reversePlaybackCheckbox.setChecked(isPlayingInReverse);
+
+
+            videoPropertiesEditSpecificAreaScreen.audioBarWidthField.setText(String.valueOf(thumbnailAudioBarWidth));
+            videoPropertiesEditSpecificAreaScreen.audioBarGapField.setText(String.valueOf(thumbnailAudioBarGap));
+
+
         });
 
         videoPropertiesEditSpecificAreaScreen.previewFpsField.addTextChangedListener(new android.text.TextWatcher() {
@@ -2020,6 +2031,50 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
         });
+
+        videoPropertiesEditSpecificAreaScreen.reversePlaybackCheckbox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                isPlayingInReverse = isChecked;
+            }
+        });
+
+
+        videoPropertiesEditSpecificAreaScreen.audioBarWidthField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if(videoPropertiesEditSpecificAreaScreen.audioBarWidthField.hasFocus()) {
+                    try {
+                        int barWidth = Integer.parseInt(s.toString());
+                        if (barWidth > 0) {
+                            thumbnailAudioBarWidth = barWidth;
+                        }
+                        else  {
+                            thumbnailAudioBarWidth = 1;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+        videoPropertiesEditSpecificAreaScreen.audioBarGapField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if(videoPropertiesEditSpecificAreaScreen.audioBarGapField.hasFocus()) {
+                    try {
+                        int barGap = Integer.parseInt(s.toString());
+                        if (barGap >= 0) {
+                            thumbnailAudioBarGap = barGap;
+                        }
+                        else  {
+                            thumbnailAudioBarGap = 0;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+
 
 
         // ===========================       VIDEO PROPERTIES ZONE       ====================================
@@ -2069,14 +2124,14 @@ public class EditingActivity extends AppCompatActivityImpl {
                 float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
                 float delayInterval = (1f / activeFps);
                 float frameInterval = (1f / settings.frameRate);
-                currentTime += frameInterval;
+                currentTime += isPlayingInReverse ? -frameInterval : frameInterval;
 
                 timelineRenderer.updateTime(currentTime, false);
 
                 int newScrollX = (int) (currentTime * pixelsPerSecond);
                 timelineScroll.scrollTo(newScrollX, 0);
 
-                if (currentTime >= timeline.duration) {
+                if ((currentTime >= timeline.duration) || (currentTime <= 0f && isPlayingInReverse)) {
                     isPlaying = false;
                     currentTime = 0f;
                     stopPlayback(true);
@@ -3153,7 +3208,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 break;
             case AUDIO:
                 try {
-                    thumbnails.add(AudioUtils.generateAudioWaveformBitmap(filePath, clip, pixelsPerSecond, TRACK_HEIGHT));
+                    thumbnails.add(AudioUtils.generateAudioWaveformBitmap(filePath, clip, pixelsPerSecond, TRACK_HEIGHT, thumbnailAudioBarWidth, thumbnailAudioBarGap));
                 } catch (Exception e) {
                     // Fallback to tinted placeholder on decode failure
                     drawable.setColorFilter(0xAA1565C0, android.graphics.PorterDuff.Mode.SRC_ATOP);

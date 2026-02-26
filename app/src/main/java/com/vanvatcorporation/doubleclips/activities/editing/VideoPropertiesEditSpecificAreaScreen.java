@@ -9,7 +9,6 @@ import android.widget.Spinner;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.R;
-import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 
 public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
@@ -20,6 +19,8 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
     public EditText resolutionXField, resolutionYField, frameRateField, bitrateField, clipCapField;
     public SwitchMaterial stretchMediaToFullCheckbox; // Media
     public EditText previewFpsField, previewSpeedField;
+    public SwitchMaterial reversePlaybackCheckbox; // Playback
+    public EditText audioBarWidthField, audioBarGapField;
 
     public VideoPropertiesEditSpecificAreaScreen(Context context) {
         super(context);
@@ -64,6 +65,11 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
 
         previewFpsField = findViewById(R.id.previewFpsField);
         previewSpeedField = findViewById(R.id.previewSpeedField);
+        reversePlaybackCheckbox = findViewById(R.id.reversePlaybackCheckbox);
+
+        audioBarWidthField = findViewById(R.id.audioBarWidthField);
+        audioBarGapField = findViewById(R.id.audioBarGapField);
+
 
         onClose.add(() -> {
             resolutionXField.clearFocus();
@@ -75,6 +81,8 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
             tuneSpinner.clearFocus();
             previewFpsField.clearFocus();
             previewSpeedField.clearFocus();
+            audioBarWidthField.clearFocus();
+            audioBarGapField.clearFocus();
         });
 
         animationScreen = AnimationScreen.ToBottom;
