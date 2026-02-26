@@ -1,212 +1,404 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/windowBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
         android:focusable="true"
         android:focusableInTouchMode="true"
+        app:shapeAppearanceOverlay="@style/upperRoundedImageView"
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="0.5dp" />
 
-        android:background="@color/colorPalette1_4"
+    <!-- Header bar -->
+    <RelativeLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
 
-        app:strokeColor="@color/colorSoftBackground"
-        app:strokeWidth="1dp"
-        app:shapeAppearanceOverlay="@style/upperRoundedImageView"/>
-    <ImageButton
-        android:id="@+id/closeWindowButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:layout_alignParentEnd="true"
-        android:src="@drawable/baseline_close_24"/>
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_drag_handle"
+            android:alpha="0.35" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:text="Export Settings"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/closeWindowButton"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="4dp"
+            app:icon="@drawable/baseline_close_24"
+            app:iconTint="?android:attr/textColorSecondary"
+            app:iconSize="20dp" />
 
+    </RelativeLayout>
+
+    <View
+        android:id="@+id/headerDivider"
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_below="@id/headerBar"
+        android:background="?attr/colorOutlineVariant" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/closeWindowButton">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="15dp"
-        android:layout_marginEnd="15dp"
-        android:paddingBottom="20dp"
-        android:orientation="vertical">
+        android:layout_below="@id/headerDivider"
+        android:overScrollMode="never">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:paddingBottom="32dp">
 
-            <TextView
-                android:id="@+id/resolutionText"
-                android:layout_width="wrap_content"
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Resolution"
-                android:textSize="18sp" />
-            <EditText
-                android:id="@+id/resolutionXField"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="1366"
-                android:inputType="number"
-                android:textSize="18sp" />
-            <TextView
-                android:id="@+id/xText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="x"
-                android:textSize="18sp" />
-            <EditText
-                android:id="@+id/resolutionYField"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="768"
-                android:inputType="number"
-                android:textSize="18sp" />
+                app:sectionTitle="Video Encoding">
 
+                <!-- Resolution row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_aspect_ratio_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/resolutionText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Resolution"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/resolutionXField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="1920"
+                            android:inputType="number"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/xText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="×"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
+
+                        <EditText
+                            android:id="@+id/resolutionYField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="1080"
+                            android:inputType="number"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp" />
+
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Framerate row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_videocam_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/exportFrameRateText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Framerate"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/exportFrameRate"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="end"
+                            android:hint="30"
+                            android:inputType="number"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/fpsMeasurement"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginStart="4dp"
+                            android:text="fps"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp" />
+
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- CRF row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_equalizer_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/exportCRFText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Constant rate factor"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/exportCRF"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="30"
+                        android:inputType="number"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Clip Cap row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_production_quantity_limits_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/exportClipCapText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Clip Cap"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/exportClipCap"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="30"
+                        android:inputType="number"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:sectionTitle="Advanced">
+
+                <!-- Export preset row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_settings_applications_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/exportPresetText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Export preset"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <Spinner
+                        android:id="@+id/exportPreset"
+                        android:layout_width="150dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Export tune row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_tune_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/exportTuneText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Export tune"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <Spinner
+                        android:id="@+id/exportTune"
+                        android:layout_width="150dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Stretch media toggle -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_fit_screen_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Stretch media to fit"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/stretchToFullCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true" />
+
+                </RelativeLayout>
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
 
         </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/exportFrameRateText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Framerate"
-                android:textSize="18sp" />
-            <EditText
-                android:id="@+id/exportFrameRate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:inputType="number"
-                android:text="30"/>
-            <TextView
-                android:id="@+id/fpsMeasurement"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="fps"
-                android:textSize="18sp" />
-
-
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/exportCRFText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Constant rate factor"
-                android:textSize="18sp" />
-            <EditText
-                android:id="@+id/exportCRF"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:inputType="number"
-                android:text="30"/>
-
-
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/exportClipCapText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Clip Cap"
-                android:textSize="18sp" />
-            <EditText
-                android:id="@+id/exportClipCap"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:inputType="number"
-                android:text="30"/>
-
-
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/exportPresetText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Export preset"
-                android:textSize="18sp" />
-            <Spinner
-                android:id="@+id/exportPreset"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"/>
-
-
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/exportTuneText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Export tune"
-                android:textSize="18sp" />
-            <Spinner
-                android:id="@+id/exportTune"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"/>
-
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <CheckBox
-                android:id="@+id/stretchToFullCheckbox"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Stretch media to match video resolution"
-                android:textSize="18sp" />
-
-
-        </LinearLayout>
-    </LinearLayout>
     </ScrollView>
 
 </com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen>

@@ -3,10 +3,11 @@ package com.vanvatcorporation.doubleclips.activities.export;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.widget.ArrayAdapter;
-import android.widget.CheckBox;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import android.widget.EditText;
 import android.widget.Spinner;
 
+import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.editing.BaseEditSpecificAreaScreen;
@@ -18,7 +19,7 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
 
     public Spinner presetSpinner, tuneSpinner;
     public EditText resolutionXField, resolutionYField, frameRateText, crfText, clipCapText;
-    public CheckBox stretchMediaToFullCheckbox; // Media
+    public SwitchMaterial stretchMediaToFullCheckbox; // Media
 
 
 
@@ -51,29 +52,13 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
         clipCapText = findViewById(R.id.exportClipCap);
 
         presetSpinner = findViewById(R.id.exportPreset);
-        presetAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, new String[]{
-                EditingActivity.VideoSettings.FfmpegPreset.PLACEBO,
-                EditingActivity.VideoSettings.FfmpegPreset.VERYSLOW,
-                EditingActivity.VideoSettings.FfmpegPreset.SLOWER,
-                EditingActivity.VideoSettings.FfmpegPreset.SLOW,
-                EditingActivity.VideoSettings.FfmpegPreset.MEDIUM,
-                EditingActivity.VideoSettings.FfmpegPreset.FAST,
-                EditingActivity.VideoSettings.FfmpegPreset.FASTER,
-                EditingActivity.VideoSettings.FfmpegPreset.VERYFAST,
-                EditingActivity.VideoSettings.FfmpegPreset.SUPERFAST,
-                EditingActivity.VideoSettings.FfmpegPreset.ULTRAFAST
-        });
+        presetAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1,
+                FFmpegEdit.FFmpegUtilities.presetStringList);
         presetSpinner.setAdapter(presetAdapter);
         presetSpinner.setSelection(9); // ULTRAFAST
         tuneSpinner = findViewById(R.id.exportTune);
-        tuneAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, new String[]{
-                EditingActivity.VideoSettings.FfmpegTune.FILM,
-                EditingActivity.VideoSettings.FfmpegTune.ANIMATION,
-                EditingActivity.VideoSettings.FfmpegTune.GRAIN,
-                EditingActivity.VideoSettings.FfmpegTune.STILLIMAGE,
-                EditingActivity.VideoSettings.FfmpegTune.FASTDECODE,
-                EditingActivity.VideoSettings.FfmpegTune.ZEROLATENCY
-        });
+        tuneAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1,
+                FFmpegEdit.FFmpegUtilities.tuneStringList);
         tuneSpinner.setAdapter(tuneAdapter);
         tuneSpinner.setSelection(5); // ZEROLATENCY
 

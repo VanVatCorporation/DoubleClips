@@ -49,15 +49,24 @@ public class NavigationIconLayout extends RelativeLayout {
 
             if (icon != null) {
                 iconView.setImageDrawable(icon);
-                iconView.setColorFilter(getContext().getColor(R.color.colorPrimaryButton), PorterDuff.Mode.SRC_ATOP);
+                iconView.setColorFilter(getResolvedColor(android.R.attr.textColorSecondary), PorterDuff.Mode.SRC_ATOP);
             }
             if (text != null) {
                 textView.setText(text);
-                textView.setTextColor(getContext().getColor(R.color.colorPrimaryButton));
+                textView.setTextColor(getResolvedColor(android.R.attr.textColorSecondary));
             }
 
             a.recycle();
         }
+    }
+
+    private int getResolvedColor(int attr) {
+        android.util.TypedValue typedValue = new android.util.TypedValue();
+        getContext().getTheme().resolveAttribute(attr, typedValue, true);
+        if (typedValue.resourceId != 0) {
+            return getContext().getColor(typedValue.resourceId);
+        }
+        return typedValue.data;
     }
 
     public void runAnimation(AnimationType type)
@@ -65,15 +74,15 @@ public class NavigationIconLayout extends RelativeLayout {
         switch (type)
         {
             case SELECTED:
-                textView.setTextColor(getContext().getColor(R.color.colorHighlightedButton));
+                textView.setTextColor(getContext().getColor(R.color.ios_blue));
                 textView.setTypeface(null, Typeface.BOLD);
-                iconView.setColorFilter(getContext().getColor(R.color.colorHighlightedButton), PorterDuff.Mode.SRC_ATOP);
+                iconView.setColorFilter(getContext().getColor(R.color.ios_blue), PorterDuff.Mode.SRC_ATOP);
                 iconView.startAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.anim_expand_rapidly));
                 break;
             case UNSELECTED:
-                textView.setTextColor(getContext().getColor(R.color.colorPrimaryBackground));
+                textView.setTextColor(getResolvedColor(android.R.attr.textColorSecondary));
                 textView.setTypeface(null, Typeface.NORMAL);
-                iconView.setColorFilter(R.color.colorPrimaryButton, PorterDuff.Mode.SRC_ATOP);
+                iconView.setColorFilter(getResolvedColor(android.R.attr.textColorSecondary), PorterDuff.Mode.SRC_ATOP);
                 iconView.startAnimation(AnimationUtils.loadAnimation(getContext(), R.anim.anim_shrink_rapidly));
                 break;
 

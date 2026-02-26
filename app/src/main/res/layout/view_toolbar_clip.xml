@@ -2,85 +2,97 @@
 <HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbarScrollView"
-    android:layout_width="wrap_content"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_alignParentBottom="true"
-    android:background="@color/colorPrimaryBackground">
+    android:background="?android:attr/colorBackground"
+    android:elevation="16dp"
+    android:scrollbars="none">
+
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
+
         <TextView
             android:id="@+id/title"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
-            android:gravity="center"
-            android:text="Clip"/>
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:background="?android:attr/colorBackground"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="6dp"
+            android:text="Clip"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+        <!-- reuse rounded bg @drawable/bg_search_bar -->
+
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/deleteMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_delete_24"
-            app:navText="Delete"/>
+            app:navText="Delete" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/splitMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_cut_24"
-            app:navText="Split"/>
+            app:navText="Split" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/cloneMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_file_copy_24"
-            app:navText="Clone"/>
+            app:navText="Clone" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/editMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_edit_square_24"
-            app:navText="Edit"/>
+            app:navText="Edit" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addKeyframeButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/round_auto_awesome_24"
-            app:navText="Keyframe"/>
+            app:navText="Keyframe" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/selectMultipleButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_menu_24"
-            app:navText="SelectMultiple"/>
+            app:navText="Multi" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/applyKeyframeToAllClip"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_merge_24"
-            app:navText="AllKeyframe"/>
+            app:navText="All Keys" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/restateButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_restore_24"
-            app:navText="Restate"/>
+            app:navText="Restate" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/exportClipButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_upload_file_24"
-            app:navText="Export"/>
+            app:navText="Export" />
 
     </LinearLayout>
 </HorizontalScrollView>

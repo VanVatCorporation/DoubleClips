@@ -6,7 +6,7 @@ import android.view.View;
 import android.view.ViewPropertyAnimator;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.ImageButton;
+
 import android.widget.RelativeLayout;
 
 import com.google.android.material.imageview.ShapeableImageView;
@@ -19,7 +19,7 @@ import java.util.List;
 public class BaseEditSpecificAreaScreen extends BaseAreaScreen {
 
     public ShapeableImageView windowBackground;
-    public ImageButton closeWindowButton;
+    public View closeWindowButton;
     public ArrayList<Runnable> onClose = new ArrayList<>();
     public ArrayList<Runnable> onOpen = new ArrayList<>();
 

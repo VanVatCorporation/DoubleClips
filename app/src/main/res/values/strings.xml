@@ -96,4 +96,5 @@
     <string name="login_button">Login</string>
     <string name="login_warning_untrusted_installation">Warning, Untrusted instance!</string>
     <string name="login_warning_untrusted_installation_general">Untrusted Instance of App</string>
+    <string name="duration">Duration</string>
 </resources>

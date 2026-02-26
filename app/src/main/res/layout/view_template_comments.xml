@@ -1,95 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/editSpecificArea"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/windowBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
         android:focusable="true"
         android:focusableInTouchMode="true"
+        app:shapeAppearanceOverlay="@style/lowerRoundedImageView"
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="0.5dp" />
 
-        android:background="@color/colorPalette1_4"
+    <!-- Header bar -->
+    <RelativeLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
 
-        app:strokeColor="@color/colorSoftBackground"
-        app:strokeWidth="1dp"
-        app:shapeAppearanceOverlay="@style/lowerRoundedImageView"/>
-    <ImageButton
-        android:id="@+id/closeWindowButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:layout_alignParentEnd="true"
-        android:src="@drawable/baseline_close_24"/>
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_drag_handle"
+            android:alpha="0.35" />
 
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:text="Comments"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/closeWindowButton"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="4dp"
+            app:icon="@drawable/baseline_close_24"
+            app:iconTint="?android:attr/textColorSecondary"
+            app:iconSize="20dp" />
 
+    </RelativeLayout>
 
+    <View
+        android:id="@+id/headerDivider"
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_below="@id/headerBar"
+        android:background="?attr/colorOutlineVariant" />
 
-
-
-
-
-
-
-    <ScrollView
+    <!-- Comments List -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/commentContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/closeWindowButton"
-        android:layout_above="@id/commentPostLayout">
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="15dp"
-        android:layout_marginEnd="15dp"
-        android:paddingBottom="20dp"
-        android:orientation="vertical">
+        android:layout_below="@id/headerDivider"
+        android:layout_above="@id/commentPostLayout"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        android:overScrollMode="never" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/titleText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Comments"
-                android:textStyle="bold"
-                android:textSize="24sp" />
-
-
-        </LinearLayout>
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/commentContainer"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-    </LinearLayout>
-
-    </ScrollView>
-
+    <!-- Bottom Post Layout -->
     <RelativeLayout
         android:id="@+id/commentPostLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:gravity="center">
+        android:background="?android:attr/colorBackground"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:elevation="8dp">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:layout_alignParentTop="true"
+            android:background="?attr/colorOutlineVariant" />
+
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/profileAvatarImage"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:layout_centerVertical="true"
+            android:layout_marginTop="8dp"
+            android:background="@color/md_theme_light_surfaceContainer"
+            app:shapeAppearanceOverlay="@style/lowerRoundedImageView"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="0.5dp" />
+        <!--            app:shapeAppearanceOverlay="@style/circleImageView" />-->
 
-
-            android:background="@color/colorPalette1_4"
-
-            app:shapeAppearanceOverlay="@style/roundedImageView"
-            app:strokeColor="@color/colorSoftBlueBackground"
-            app:strokeWidth="1dp" />
         <EditText
             android:id="@+id/commentArea"
             android:layout_width="match_parent"
@@ -97,18 +113,31 @@
             android:layout_toEndOf="@id/profileAvatarImage"
             android:layout_toStartOf="@id/submitCommentButton"
             android:layout_centerVertical="true"
-            android:hint="Comment"/>
-        <ImageButton
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="8dp"
+            android:background="?android:attr/colorBackground"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:hint="Add a comment..."
+            android:textColorHint="?android:attr/textColorSecondary"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="15sp"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="4" /> <!-- reuse rounded bg @drawable/bg_search_bar -->
+
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/submitCommentButton"
+            style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_centerVertical="true"
             android:layout_alignParentEnd="true"
-            android:src="@drawable/baseline_comment_24"/>
+            android:layout_centerVertical="true"
+            android:layout_marginTop="8dp"
+            app:icon="@drawable/baseline_send_24"
+            app:iconTint="@color/ios_blue" />
 
     </RelativeLayout>
-
-
-
 
 </com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen>

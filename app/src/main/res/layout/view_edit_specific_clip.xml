@@ -1,892 +1,1138 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/editMultipleArea"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_below="@id/timestampBar">
 
+    <!-- Panel background with top rounded corners -->
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/windowBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/colorPalette1_4"
+        android:background="?android:attr/colorBackground"
         android:focusable="true"
-
         android:focusableInTouchMode="true"
-
         app:shapeAppearanceOverlay="@style/lowerRoundedImageView"
-        app:strokeColor="@color/colorSoftBackground"
-        app:strokeWidth="1dp" />
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="0.5dp" />
 
-    <ImageButton
-        android:id="@+id/closeWindowButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_alignParentEnd="true"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:src="@drawable/baseline_close_24" />
+    <!-- Header bar -->
+    <RelativeLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
+
+        <!-- Drag handle pill -->
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_drag_handle"
+            android:alpha="0.35" />
+
+        <TextView
+            android:id="@+id/clipName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:text="Clip Properties"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium" />
+
+        <!-- Close button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/closeWindowButton"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="4dp"
+            app:icon="@drawable/baseline_close_24"
+            app:iconTint="?android:attr/textColorSecondary"
+            app:iconSize="20dp" />
+
+    </RelativeLayout>
+
+    <!-- Divider under header -->
+    <View
+        android:id="@+id/headerDivider"
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_below="@id/headerBar"
+        android:background="?attr/colorOutlineVariant" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/closeWindowButton">
-
+        android:layout_below="@id/headerDivider"
+        android:overScrollMode="never">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="15dp"
-            android:layout_marginEnd="15dp"
             android:orientation="vertical"
-            android:paddingBottom="20dp">
+            android:paddingBottom="32dp">
 
-            <LinearLayout
+            <!-- ── Clip Name ────────────────────────────────────────── -->
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:hint="Clip name"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp">
 
-                <TextView
-                    android:id="@+id/clipName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="15dp"
-                    android:text="ClipName"
-                    android:textSize="18sp" />
-
-                <EditText
+                <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/clipNameField"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="15dp"
-                    android:hint="Name of the clip"
-                    android:textSize="18sp" />
+                    android:textSize="15sp" />
 
+            </com.google.android.material.textfield.TextInputLayout>
 
-            </LinearLayout>
-
-            <LinearLayout
+            <!-- ── Duration / Trim ─────────────────────────────────── -->
+            <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                app:sectionTitle="@string/duration">
 
-                <TextView
-                    android:id="@+id/durationText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="15dp"
-                    android:text="Duration"
-                    android:textSize="18sp" />
+                <!-- Duration row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
 
-                <TextView
-                    android:id="@+id/durationCText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="15dp"
-                    android:background="@null"
-                    android:hint="1"
-                    android:textSize="18sp" />
+                    <ImageView
+                        android:id="@+id/durationIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_timer_24"
+                        app:tint="@color/ios_blue" />
 
-                <TextView
-                    android:id="@+id/slash"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="15dp"
-                    android:background="@null"
-                    android:text="/"
-                    android:textSize="18sp" />
+                    <TextView
+                        android:id="@+id/durationText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/durationIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Duration"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
-                <TextView
-                    android:id="@+id/totalDurationText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="15dp"
-                    android:background="@null"
-                    android:text="-"
-                    android:textSize="18sp" />
+                    <!-- Duration display: current / total -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
 
+                        <TextView
+                            android:id="@+id/durationCText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp"
+                            android:hint="0.0" />
 
-            </LinearLayout>
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                        <TextView
+                            android:id="@+id/slash"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=" / "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp" />
 
-                <TextView
-                    android:id="@+id/startTrimText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="15dp"
-                    android:text="Start trim: "
-                    android:textSize="18sp" />
+                        <TextView
+                            android:id="@+id/totalDurationText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="15sp"
+                            android:text="-" />
 
-                <EditText
-                    android:id="@+id/startTrimContent"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="15dp"
-                    android:background="@null"
-                    android:hint="1"
-                    android:textSize="18sp" />
+                    </LinearLayout>
+                </RelativeLayout>
 
-            </LinearLayout>
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
-                <TextView
-                    android:id="@+id/endTrimText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="15dp"
-                    android:text="End trim: "
-                    android:textSize="18sp" />
+                <!-- Start trim row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
 
-                <EditText
-                    android:id="@+id/endTrimContent"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="15dp"
-                    android:background="@null"
-                    android:hint="1"
-                    android:textSize="18sp" />
+                    <ImageView
+                        android:id="@+id/startTrimIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_content_cut_24"
+                        app:tint="@color/ios_blue" />
 
-            </LinearLayout>
+                    <TextView
+                        android:id="@+id/startTrimText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/startTrimIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Start Trim"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/startTrimContent"
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="0.0"
+                        android:inputType="numberDecimal"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- End trim row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/endTrimIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_content_cut_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/endTrimText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/endTrimIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="End Trim"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/endTrimContent"
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="0.0"
+                        android:inputType="numberDecimal"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
+            <!-- ── Keyframes ───────────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:sectionTitle="@string/keyframe">
 
-                <LinearLayout
+                <!-- Keyframe list -->
+                <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="100dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@null">
 
-                    <ScrollView
-                        android:layout_width="match_parent"
-                        android:layout_height="100dp"
-                        android:layout_margin="10dp"
-                        android:backgroundTint="@color/colorPalette1_1">
-
-                        <LinearLayout
-                            android:id="@+id/keyframeScrollFrame"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical" />
-                    </ScrollView>
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/clearKeyframeButton"
+                    <LinearLayout
+                        android:id="@+id/keyframeScrollFrame"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Clear Keyframes" />
+                        android:orientation="vertical" />
+                </ScrollView>
 
-                </LinearLayout>
-
-                <LinearLayout
+                <!-- Easing row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_auto_graph_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/easingText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
                         android:text="Easing"
-                        android:textSize="18sp" />
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
                     <Spinner
                         android:id="@+id/easingContent"
-                        android:layout_width="match_parent"
+                        android:layout_width="160dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="5dp"
-                        android:layout_marginEnd="15dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
                         android:background="@null"
-                        android:textSize="18sp" />
+                        android:textSize="15sp" />
 
-                </LinearLayout>
+                </RelativeLayout>
 
-                <LinearLayout
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Keyframe actions row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
 
                     <TextView
                         android:id="@+id/keyframesActionText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Keyframe Action"
-                        android:textSize="18sp" />
+                        android:layout_centerVertical="true"
+                        android:text="Keyframe Data"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
-                    <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                        android:id="@+id/importKeyframesButton"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_margin="5dp"
-                        app:navIcon="@drawable/baseline_data_object_24"
-                        app:navText="Import"/>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
 
-                    <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-                        android:id="@+id/exportKeyframesButton"
-                        android:layout_width="50dp"
-                        android:layout_height="50dp"
-                        android:layout_margin="5dp"
-                        app:navIcon="@drawable/baseline_upload_file_24"
-                        app:navText="Export"/>
+                        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+                            android:id="@+id/importKeyframesButton"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_margin="4dp"
+                            app:navIcon="@drawable/baseline_data_object_24"
+                            app:navText="Import" />
 
-                </LinearLayout>
+                        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+                            android:id="@+id/exportKeyframesButton"
+                            android:layout_width="50dp"
+                            android:layout_height="50dp"
+                            android:layout_margin="4dp"
+                            app:navIcon="@drawable/baseline_upload_file_24"
+                            app:navText="Export" />
 
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Clear keyframes -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/clearKeyframeButton"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    android:text="Clear Keyframes"
+                    android:textColor="@color/md_theme_light_error"
+                    app:rippleColor="@color/md_theme_light_error" />
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <!-- ── Transform ───────────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:sectionTitle="@string/properties">
 
-                <LinearLayout
+                <!-- Position row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/positionIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_open_with_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/positionText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Position:"
-                        android:textSize="18sp" />
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/positionIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Position"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
-                    <TextView
-                        android:id="@+id/positionXText"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="X:"
-                        android:textSize="18sp" />
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
 
-                    <EditText
-                        android:id="@+id/positionXField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="1366"
-                        android:textSize="18sp" />
+                        <TextView
+                            android:id="@+id/positionXText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="X "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
 
-                    <TextView
-                        android:id="@+id/positionYText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Y:"
-                        android:textSize="18sp" />
+                        <EditText
+                            android:id="@+id/positionXField"
+                            android:layout_width="64dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="0"
+                            android:inputType="numberDecimal|numberSigned"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
 
-                    <EditText
-                        android:id="@+id/positionYField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="768"
-                        android:textSize="18sp" />
+                        <TextView
+                            android:id="@+id/positionYText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="Y "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
 
+                        <EditText
+                            android:id="@+id/positionYField"
+                            android:layout_width="64dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="0"
+                            android:inputType="numberDecimal|numberSigned"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
 
-                </LinearLayout>
+                    </LinearLayout>
+                </RelativeLayout>
 
-                <LinearLayout
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Rotation row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/rotationIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_rotate_right_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/rotationText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Rotation:"
-                        android:textSize="18sp" />
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/rotationIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Rotation"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
                     <EditText
                         android:id="@+id/rotationField"
-                        android:layout_width="wrap_content"
+                        android:layout_width="80dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="90"
-                        android:textSize="18sp" />
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="0°"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
 
+                </RelativeLayout>
 
-                </LinearLayout>
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
-                <LinearLayout
+                <!-- Scale row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/scaleIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_zoom_out_map_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/scaleText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Scale:"
-                        android:textSize="18sp" />
-
-                    <TextView
-                        android:id="@+id/scaleXText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="X:"
-                        android:textSize="18sp" />
-
-                    <EditText
-                        android:id="@+id/scaleXField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="1"
-                        android:textSize="18sp" />
-
-                    <TextView
-                        android:id="@+id/scaleYText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Y:"
-                        android:textSize="18sp" />
-
-                    <EditText
-                        android:id="@+id/scaleYField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="1"
-                        android:textSize="18sp" />
-
-
-                </LinearLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/opacityText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Opacity: (Default: 1)"
                         android:layout_centerVertical="true"
-                        android:textSize="18sp" />
+                        android:layout_toEndOf="@id/scaleIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Scale"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
-                    <ImageView
-                        android:id="@+id/opacityResetButton"
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:src="@drawable/baseline_restore_24"/>
+                        android:orientation="horizontal">
 
-                </RelativeLayout>
+                        <TextView
+                            android:id="@+id/scaleXText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="X "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
 
+                        <EditText
+                            android:id="@+id/scaleXField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="1.0"
+                            android:inputType="numberDecimal"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
 
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                        <TextView
+                            android:id="@+id/scaleYText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="Y "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
 
-                    <TextView
-                        android:id="@+id/opacityMinText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentStart="true"
-                        android:text="0"
-                        android:textSize="18sp" />
+                        <EditText
+                            android:id="@+id/scaleYField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="1.0"
+                            android:inputType="numberDecimal"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
 
-                    <com.warkiz.widget.IndicatorSeekBar
-                        android:id="@+id/opacitySeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/opacityMinText"
-                        android:layout_toStartOf="@id/opacityMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        app:isb_max="1"
-                        app:isb_min="0"
-                        app:isb_progress="1"
-                        app:isb_show_indicator="rounded_rectangle"
-                        app:isb_seek_smoothly="true"
-                        app:isb_progress_value_float="true"
-                        app:isb_track_rounded_corners="true"
-                        app:isb_thumb_color="@color/colorPalette1_1"
-                        app:isb_track_progress_color="@color/colorPalette1_2"
-                        app:isb_indicator_text_color="@android:color/black"
-                        app:isb_indicator_color="@android:color/white"/>
-
-                    <TextView
-                        android:id="@+id/opacityMaxText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentEnd="true"
-                        android:text="1"
-                        android:textSize="18sp" />
-
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/speedText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Speed: (Default: 1)"
-                        android:layout_centerVertical="true"
-                        android:textSize="18sp" />
-
-                    <ImageView
-                        android:id="@+id/speedResetButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:layout_centerVertical="true"
-                        android:src="@drawable/baseline_restore_24"/>
-
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <TextView
-                        android:id="@+id/speedMinText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentStart="true"
-                        android:text="0.01"
-                        android:textSize="18sp" />
-
-                    <com.warkiz.widget.IndicatorSeekBar
-                        android:id="@+id/speedSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/speedMinText"
-                        android:layout_toStartOf="@id/speedMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        app:isb_max="10"
-                        app:isb_min="0.01"
-                        app:isb_progress="1"
-                        app:isb_show_indicator="rounded_rectangle"
-                        app:isb_seek_smoothly="true"
-                        app:isb_progress_value_float="true"
-                        app:isb_track_rounded_corners="true"
-                        app:isb_thumb_color="@color/colorPalette1_1"
-                        app:isb_track_progress_color="@color/colorPalette1_2"
-                        app:isb_indicator_text_color="@android:color/black"
-                        app:isb_indicator_color="@android:color/white"/>
-
-                    <TextView
-                        android:id="@+id/speedMaxText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentEnd="true"
-                        android:text="10"
-                        android:textSize="18sp" />
-
-                </RelativeLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/hueText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Hue (in degrees): (Default: 0)"
-                        android:textSize="18sp" />
-
-                    <EditText
-                        android:id="@+id/hueField"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:hint="0"
-                        android:textSize="18sp" />
-
-                </LinearLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/saturationText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Saturation: (Default: 1)"
-                        android:layout_centerVertical="true"
-                        android:textSize="18sp" />
-
-                    <ImageView
-                        android:id="@+id/saturationResetButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:layout_centerVertical="true"
-                        android:src="@drawable/baseline_restore_24"/>
-
-                </RelativeLayout>
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <TextView
-                        android:id="@+id/saturationMinText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentStart="true"
-                        android:text="-10"
-                        android:textSize="18sp" />
-
-                    <!--
-                    <SeekBar
-                        android:id="@+id/saturationSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/saturationMinText"
-                        android:layout_toStartOf="@id/saturationMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        android:max="2000"
-                        android:progress="1000"
-                        android:progressDrawable="@drawable/tooltip_seekbar_style"
-                        android:splitTrack="false"
-                        android:thumb="@drawable/tooltip_seekbar_thum"/>
-                        -->
-
-
-                    <com.warkiz.widget.IndicatorSeekBar
-                        android:id="@+id/saturationSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/saturationMinText"
-                        android:layout_toStartOf="@id/saturationMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        app:isb_max="10"
-                        app:isb_min="-10"
-                        app:isb_progress="1"
-                        app:isb_show_indicator="rounded_rectangle"
-                        app:isb_seek_smoothly="true"
-                        app:isb_progress_value_float="true"
-                        app:isb_track_rounded_corners="true"
-                        app:isb_thumb_color="@color/colorPalette1_1"
-                        app:isb_track_progress_color="@color/colorPalette1_2"
-                        app:isb_indicator_text_color="@android:color/black"
-                        app:isb_indicator_color="@android:color/white"/>
-
-                    <TextView
-                        android:id="@+id/saturationMaxText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentEnd="true"
-                        android:text="+10"
-                        android:textSize="18sp" />
-
-                </RelativeLayout>
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/brightnessText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Brightness: (Default: 0)"
-                        android:layout_centerVertical="true"
-                        android:textSize="18sp" />
-
-                    <ImageView
-                        android:id="@+id/brightnessResetButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:layout_centerVertical="true"
-                        android:src="@drawable/baseline_restore_24"/>
-
-                </RelativeLayout>
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <TextView
-                        android:id="@+id/brightnessMinText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentStart="true"
-                        android:text="-10"
-                        android:textSize="18sp" />
-
-                    <!--
-                    <SeekBar
-                        android:id="@+id/brightnessSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/brightnessMinText"
-                        android:layout_toStartOf="@id/brightnessMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        android:max="2000"
-                        android:progress="1000"
-                        android:progressDrawable="@drawable/tooltip_seekbar_style"
-                        android:splitTrack="false"
-                        android:thumb="@drawable/tooltip_seekbar_thum"/>
-                    -->
-
-                    <com.warkiz.widget.IndicatorSeekBar
-                        android:id="@+id/brightnessSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/brightnessMinText"
-                        android:layout_toStartOf="@id/brightnessMaxText"
-                        android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        app:isb_max="10"
-                        app:isb_min="-10"
-                        app:isb_progress="0"
-                        app:isb_show_indicator="rounded_rectangle"
-                        app:isb_seek_smoothly="true"
-                        app:isb_progress_value_float="true"
-                        app:isb_track_rounded_corners="true"
-                        app:isb_thumb_color="@color/colorPalette1_1"
-                        app:isb_track_progress_color="@color/colorPalette1_2"
-                        app:isb_indicator_text_color="@android:color/black"
-                        app:isb_indicator_color="@android:color/white"/>
-
-                    <TextView
-                        android:id="@+id/brightnessMaxText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentEnd="true"
-                        android:text="+10"
-                        android:textSize="18sp" />
-
+                    </LinearLayout>
                 </RelativeLayout>
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
-
-
+            <!-- ── Colour Grading ──────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:sectionTitle="@string/clips">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <CheckBox
-                        android:id="@+id/muteAudioCheckbox"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Mute audio"
-                        android:textSize="18sp" />
-
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <CheckBox
-                        android:id="@+id/lockMediaForTemplateCheckbox"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Lock media for Template"
-                        android:textSize="18sp" />
-
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <CheckBox
-                        android:id="@+id/reverseCheckbox"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Reverse"
-                        android:textSize="18sp" />
-
-
-                </LinearLayout>
-
-
-
-
-
+                <!-- Opacity -->
                 <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_opacity_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/opacityText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Opacity"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <ImageView
+                        android:id="@+id/opacityResetButton"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_restore_24"
+                        app:tint="?android:attr/textColorSecondary" />
+
+                </RelativeLayout>
+
+                <com.warkiz.widget.IndicatorSeekBar
+                    android:id="@+id/opacitySeekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    app:isb_max="1"
+                    app:isb_min="0"
+                    app:isb_progress="1"
+                    app:isb_progress_value_float="true"
+                    app:isb_seek_smoothly="true"
+                    app:isb_show_indicator="rounded_rectangle"
+                    app:isb_thumb_color="@color/ios_blue"
+                    app:isb_track_progress_color="@color/ios_blue"
+                    app:isb_track_rounded_corners="true"
+                    app:isb_indicator_text_color="@android:color/black"
+                    app:isb_indicator_color="@android:color/white" />
+
+                <!-- Range labels -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/opacityMinText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="0" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                    <TextView android:id="@+id/opacityMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:gravity="end" android:text="1" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Speed -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_speed_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/speedText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Speed"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <ImageView
+                        android:id="@+id/speedResetButton"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_restore_24"
+                        app:tint="?android:attr/textColorSecondary" />
+
+                </RelativeLayout>
+
+                <com.warkiz.widget.IndicatorSeekBar
+                    android:id="@+id/speedSeekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    app:isb_max="10"
+                    app:isb_min="0.01"
+                    app:isb_progress="1"
+                    app:isb_progress_value_float="true"
+                    app:isb_seek_smoothly="true"
+                    app:isb_show_indicator="rounded_rectangle"
+                    app:isb_thumb_color="@color/ios_blue"
+                    app:isb_track_progress_color="@color/ios_blue"
+                    app:isb_track_rounded_corners="true"
+                    app:isb_indicator_text_color="@android:color/black"
+                    app:isb_indicator_color="@android:color/white" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/speedMinText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="0.01×" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                    <TextView android:id="@+id/speedMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:gravity="end" android:text="10×" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Hue -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_palette_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/hueText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Hue (degrees)"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/hueField"
+                        android:layout_width="64dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="0"
+                        android:inputType="numberDecimal|numberSigned"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Saturation -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_tonality_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/saturationText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Saturation"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <ImageView
+                        android:id="@+id/saturationResetButton"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_restore_24"
+                        app:tint="?android:attr/textColorSecondary" />
+
+                </RelativeLayout>
+
+                <com.warkiz.widget.IndicatorSeekBar
+                    android:id="@+id/saturationSeekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    app:isb_max="10"
+                    app:isb_min="-10"
+                    app:isb_progress="1"
+                    app:isb_progress_value_float="true"
+                    app:isb_seek_smoothly="true"
+                    app:isb_show_indicator="rounded_rectangle"
+                    app:isb_thumb_color="@color/ios_blue"
+                    app:isb_track_progress_color="@color/ios_blue"
+                    app:isb_track_rounded_corners="true"
+                    app:isb_indicator_text_color="@android:color/black"
+                    app:isb_indicator_color="@android:color/white" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/saturationMinText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="-10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                    <TextView android:id="@+id/saturationMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:gravity="end" android:text="+10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Brightness -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_brightness_6_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/brightnessText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Brightness"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <ImageView
+                        android:id="@+id/brightnessResetButton"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_restore_24"
+                        app:tint="?android:attr/textColorSecondary" />
+
+                </RelativeLayout>
+
+                <com.warkiz.widget.IndicatorSeekBar
+                    android:id="@+id/brightnessSeekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    app:isb_max="10"
+                    app:isb_min="-10"
+                    app:isb_progress="0"
+                    app:isb_progress_value_float="true"
+                    app:isb_seek_smoothly="true"
+                    app:isb_show_indicator="rounded_rectangle"
+                    app:isb_thumb_color="@color/ios_blue"
+                    app:isb_track_progress_color="@color/ios_blue"
+                    app:isb_track_rounded_corners="true"
+                    app:isb_indicator_text_color="@android:color/black"
+                    app:isb_indicator_color="@android:color/white" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/brightnessMinText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="-10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                    <TextView android:id="@+id/brightnessMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:gravity="end" android:text="+10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                </LinearLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Temperature -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_thermostat_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/temperatureText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Temperature: (Default 6500K)"
                         android:layout_centerVertical="true"
-                        android:textSize="18sp" />
+                        android:layout_marginStart="34dp"
+                        android:text="Temperature (K)"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
                     <ImageView
                         android:id="@+id/temperatureResetButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:src="@drawable/baseline_restore_24"/>
+                        android:src="@drawable/baseline_restore_24"
+                        app:tint="?android:attr/textColorSecondary" />
 
                 </RelativeLayout>
 
+                <com.warkiz.widget.IndicatorSeekBar
+                    android:id="@+id/temperatureSeekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="4dp"
+                    app:isb_max="40000"
+                    app:isb_min="1000"
+                    app:isb_progress="6500"
+                    app:isb_progress_value_float="true"
+                    app:isb_seek_smoothly="true"
+                    app:isb_show_indicator="rounded_rectangle"
+                    app:isb_thumb_color="@color/ios_blue"
+                    app:isb_track_progress_color="@color/ios_blue"
+                    app:isb_track_rounded_corners="true"
+                    app:isb_indicator_text_color="@android:color/black"
+                    app:isb_indicator_color="@android:color/white" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
+                    <TextView android:id="@+id/temperatureMinText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="1000K" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                    <TextView android:id="@+id/temperatureMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:gravity="end" android:text="40000K" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                </LinearLayout>
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
+            <!-- ── Clip Options ────────────────────────────────────── -->
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:sectionTitle="Options">
+
+                <!-- Mute audio toggle -->
                 <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
 
-                    <TextView
-                        android:id="@+id/temperatureMinText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:layout_alignParentStart="true"
-                        android:text="1000"
-                        android:textSize="18sp" />
-
-                    <com.warkiz.widget.IndicatorSeekBar
-                        android:id="@+id/temperatureSeekbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/temperatureMinText"
-                        android:layout_toStartOf="@id/temperatureMaxText"
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
                         android:layout_centerVertical="true"
-                        android:layout_marginStart="15dp"
-                        app:isb_max="40000"
-                        app:isb_min="1000"
-                        app:isb_progress="6500"
-                        app:isb_show_indicator="rounded_rectangle"
-                        app:isb_seek_smoothly="true"
-                        app:isb_progress_value_float="true"
-                        app:isb_track_rounded_corners="true"
-                        app:isb_thumb_color="@color/colorPalette1_1"
-                        app:isb_track_progress_color="@color/colorPalette1_2"
-                        app:isb_indicator_text_color="@android:color/black"
-                        app:isb_indicator_color="@android:color/white"/>
+                        android:src="@drawable/baseline_volume_off_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
-                        android:id="@+id/temperatureMaxText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Mute Audio"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/muteAudioCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
-                        android:text="40000"
-                        android:textSize="18sp" />
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Lock for template toggle -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_lock_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Lock for Template"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/lockMediaForTemplateCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <!-- Reverse toggle -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_swap_horiz_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Reverse"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/reverseCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
 
                 </RelativeLayout>
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <!-- ── Motion Blur ─────────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:sectionTitle="@string/motion_blur">
 
-                <LinearLayout
+                <!-- tblend Motion Blur toggle -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
 
-                    <CheckBox
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_blur_on_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="tblend Motion Blur"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/tblendMotionBlurCheckbox"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="tblend Motion Blur"
-                        android:textSize="18sp" />
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
 
+                </RelativeLayout>
 
-                </LinearLayout>
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
-                <LinearLayout
+                <!-- tmix weight row -->
+                <RelativeLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_tune_24"
+                        app:tint="@color/ios_blue" />
 
                     <TextView
                         android:id="@+id/tblendText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="tmix"
-                        android:textSize="18sp" />
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="tmix Weight"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
 
                     <EditText
                         android:id="@+id/tmixWeightField"
-                        android:layout_width="wrap_content"
+                        android:layout_width="64dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
                         android:hint="0"
-                        android:textSize="18sp" />
+                        android:inputType="numberDecimal"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
 
-                </LinearLayout>
-
-
+                </RelativeLayout>
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
         </LinearLayout>
-
     </ScrollView>
 
 </com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen>

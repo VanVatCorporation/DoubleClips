@@ -1431,6 +1431,30 @@ public class FFmpegEdit {
             this.clips = clips;
         }
     }
+
+
+    public static class FFmpegUtilities {
+        public static final String[] presetStringList = new String[]{
+                EditingActivity.VideoSettings.FfmpegPreset.PLACEBO,
+                EditingActivity.VideoSettings.FfmpegPreset.VERYSLOW,
+                EditingActivity.VideoSettings.FfmpegPreset.SLOWER,
+                EditingActivity.VideoSettings.FfmpegPreset.SLOW,
+                EditingActivity.VideoSettings.FfmpegPreset.MEDIUM,
+                EditingActivity.VideoSettings.FfmpegPreset.FAST,
+                EditingActivity.VideoSettings.FfmpegPreset.FASTER,
+                EditingActivity.VideoSettings.FfmpegPreset.VERYFAST,
+                EditingActivity.VideoSettings.FfmpegPreset.SUPERFAST,
+                EditingActivity.VideoSettings.FfmpegPreset.ULTRAFAST
+        };
+        public static final String[] tuneStringList = new String[]{
+                EditingActivity.VideoSettings.FfmpegTune.FILM,
+                EditingActivity.VideoSettings.FfmpegTune.ANIMATION,
+                EditingActivity.VideoSettings.FfmpegTune.GRAIN,
+                EditingActivity.VideoSettings.FfmpegTune.STILLIMAGE,
+                EditingActivity.VideoSettings.FfmpegTune.FASTDECODE,
+                EditingActivity.VideoSettings.FfmpegTune.ZEROLATENCY
+        };
+    }
 }
 
 

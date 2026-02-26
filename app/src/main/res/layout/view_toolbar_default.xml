@@ -2,48 +2,54 @@
 <HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbarScrollView"
-    android:layout_width="wrap_content"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_alignParentBottom="true">
+    android:layout_alignParentBottom="true"
+    android:background="?android:attr/colorBackground"
+    android:elevation="16dp"
+    android:scrollbars="none">
+
     <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:layout_height="64dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/seeMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_perm_media_24"
-            app:navText="Add"/>
+            app:navText="Add" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/deleteMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_delete_24"
-            app:navText="Delete"/>
+            app:navText="Delete" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/splitMediaButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_cut_24"
-            app:navText="Cut"/>
+            app:navText="Cut" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/projectFilesViewerButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_folder_24"
-            app:navText="Files"/>
+            app:navText="Files" />
+
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/importTrackButton"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_margin="5dp"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_data_object_24"
-            app:navText="Import"/>
+            app:navText="Import" />
 
     </LinearLayout>
 </HorizontalScrollView>

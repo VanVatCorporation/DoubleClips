@@ -251,6 +251,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         videoPropertiesExportSpecificAreaScreen.onOpen.add(() -> {
             videoPropertiesExportSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
             videoPropertiesExportSpecificAreaScreen.resolutionYField.setText(String.valueOf(settings.getVideoHeight()));
+            videoPropertiesExportSpecificAreaScreen.frameRateText.setText(String.valueOf(settings.getFrameRate()));
             videoPropertiesExportSpecificAreaScreen.crfText.setText(String.valueOf(settings.getCRF()));
             videoPropertiesExportSpecificAreaScreen.clipCapText.setText(String.valueOf(settings.getClipCap()));
             videoPropertiesExportSpecificAreaScreen.presetSpinner.setSelection(videoPropertiesExportSpecificAreaScreen.presetAdapter.getPosition(settings.getPreset()));

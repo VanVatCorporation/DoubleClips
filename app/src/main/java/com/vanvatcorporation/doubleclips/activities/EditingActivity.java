@@ -17,6 +17,7 @@ import android.graphics.Matrix;
 import android.graphics.PorterDuff;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -212,7 +213,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
     };
     private boolean isPlaying = false;
-    private float frameInterval = 1f / 30f; // 30fps
+    private float previewFpsRuntime = -1f;
     private Handler playbackHandler = new Handler(Looper.getMainLooper());
     private Runnable playbackLoop;
 
@@ -1151,10 +1152,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             timelineScroll.scrollTo(centerOffset, 0);
 
             // Push centerOffset to ruler so 0s aligns with the centre playhead
-            rulerContainer.setStartOffset(centerOffset);
-            rulerContainer.setFps(Math.round(1f / frameInterval));
-            rulerContainer.setPixelsPerSecond(pixelsPerSecond);
-            rulerContainer.setTotalDuration(timeline.duration + 2f);
+            updateRuler(timeline.duration, currentRulerInterval);
 
             // Add initial track after centerOffset is taken
             //addNewTrack();
@@ -1953,9 +1951,16 @@ public class EditingActivity extends AppCompatActivityImpl {
         // ===========================       VIDEO PROPERTIES ZONE       ====================================
 
         videoPropertiesEditSpecificAreaScreen.onClose.add(() -> {
-            settings.videoWidth = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionXField.getText().toString(), 1366);
-            settings.videoHeight = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), 768);
-            settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), 30);
+            settings.videoWidth = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionXField.getText().toString(), settings.videoWidth);
+            settings.videoHeight = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), settings.videoHeight);
+            settings.frameRate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.frameRateField.getText().toString(), settings.frameRate);
+            settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.crf);
+            settings.clipCap = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.clipCapField.getText().toString(), settings.clipCap);
+            settings.preset = videoPropertiesEditSpecificAreaScreen.presetSpinner.getSelectedItem().toString();
+            settings.tune = videoPropertiesEditSpecificAreaScreen.tuneSpinner.getSelectedItem().toString();
+            settings.isStretchToFull = videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.isChecked();
+
+            settings.saveSettings(this, properties);
 
 
 
@@ -1963,11 +1968,57 @@ public class EditingActivity extends AppCompatActivityImpl {
             previewViewGroupParams.width = settings.videoWidth;
             previewViewGroupParams.height = settings.videoHeight;
             previewViewGroup.setLayoutParams(previewViewGroupParams);
+
+
+            // Update ruler with new fps
+            updateRuler(timeline.duration, currentRulerInterval);
         });
         videoPropertiesEditSpecificAreaScreen.onOpen.add(() -> {
             videoPropertiesEditSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
             videoPropertiesEditSpecificAreaScreen.resolutionYField.setText(String.valueOf(settings.getVideoHeight()));
+            videoPropertiesEditSpecificAreaScreen.frameRateField.setText(String.valueOf(settings.getFrameRate()));
             videoPropertiesEditSpecificAreaScreen.bitrateField.setText(String.valueOf(settings.getCRF()));
+            videoPropertiesEditSpecificAreaScreen.clipCapField.setText(String.valueOf(settings.getClipCap()));
+            videoPropertiesEditSpecificAreaScreen.presetSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.presetAdapter.getPosition(settings.getPreset()));
+            videoPropertiesEditSpecificAreaScreen.tuneSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.tuneAdapter.getPosition(settings.getTune()));
+            videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.setChecked(settings.isStretchToFull());
+
+            float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
+            videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", activeFps));
+            videoPropertiesEditSpecificAreaScreen.previewSpeedField.setText(String.format(java.util.Locale.US, "%.2f", activeFps / settings.frameRate));
+        });
+
+        videoPropertiesEditSpecificAreaScreen.previewFpsField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if(videoPropertiesEditSpecificAreaScreen.previewFpsField.hasFocus()) {
+                    try {
+                        float fps = Float.parseFloat(s.toString());
+                        if (fps > 0) {
+                            videoPropertiesEditSpecificAreaScreen.previewSpeedField.setText(String.format(java.util.Locale.US, "%.2f", fps / settings.frameRate));
+                            previewFpsRuntime = fps;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+
+        videoPropertiesEditSpecificAreaScreen.previewSpeedField.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if(videoPropertiesEditSpecificAreaScreen.previewSpeedField.hasFocus()) {
+                    try {
+                        float speed = Float.parseFloat(s.toString());
+                        if (speed > 0) {
+                            float fps = speed * settings.frameRate;
+                            videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", fps));
+                            previewFpsRuntime = fps;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
         });
 
 
@@ -2015,6 +2066,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             @Override
             public void run() {
                 if (!isPlaying) return;
+                float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
+                float delayInterval = (1f / activeFps);
+                float frameInterval = (1f / settings.frameRate);
                 currentTime += frameInterval;
 
                 timelineRenderer.updateTime(currentTime, false);
@@ -2028,8 +2082,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     stopPlayback(true);
                 }
 
-
-                playbackHandler.postDelayed(this, (long)(frameInterval * 1000));
+                playbackHandler.postDelayed(this, (long)(delayInterval * 1000));
             }
         };
         playbackHandler.post(playbackLoop);
@@ -2340,28 +2393,24 @@ public class EditingActivity extends AppCompatActivityImpl {
     public void addKeyframeUi(Clip clip, Keyframe keyframe)
     {
         View knotView = new View(this);
-        knotView.setBackgroundColor(Color.BLUE);
-        knotView.setVisibility(View.VISIBLE);
+        knotView.setBackgroundColor(Color.WHITE);
+        knotView.setRotation(45f);
+        knotView.setVisibility(this.selectedClip == clip ? View.VISIBLE : View.GONE);
 
         knotView.setTag(R.id.keyframe_knot_tag, keyframe);
         knotView.setTag(R.id.clip_knot_tag, clip);
-        // Position it between clips
-        int width = 12;
-        int height = clip.viewRef.getHeight();
+        
+        int width = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, getResources().getDisplayMetrics());
+        int height = width;
 
         knotView.setPivotX((float) width /2);
         knotView.setPivotY((float) height /2);
 
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(width, height);
-        //params.leftMargin = getCurrentTimeInX();
-        //params.topMargin = clip.viewRef.getTop() + (clip.viewRef.getHeight() / 2);
-        params.topMargin = clip.viewRef.getTop() + (clip.viewRef.getHeight() / 2) - (height / 2);
-        knotView.setX(keyframe.getLocalTime() * pixelsPerSecond);
+        params.topMargin = (clip.viewRef.getHeight() / 2) - (height / 2);
+        knotView.setX((keyframe.getLocalTime() * pixelsPerSecond) - (width / 2f) + 2); // TODO: Temporary 4 px padding compensation
 
-        //timeline.tracks.get(clip.trackIndex).viewRef.addView(knotView, params);
         clip.viewRef.addView(knotView, params);
-
-
 
         handleKeyframeInteraction(knotView);
     }
@@ -2805,10 +2854,11 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void updateRuler(float totalSeconds, float interval) {
         // TimelineRulerView draws everything via Canvas — just update its parameters.
         rulerContainer.setStartOffset(centerOffset);
-        rulerContainer.setFps(Math.round(1f / frameInterval));
+        rulerContainer.setFps(settings.frameRate);
         rulerContainer.setPixelsPerSecond(pixelsPerSecond);
         rulerContainer.setRulerInterval(interval);          // drives tick density
-        rulerContainer.setTotalDuration(totalSeconds + 2f); // +2s buffer
+//        rulerContainer.setTotalDuration(totalSeconds + 2f); // +2s buffer
+        rulerContainer.setTotalDuration(totalSeconds); // no buffer, no infinite ruler trick
     }
     float currentRulerInterval = 1f;
     float changedRulerInterval = 1f;
@@ -2957,12 +3007,24 @@ public class EditingActivity extends AppCompatActivityImpl {
                 this.selectedClip = null;
             }
             else {
-                selectingTrack(timeline.getTrackFromClip(selectedClip));
+                Track clipTrack = timeline.getTrackFromClip(selectedClip);
+                if(this.selectedTrack == null || this.selectedTrack != clipTrack)
+                    selectingTrack(clipTrack);
 
                 selectedClip.select();
                 this.selectedClip = selectedClip;
                 toolbarClip.setVisibility(View.VISIBLE);
                 toolbarClips.setVisibility(View.GONE);
+
+                // TODO: Still reappear when interacting other the second time
+                // Hide all transition knots cleanly to declutter when focusing a clip
+                for (Track track : timeline.tracks) {
+                    for (Clip clip : track.clips) {
+                        if (clip.transitionKnotViewRef != null) {
+                            clip.transitionKnotViewRef.setVisibility(View.GONE);
+                        }
+                    }
+                }
             }
             if(currentTime < selectedClip.startTime)
                 setCurrentTime(selectedClip.startTime);
@@ -3005,6 +3067,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         for (Track track : timeline.tracks) {
             for (Clip clip : track.clips) {
                 clip.deselect();
+                if (clip.transitionKnotViewRef != null) {
+                    clip.toggleTransitionKnotVisibility(clip.endTransitionEnabled);
+                }
             }
         }
     }
@@ -3639,18 +3704,22 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void addKnotTransitionUi(EditingActivity activity, TransitionClip clip, Clip clipA)
         {
             transitionKnotViewRef = new ImageView(activity);
-            transitionKnotViewRef.setBackgroundColor(Color.WHITE);
+            transitionKnotViewRef.setBackgroundResource(R.drawable.rounded_rectangle_4px); //circle_background
+            transitionKnotViewRef.setBackgroundTintList(android.content.res.ColorStateList.valueOf(activity.getColor(R.color.ios_blue)));
             transitionKnotViewRef.setElevation(ELEVATION_TRANSITION_KNOT);
 
             transitionKnotViewRef.setImageResource(R.drawable.baseline_local_movies_24);
+            transitionKnotViewRef.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+            int paddingDip = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, activity.getResources().getDisplayMetrics());
+            transitionKnotViewRef.setPadding(paddingDip, paddingDip, paddingDip, paddingDip);
 
             transitionKnotViewRef.setVisibility(View.VISIBLE);
 
             transitionKnotViewRef.setTag(R.id.transition_knot_tag, clip);
             transitionKnotViewRef.setTag(R.id.clip_knot_tag, clipA);
             // Position it between clips
-            int width = 40;
-            int height = 40;
+            int width = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 28, activity.getResources().getDisplayMetrics());
+            int height = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 28, activity.getResources().getDisplayMetrics());
 
             transitionKnotViewRef.setPivotX((float) width /2);
             transitionKnotViewRef.setPivotY((float) height /2);
@@ -3667,20 +3736,28 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         public void registerClipHandles(ImageGroupView clipView, EditingActivity activity, HorizontalScrollView timelineScroll) {
-            leftHandle = new View(clipView.getContext());
+            int handleWidthDip = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16, activity.getResources().getDisplayMetrics());
+
+            leftHandle = new ImageView(clipView.getContext());
             leftHandle.setElevation(ELEVATION_HANDLERS);
-            leftHandle.setBackgroundColor(Color.WHITE);
-            RelativeLayout.LayoutParams leftParams = new RelativeLayout.LayoutParams(35, ViewGroup.LayoutParams.MATCH_PARENT);
+            leftHandle.setBackgroundColor(activity.getColor(R.color.ios_blue));
+            ((ImageView) leftHandle).setImageResource(R.drawable.baseline_more_vert_24);
+            ((ImageView) leftHandle).setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+            ((ImageView) leftHandle).setScaleType(ImageView.ScaleType.CENTER);
+            RelativeLayout.LayoutParams leftParams = new RelativeLayout.LayoutParams(handleWidthDip, ViewGroup.LayoutParams.MATCH_PARENT);
             //leftParams.addRule(RelativeLayout.ALIGN_PARENT_START);
             //leftParams.setMarginStart(-35);   for rendering the part outside of clip to match Capcut
             // For beginning initization
-            leftHandle.setX(activity.getTimeInX(startTime) - 35);
+            leftHandle.setX(activity.getTimeInX(startTime) - handleWidthDip);
             leftHandle.setLayoutParams(leftParams);
 
-            rightHandle = new View(clipView.getContext());
+            rightHandle = new ImageView(clipView.getContext());
             rightHandle.setElevation(ELEVATION_HANDLERS);
-            rightHandle.setBackgroundColor(Color.WHITE);
-            RelativeLayout.LayoutParams rightParams = new RelativeLayout.LayoutParams(35, ViewGroup.LayoutParams.MATCH_PARENT);
+            rightHandle.setBackgroundColor(activity.getColor(R.color.ios_blue));
+            ((ImageView) rightHandle).setImageResource(R.drawable.baseline_more_vert_24);
+            ((ImageView) rightHandle).setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+            ((ImageView) rightHandle).setScaleType(ImageView.ScaleType.CENTER);
+            RelativeLayout.LayoutParams rightParams = new RelativeLayout.LayoutParams(handleWidthDip, ViewGroup.LayoutParams.MATCH_PARENT);
             //rightParams.addRule(RelativeLayout.ALIGN_PARENT_END);
             //rightParams.setMarginEnd(-35);   for rendering the part outside of clip to match Capcut
             rightHandle.setX(activity.getTimeInX(startTime + duration));
@@ -3706,50 +3783,37 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
 
-                                    int newWidth;
-
+                                    float currentWidthExact = clip.duration * pixelsPerSecond;
+                                    
                                     // Clamping only for video and audio as these type has limited duration
-                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO)
-                                    {
+                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
                                         deltaX = (Math.min(-deltaX, clip.startClipTrim * pixelsPerSecond));
                                         deltaX = -deltaX;
-
-                                        newWidth = clipView.getWidth() - (int) deltaX;
-
-                                        // Clamping
-                                        if (newWidth < minWidth) return true;
-
-                                        newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
-
                                     }
-                                    else {
-                                        newWidth = clipView.getWidth() - (int) deltaX;
+                                    
+                                    float proposedNewWidthExact = currentWidthExact - deltaX;
+
+                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
+                                        if (proposedNewWidthExact < minWidth) return true;
+                                        proposedNewWidthExact = Math.max(minWidth, Math.min(proposedNewWidthExact, maxWidth));
                                     }
+                                    
+                                    if(proposedNewWidthExact < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
 
-                                    // Clamp for small width, if user want to shrink media further, consider zooming for more detailed edit
-                                    if(newWidth < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
+                                    // Recalculate true deltaX after clamped width
+                                    deltaX = currentWidthExact - proposedNewWidthExact;
+                                    float deltaTime = deltaX / pixelsPerSecond;
 
-                                    // TODO: Inaccurate, research later.
-                                    clipView.getLayoutParams().width = newWidth;
-                                    clipView.setX(clipView.getX() + deltaX);
+                                    clip.startTime += deltaTime;
+                                    clip.startClipTrim += deltaTime;
+                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+
+                                    // In sync with clip metadata perfectly
+                                    clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
+                                    clipView.setX(activity.getTimeInX(clip.startTime));
                                     clipView.requestLayout();
 
-                                    // In sync with clip metadata
-//                                    clipView.getLayoutParams().width = (int) (clip.getDuration() * pixelsPerSecond);
-//                                    clipView.setX((startTime + startClipTrim) * pixelsPerSecond + centerOffset);
-//                                    clipView.requestLayout();
-
-                                    clip.startTime = (clipView.getX() - centerOffset) / pixelsPerSecond;
-                                    clip.startClipTrim += (deltaX) / pixelsPerSecond;
-                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
-
-
-                                    // TODO: Inaccurate, research later.
-//                                    leftHandle.setX(leftHandle.getX() + deltaX);
-                                    // TODO: Too resource consuming.
                                     resetHandlesPosition();
-
-
                                     break;
 
                                 case MotionEvent.ACTION_UP:
@@ -3792,46 +3856,33 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
 
-                                    int newWidth;
+                                    float currentWidthExact = clip.duration * pixelsPerSecond;
 
                                     // Clamping only for video and audio as these type has limited duration
-                                    if(type == ClipType.VIDEO || type == ClipType.AUDIO)
-                                    {
+                                    if(type == ClipType.VIDEO || type == ClipType.AUDIO) {
                                         deltaX = Math.min(deltaX, clip.endClipTrim * pixelsPerSecond);
-
-                                        newWidth = clipView.getWidth() + (int) deltaX;
-
-                                        // Clamping
-                                        if (newWidth < minWidth) return true;
-
-                                        newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
-
                                     }
-                                    else {
-                                        newWidth = clipView.getWidth() + (int) deltaX;
+                                    
+                                    float proposedNewWidthExact = currentWidthExact + deltaX;
+
+                                    if(type == ClipType.VIDEO || type == ClipType.AUDIO) {
+                                        if (proposedNewWidthExact < minWidth) return true;
+                                        proposedNewWidthExact = Math.max(minWidth, Math.min(proposedNewWidthExact, maxWidth));
                                     }
 
-                                    // Clamp for small width, if user want to shrink media further, consider zooming for more detailed edit
-                                    if(newWidth < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
+                                    if(proposedNewWidthExact < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
 
+                                    deltaX = proposedNewWidthExact - currentWidthExact;
+                                    float deltaTime = deltaX / pixelsPerSecond;
 
-                                    // TODO: Inaccurate, research later.
-                                    clipView.getLayoutParams().width = newWidth;
+                                    clip.endClipTrim -= deltaTime;
+                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+
+                                    // In sync with clip metadata perfectly
+                                    clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
                                     clipView.requestLayout();
 
-                                    // In sync with clip metadata
-//                                    clipView.getLayoutParams().width = (int) (getDuration() * pixelsPerSecond);
-//                                    clipView.requestLayout();
-
-                                    clip.endClipTrim -= (deltaX) / pixelsPerSecond;
-                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);//Math.max(MIN_CLIP_DURATION, newWidth / (float) pixelsPerSecond);
-
-
-                                    // TODO: Inaccurate, research later.
-                                    //rightHandle.setX(rightHandle.getX() + deltaX);
-                                    // TODO: Too resource consuming.
                                     resetHandlesPosition();
-
                                     break;
 
                                 case MotionEvent.ACTION_UP:
@@ -3858,53 +3909,69 @@ public class EditingActivity extends AppCompatActivityImpl {
             viewRef = clipView;
             timelineScrollViewRef = timelineScroll;
 
+            // Dimensions in DP
+            int dp20 = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, activity.getResources().getDisplayMetrics());
+            int dp5 = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 5, activity.getResources().getDisplayMetrics());
+            int dp4 = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, activity.getResources().getDisplayMetrics());
+
             // Group for properties like duration, template lock, effect, etc...
             clipPropertiesLinearLayoutGroup = new LinearLayout(activity);
-            ImageGroupView.LayoutParams clipPropertiesLinearLayoutGroupLayoutParams = new ImageGroupView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 50);
-            clipPropertiesLinearLayoutGroupLayoutParams.setMargins(5, 5, 0, 0);
+            ImageGroupView.LayoutParams clipPropertiesLinearLayoutGroupLayoutParams = new ImageGroupView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            clipPropertiesLinearLayoutGroupLayoutParams.setMargins(dp5, dp5, 0, 0);
             clipPropertiesLinearLayoutGroup.setLayoutParams(clipPropertiesLinearLayoutGroupLayoutParams);
             clipPropertiesLinearLayoutGroup.setOrientation(LinearLayout.HORIZONTAL);
+            clipPropertiesLinearLayoutGroup.setGravity(Gravity.CENTER_VERTICAL);
             viewRef.addView(clipPropertiesLinearLayoutGroup);
 
+            LinearLayout.LayoutParams clipPropertiesLayoutParams = new LinearLayout.LayoutParams(dp20, dp20);
+            clipPropertiesLayoutParams.setMargins(0, 0, dp5, 0);
 
-            LinearLayout.LayoutParams clipPropertiesLayoutParams = new LinearLayout.LayoutParams(50, 50);
-            clipPropertiesLayoutParams.setMargins(0, 0, 5, 0);
+            // Helper to style property icon badges
+            java.util.function.Consumer<ImageView> styleBadgeIcon = img -> {
+                img.setBackgroundResource(R.drawable.bg_drag_handle); //bg_search_bar
+                img.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0x88000000));
+                img.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+                img.setPadding(dp4, dp4, dp4, dp4);
+                img.setLayoutParams(clipPropertiesLayoutParams);
+            };
 
             // Lock display for isLockedForTemplate
             templateLockViewRef = new ImageView(activity);
-            templateLockViewRef.setLayoutParams(clipPropertiesLayoutParams);
+            styleBadgeIcon.accept(templateLockViewRef);
             templateLockViewRef.setImageResource(R.drawable.baseline_lock_24);
             clipPropertiesLinearLayoutGroup.addView(templateLockViewRef);
             templateLockViewRef.setVisibility(isLockedForTemplate ? View.VISIBLE : View.GONE);
 
             // No sound display
             noSoundViewRef = new ImageView(activity);
-            noSoundViewRef.setLayoutParams(clipPropertiesLayoutParams);
+            styleBadgeIcon.accept(noSoundViewRef);
             noSoundViewRef.setImageResource(R.drawable.baseline_music_off_24);
             clipPropertiesLinearLayoutGroup.addView(noSoundViewRef);
             noSoundViewRef.setVisibility(!isClipHasAudio ? View.VISIBLE : View.GONE);
 
-            // No sound display
+            // Mute display
             muteViewRef = new ImageView(activity);
-            muteViewRef.setLayoutParams(clipPropertiesLayoutParams);
+            styleBadgeIcon.accept(muteViewRef);
             muteViewRef.setImageResource(R.drawable.baseline_volume_off_24);
             clipPropertiesLinearLayoutGroup.addView(muteViewRef);
             muteViewRef.setVisibility(isMute ? View.VISIBLE : View.GONE);
 
-
             // Reverse display
             reverseViewRef = new ImageView(activity);
-            reverseViewRef.setLayoutParams(clipPropertiesLayoutParams);
+            styleBadgeIcon.accept(reverseViewRef);
             reverseViewRef.setImageResource(R.drawable.baseline_rotate_left_24);
             clipPropertiesLinearLayoutGroup.addView(reverseViewRef);
             reverseViewRef.setVisibility(isReverse ? View.VISIBLE : View.GONE);
 
             durationText = new TextView(activity);
-            durationText.setBackgroundResource(R.drawable.rounded_rectangle);
-            durationText.setBackgroundColor(0x88888888);
-            durationText.setTextSize(TypedValue.COMPLEX_UNIT_PX, 32);
+            durationText.setBackgroundResource(R.drawable.bg_drag_handle); //bg_search_bar
+            durationText.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0x88000000));
+            durationText.setTextColor(Color.WHITE);
+            durationText.setPadding(dp5 * 2, dp4 / 2, dp5 * 2, dp4 / 2);
+            durationText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
             durationText.setText(StringFormatHelper.smartRound(duration, 2, true) + "s");
-            LinearLayout.LayoutParams durationLayoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 50);
+            durationText.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams durationLayoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             durationText.setLayoutParams(durationLayoutParams);
             clipPropertiesLinearLayoutGroup.addView(durationText);
 
@@ -3932,16 +3999,35 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         public void select() {
-            viewRef.getFilledImageView().setColorFilter(0x77AAAAAA);
+            // TODO: Outer border of Clip when selected. Failed.
+            // viewRef.getFilledImageView().setColorFilter(0x77AAAAAA);
+            GradientDrawable border = new GradientDrawable();
+            border.setColor(Color.TRANSPARENT);
+            int strokeWidth = (int) (2 * viewRef.getContext().getResources().getDisplayMetrics().density);
+            border.setStroke(strokeWidth, viewRef.getContext().getColor(R.color.ios_blue));
+            
+            // Use negative inset to push the border outwards
+            android.graphics.drawable.InsetDrawable outwardBorder = new android.graphics.drawable.InsetDrawable(
+                border, -strokeWidth, -strokeWidth, -strokeWidth, -strokeWidth);
+            viewRef.setBackground(outwardBorder);
 
             // If handles isn't being added yet
             if(viewRef.getParent() instanceof TrackFrameLayout) {
+                ((TrackFrameLayout) viewRef.getParent()).setClipChildren(false);
                 addHandlesToTrack(((TrackFrameLayout) viewRef.getParent()));
                 addTransitionKnotToTrack(((TrackFrameLayout) viewRef.getParent()));
             }
 
             toggleHandlesVisibility(true);
             clipPropertiesLinearLayoutGroup.setVisibility(View.VISIBLE);
+            
+            // Show clip's own keyframes
+            for (int i = 0; i < viewRef.getChildCount(); i++) {
+                View child = viewRef.getChildAt(i);
+                if (child.getTag(R.id.keyframe_knot_tag) != null) {
+                    child.setVisibility(View.VISIBLE);
+                }
+            }
 
             // Starting point when selecting clip
             if (timelineScrollViewRef != null)
@@ -3949,10 +4035,19 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         public void deselect() {
-            viewRef.getFilledImageView().setColorFilter(0x00000000);
+            // viewRef.getFilledImageView().setColorFilter(0x00000000);
+            viewRef.setBackgroundColor(0xFF000000);
 
             toggleHandlesVisibility(false);
             clipPropertiesLinearLayoutGroup.setVisibility(View.GONE);
+            
+            // Hide clip's own keyframes
+            for (int i = 0; i < viewRef.getChildCount(); i++) {
+                View child = viewRef.getChildAt(i);
+                if (child.getTag(R.id.keyframe_knot_tag) != null) {
+                    child.setVisibility(View.GONE);
+                }
+            }
         }
 
 

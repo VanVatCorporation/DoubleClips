@@ -12,7 +12,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -32,7 +32,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public TextView durationText, totalDurationText;
     public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
-    public CheckBox muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox;
+    public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;

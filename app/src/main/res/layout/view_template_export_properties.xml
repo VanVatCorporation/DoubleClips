@@ -1,161 +1,195 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.vanvatcorporation.doubleclips.activities.template.TemplateExportPropertiesAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.template.TemplateExportPropertiesAreaScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/editSpecificArea"
     android:layout_below="@id/timestampBar"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/windowBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground"
         android:focusable="true"
         android:focusableInTouchMode="true"
+        app:shapeAppearanceOverlay="@style/lowerRoundedImageView"
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:strokeWidth="0.5dp" />
 
-        android:background="@color/colorPalette1_4"
+    <!-- Header bar -->
+    <RelativeLayout
+        android:id="@+id/headerBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
 
-        app:strokeColor="@color/colorSoftBackground"
-        app:strokeWidth="1dp"
-        app:shapeAppearanceOverlay="@style/lowerRoundedImageView"/>
-    <ImageButton
-        android:id="@+id/closeWindowButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginEnd="5dp"
-        android:layout_alignParentEnd="true"
-        android:src="@drawable/baseline_close_24"/>
+        <View
+            android:layout_width="36dp"
+            android:layout_height="4dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_drag_handle"
+            android:alpha="0.35" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:text="Export Clip"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-medium" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/closeWindowButton"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="4dp"
+            app:icon="@drawable/baseline_close_24"
+            app:iconTint="?android:attr/textColorSecondary"
+            app:iconSize="20dp" />
 
+    </RelativeLayout>
 
-
-
-
-
-
-
+    <View
+        android:id="@+id/headerDivider"
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_below="@id/headerBar"
+        android:background="?attr/colorOutlineVariant" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/closeWindowButton">
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="15dp"
-        android:layout_marginEnd="15dp"
-        android:paddingBottom="20dp"
-        android:orientation="vertical">
+        android:layout_below="@id/headerDivider"
+        android:overScrollMode="never">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:paddingBottom="32dp"
+            android:layout_marginTop="16dp">
 
-            <com.google.android.material.imageview.ShapeableImageView
-                android:id="@+id/previewImage"
-                android:layout_width="75dp"
-                android:layout_height="75dp"
-                android:layout_marginStart="5dp"
-                android:layout_marginTop="5dp"
-                android:layout_marginEnd="5dp"
-                android:layout_marginBottom="5dp"
-                android:scaleType="centerCrop"
-
-
-                android:background="@color/colorGlassBackground"
-
-                app:strokeColor="@color/colorPrimaryBackground"
-                app:strokeWidth="2dp"
-                app:shapeAppearanceOverlay="@style/roundedImageView"/>
+            <!-- File info header card -->
             <RelativeLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content">
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="24dp">
 
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/previewImage"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:scaleType="centerCrop"
+                    android:background="?attr/colorSurfaceVariant"
+                    app:shapeAppearanceOverlay="@style/roundedImageView"
+                    app:strokeColor="?attr/colorOutlineVariant"
+                    app:strokeWidth="0.5dp" />
 
-                <TextView
-                    android:id="@+id/titleText"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_marginBottom="0dp"
+                    android:layout_toEndOf="@id/previewImage"
                     android:layout_toStartOf="@id/moreButton"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="clip 1" />
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="16dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/titleText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="clip 1" />
+
+                    <TextView
+                        android:id="@+id/dataInfoText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="13sp"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="JPEG Image" />
+
+                    <TextView
+                        android:id="@+id/lengthText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="13sp"
+                        android:text="3s" />
+
+                </LinearLayout>
 
                 <ImageButton
                     android:id="@+id/moreButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:src="@drawable/baseline_menu_24"
-                    android:layout_marginStart="0dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_marginBottom="5dp"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
                     android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/baseline_more_vert_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    app:tint="?android:attr/textColorSecondary"
                     android:contentDescription="More options" />
-
-
-                <TextView
-                    android:id="@+id/dataInfoText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_marginBottom="0dp"
-                    android:layout_below="@+id/titleText"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="Joint Photographic Experts Group (JPEG)" />
-
-                <TextView
-                    android:id="@+id/lengthText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginTop="0dp"
-                    android:layout_marginEnd="5dp"
-                    android:layout_marginBottom="5dp"
-                    android:layout_below="@+id/dataInfoText"
-                    android:textColor="@color/colorPrimaryButton"
-                    android:text="3s" />
 
             </RelativeLayout>
 
-
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/trimText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:text="Trim"
-                android:textSize="18sp" />
-            <com.google.android.material.slider.RangeSlider
-                android:id="@+id/trimRangeSlider"
+            <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:labelBehavior="floating"
-                android:valueFrom="0"
-                android:valueTo="10000" />
+                app:sectionTitle="Trim Video">
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="16dp"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/trimText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Trim"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.slider.RangeSlider
+                        android:id="@+id/trimRangeSlider"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:labelBehavior="floating"
+                        app:thumbColor="@color/ios_blue"
+                        app:trackColorActive="@color/ios_blue"
+                        app:trackColorInactive="?attr/colorSurfaceVariant"
+                        android:valueFrom="0"
+                        android:valueTo="10000" />
+
+                </LinearLayout>
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
 
         </LinearLayout>
-    </LinearLayout>
     </ScrollView>
-
-
-
 
 </com.vanvatcorporation.doubleclips.activities.template.TemplateExportPropertiesAreaScreen>
