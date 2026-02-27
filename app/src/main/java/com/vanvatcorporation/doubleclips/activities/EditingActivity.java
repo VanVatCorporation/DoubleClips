@@ -5063,6 +5063,14 @@ frameRate = 60;
 
         private ExecutorService renderThreadExecutorAudio = Executors.newFixedThreadPool(1);
         private ExecutorService renderThreadExecutorVideo = Executors.newFixedThreadPool(1);
+        private ExecutorService preparationExecutor = Executors.newSingleThreadExecutor();
+
+        public boolean isPrepared = false;
+        public boolean isPreparing = false;
+        private Surface mySurface;
+
+        private MainAreaScreen.ProjectData projectData;
+        private VideoSettings videoSettings;
 
 
 
@@ -5081,6 +5089,8 @@ frameRate = 60;
         public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo) {
             this.context = context;
             this.clip = clip;
+            this.projectData = data;
+            this.videoSettings = settings;
 
             try
             {
@@ -5107,21 +5117,7 @@ frameRate = 60;
                             @Override
                             public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surfaceTexture, int width, int height) {
                                 try {
-                                    Surface surface = new Surface(surfaceTexture);
-
-                                    // Step 1: Extractor setup
-                                    videoExtractor = new MediaExtractor();
-                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
-
-                                    int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
-                                    videoExtractor.selectTrack(trackIndex);
-
-                                    MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
-
-                                    // Step 2: Codec setup
-                                    videoDecoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME));
-                                    videoDecoder.configure(format, surface, null, 0);
-                                    videoDecoder.start();
+                                    mySurface = new Surface(surfaceTexture);
 
 
                                     surfaceTexture.setDefaultBufferSize(clip.width, clip.height); // or your target resolution
@@ -5149,6 +5145,8 @@ frameRate = 60;
 
                             @Override
                             public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
+                                mySurface = null;
+                                releaseMedia();
                                 return true; // release resources if needed
                             }
 
@@ -5169,37 +5167,7 @@ frameRate = 60;
 
 
 
-                        // AUDIO
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        // TODO: Uninitialized AudioTrack when splitting too many Clip. No reason.
-                        //  -> REASON: Too many initialize VIDEO, causing RAM to stall.
-                        if(Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/"))
-                        {
-                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                            audioTrack = new AudioTrack(
-                                    AudioManager.STREAM_MUSIC,
-                                    sampleRate,
-                                    channelConfig,
-                                    audioFormatPCM,
-                                    minBufferSize,
-                                    AudioTrack.MODE_STREAM
-                            );
-                            audioTrack.play();
-                        }
-
+                        // AUDIO initialize moved to prepareMedia()
 
                         break;
                     }
@@ -5265,31 +5233,7 @@ frameRate = 60;
                     }
                     case AUDIO:
                     {
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                        int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                        int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                        audioTrack = new AudioTrack(
-                                AudioManager.STREAM_MUSIC,
-                                sampleRate,
-                                channelConfig,
-                                audioFormatPCM,
-                                minBufferSize,
-                                AudioTrack.MODE_STREAM
-                        );
-                        audioTrack.play();
-
+                        // AUDIO initialize moved to prepareMedia()
                         break;
                     }
                 }
@@ -5309,6 +5253,134 @@ frameRate = 60;
             }
         }
 
+
+        public boolean isNearPlayhead(float playheadTime) {
+            float preemptionWindow = 1.5f;
+            return playheadTime >= (clip.startTime - preemptionWindow) &&
+                    playheadTime <= (clip.startTime + clip.duration + preemptionWindow);
+        }
+
+        public void prepareMedia() {
+            if (isPrepared || isPreparing) return;
+            isPreparing = true;
+
+            preparationExecutor.execute(() -> {
+                try {
+                    switch (clip.type) {
+                        case VIDEO: {
+                            if (mySurface != null && mySurface.isValid()) {
+                                // VIDEO
+                                videoExtractor = new MediaExtractor();
+                                videoExtractor.setDataSource(clip.getAbsolutePreviewPath(projectData));
+
+                                int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
+                                videoExtractor.selectTrack(trackIndex);
+
+                                MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
+
+                                videoDecoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME));
+                                videoDecoder.configure(format, mySurface, null, 0);
+                                videoDecoder.start();
+
+                                // AUDIO
+                                if (clip.isClipHasAudio()) {
+                                    audioExtractor = new MediaExtractor();
+                                    audioExtractor.setDataSource(clip.getAbsolutePreviewPath(projectData, ".wav"));
+
+                                    int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
+                                    if (audioTrackIndex != -1) {
+                                        audioExtractor.selectTrack(audioTrackIndex);
+                                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+
+                                        if (Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/")) {
+                                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
+                                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
+
+                                            audioTrack = new AudioTrack(
+                                                    AudioManager.STREAM_MUSIC,
+                                                    sampleRate,
+                                                    channelConfig,
+                                                    audioFormatPCM,
+                                                    minBufferSize,
+                                                    AudioTrack.MODE_STREAM
+                                            );
+                                            audioTrack.play();
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        case AUDIO: {
+                            audioExtractor = new MediaExtractor();
+                            audioExtractor.setDataSource(clip.getAbsolutePreviewPath(projectData, ".wav"));
+
+                            int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
+                            audioExtractor.selectTrack(audioTrackIndex);
+
+                            MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+
+                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
+                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
+
+                            audioTrack = new AudioTrack(
+                                    AudioManager.STREAM_MUSIC,
+                                    sampleRate,
+                                    channelConfig,
+                                    audioFormatPCM,
+                                    minBufferSize,
+                                    AudioTrack.MODE_STREAM
+                            );
+                            audioTrack.play();
+                            break;
+                        }
+                    }
+                    isPrepared = true;
+                } catch (Exception e) {
+                    LoggingManager.LogExceptionToNoteOverlay(context, e);
+                } finally {
+                    isPreparing = false;
+                }
+            });
+        }
+
+        public void releaseMedia() {
+            if (!isPrepared && !isPreparing) return;
+
+            // If it's currently preparing, we should ideally cancel it.
+            // Since we can't easily interrupt MediaCodec init, we run release on the same executor
+            // to ensure it happens *after* initialization finishes.
+            preparationExecutor.execute(() -> {
+                if (audioExtractor != null) {
+                    audioExtractor.release();
+                    audioExtractor = null;
+                }
+                if (audioTrack != null) {
+                    audioTrack.release();
+                    audioTrack = null;
+                }
+                if (videoDecoder != null) {
+                    try {
+                        videoDecoder.stop();
+                    } catch (Exception ignored) {
+                    }
+                    videoDecoder.release();
+                    videoDecoder = null;
+                }
+                if (videoExtractor != null) {
+                    videoExtractor.release();
+                    videoExtractor = null;
+                }
+                isPrepared = false;
+                isPreparing = false;
+            });
+        }
 
         public boolean isVisible(float playheadTime) {
             return playheadTime >= clip.startTime &&
@@ -5352,6 +5424,8 @@ frameRate = 60;
                 }
             }
 
+            if (!isPrepared) return;
+
             MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
             int outputIndex = videoDecoder.dequeueOutputBuffer(bufferInfo, 0);
             if (outputIndex >= 0) {
@@ -5359,6 +5433,8 @@ frameRate = 60;
             }
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
+
+            if (!isPrepared) return;
 
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
             long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
@@ -5683,20 +5759,16 @@ frameRate = 60;
 
 
         public void release() {
-            if (audioExtractor != null) {
-                audioExtractor.release();
-            }
-            if(videoDecoder != null) {
-                videoDecoder.release();
-            }
-            if(videoExtractor != null) {
-                videoExtractor.release();
-            }
+            releaseMedia();
+
             if(renderThreadExecutorAudio != null) {
                 renderThreadExecutorAudio.shutdownNow();
             }
             if(renderThreadExecutorVideo != null) {
                 renderThreadExecutorVideo.shutdownNow();
+            }
+            if (preparationExecutor != null) {
+                preparationExecutor.shutdownNow();
             }
 
         }
@@ -5751,6 +5823,16 @@ frameRate = 60;
                 for (ClipRenderer clipRenderer : trackRenderer) {
                     if(clipRenderer != null)
                     {
+                        if (clipRenderer.isNearPlayhead(time)) {
+                            if (!clipRenderer.isPrepared && !clipRenderer.isPreparing) {
+                                clipRenderer.prepareMedia();
+                            }
+                        } else {
+                            if (clipRenderer.isPrepared || clipRenderer.isPreparing) {
+                                clipRenderer.releaseMedia();
+                            }
+                        }
+
                         if(clipRenderer.isVisible(time))
                         {
                             if(clipRenderer.textureView != null)
@@ -5774,9 +5856,21 @@ frameRate = 60;
 
             for (List<ClipRenderer> track : trackLayers) {
                 for (ClipRenderer clipRenderer : track) {
-                    if (clipRenderer.isVisible(playheadTime)) {
-                        clipRenderer.renderFrame(playheadTime, false);
-                        renderedAny = true;
+                    if (clipRenderer != null) {
+                        if (clipRenderer.isNearPlayhead(playheadTime)) {
+                            if (!clipRenderer.isPrepared && !clipRenderer.isPreparing) {
+                                clipRenderer.prepareMedia();
+                            }
+                        } else {
+                            if (clipRenderer.isPrepared || clipRenderer.isPreparing) {
+                                clipRenderer.releaseMedia();
+                            }
+                        }
+
+                        if (clipRenderer.isVisible(playheadTime)) {
+                            clipRenderer.renderFrame(playheadTime, false);
+                            renderedAny = true;
+                        }
                     }
                 }
             }
