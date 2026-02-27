@@ -207,6 +207,7 @@ public class FFmpegEdit {
         StringBuilder audioMaps = new StringBuilder();
 
         int inputLayerIndex = 0;
+        int inputMediaIndex = 0;
         int audioClipCount = 0;
 
 
@@ -258,16 +259,17 @@ public class FFmpegEdit {
         filterComplex.append("[").append(inputLayerIndex).append(":v]trim=duration=").append(templateSettings.timeline.duration).append(",setpts=PTS-STARTPTS").append(baseTag).append(";\n");
         tags.storeTag(baseTag);
         inputLayerIndex++;
+        inputMediaIndex++;
 
         for (int clipIndex = 0; clipIndex < templateSettings.clips.length; clipIndex++) {
             EditingActivity.Clip clip = templateSettings.clips[clipIndex];
 
-            String clipLabel = "[video-" + inputLayerIndex + "]";
-            String transparentLabel = "[trans-" + inputLayerIndex + "]";
-            String outputLabel = "[trans-video-" + inputLayerIndex + "]";
+            String clipLabel = "[video-" + inputMediaIndex + "]";
+            String transparentLabel = "[trans-" + inputMediaIndex + "]";
+            String outputLabel = "[trans-video-" + inputMediaIndex + "]";
 
 
-            String audioLabel = "[audio-" + inputLayerIndex + "]";
+            String audioLabel = "[audio-" + inputMediaIndex + "]";
 
 
             // Transition extension
@@ -370,7 +372,6 @@ public class FFmpegEdit {
                     if (clip.hasAnimatedProperties()) {
 
 
-                        // TODO: Scale is not applied yet. Research zoompan instead.
                         String scaleXExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.ScaleX);
                         String scaleYExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.ScaleY);
 
@@ -479,6 +480,16 @@ public class FFmpegEdit {
 
                     }
 
+
+
+                    StringBuilder additionCmd = new StringBuilder();
+                    if(!clip.additionalFFmpegCommand.isEmpty()) {
+                        additionCmd.append("[").append(inputMediaIndex).append("-add];")
+                                .append("[").append(inputMediaIndex).append("-add]")
+                                .append(clip.additionalFFmpegCommand);
+                    }
+
+
                     filterComplex.append(":enable='").append(
                                     getConditionThree(
                                             "t",
@@ -488,6 +499,7 @@ public class FFmpegEdit {
                             ).append("'").append(",")
                             .append("fps=").append(templateSettings.settings.getFrameRate())
                             .append(clip.isReverse() ? ",reverse" : "")
+                            .append(additionCmd)
                             .append(outputLabel).append(";\n");
 
 
@@ -563,6 +575,7 @@ public class FFmpegEdit {
                 case AUDIO:
                 case TEXT:
                     inputLayerIndex++;
+                    inputMediaIndex++;
                     break;
             }
         }

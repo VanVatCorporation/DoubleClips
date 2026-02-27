@@ -3581,6 +3581,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public int height;
 
+        @Expose
+        public String additionalFFmpegCommand;
+
 
 
         @Expose
