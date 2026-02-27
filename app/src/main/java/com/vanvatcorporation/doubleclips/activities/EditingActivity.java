@@ -2133,7 +2133,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 if ((currentTime >= timeline.duration) || (currentTime <= 0f && isPlayingInReverse)) {
                     isPlaying = false;
-                    currentTime = 0f;
+                    currentTime = isPlayingInReverse ? timeline.duration : 0f;
                     stopPlayback(true);
                 }
 
