@@ -22,6 +22,8 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
@@ -5077,10 +5079,19 @@ frameRate = 60;
         private float rotMatrix = 0;
         private float posMatrixX = 0, posMatrixY = 0;
 
+        private boolean isMediaPrepared = false;
+        private MainAreaScreen.ProjectData data;
+        private VideoSettings settings;
+        private EditingActivity editingActivity;
+        private Surface cachedSurface;
+        private boolean isVideoDecoderFailed = false;
 
         public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo) {
             this.context = context;
             this.clip = clip;
+            this.data = data;
+            this.settings = settings;
+            this.editingActivity = editingActivity;
 
             try
             {
@@ -5107,24 +5118,8 @@ frameRate = 60;
                             @Override
                             public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surfaceTexture, int width, int height) {
                                 try {
-                                    Surface surface = new Surface(surfaceTexture);
-
-                                    // Step 1: Extractor setup
-                                    videoExtractor = new MediaExtractor();
-                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
-
-                                    int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
-                                    videoExtractor.selectTrack(trackIndex);
-
-                                    MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
-
-                                    // Step 2: Codec setup
-                                    videoDecoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME));
-                                    videoDecoder.configure(format, surface, null, 0);
-                                    videoDecoder.start();
-
-
-                                    surfaceTexture.setDefaultBufferSize(clip.width, clip.height); // or your target resolution
+                                    cachedSurface = new Surface(surfaceTexture);
+                                    surfaceTexture.setDefaultBufferSize(clip.width, clip.height);
 
                                     posX = (EditingActivity.renderToPreviewConversionX(clip.videoProperties.getValue(VideoProperties.ValueType.PosX), settings.videoWidth));
                                     posY = (EditingActivity.renderToPreviewConversionY(clip.videoProperties.getValue(VideoProperties.ValueType.PosY), settings.videoHeight));
@@ -5133,9 +5128,10 @@ frameRate = 60;
                                     rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
                                     opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
 
-
                                     applyTransformation();
                                     applyPostTransformation();
+
+                                    prepareMedia();
 
                                 } catch (Exception e) {
                                     LoggingManager.LogExceptionToNoteOverlay(context, e);
@@ -5144,62 +5140,22 @@ frameRate = 60;
 
                             @Override
                             public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-                                // Handle resize if needed
                             }
 
                             @Override
                             public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                                return true; // release resources if needed
+                                releaseMedia();
+                                if (cachedSurface != null) {
+                                    cachedSurface.release();
+                                    cachedSurface = null;
+                                }
+                                return true;
                             }
 
                             @Override
                             public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-                                // Called every frame
                             }
                         });
-
-
-
-
-
-
-
-
-
-
-
-
-                        // AUDIO
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        // TODO: Uninitialized AudioTrack when splitting too many Clip. No reason.
-                        //  -> REASON: Too many initialize VIDEO, causing RAM to stall.
-                        if(Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/"))
-                        {
-                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                            audioTrack = new AudioTrack(
-                                    AudioManager.STREAM_MUSIC,
-                                    sampleRate,
-                                    channelConfig,
-                                    audioFormatPCM,
-                                    minBufferSize,
-                                    AudioTrack.MODE_STREAM
-                            );
-                            audioTrack.play();
-                        }
-
 
                         break;
                     }
@@ -5260,36 +5216,11 @@ frameRate = 60;
                             public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {}
                         });
 
-
                         break;
                     }
                     case AUDIO:
                     {
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                        int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                        int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                        audioTrack = new AudioTrack(
-                                AudioManager.STREAM_MUSIC,
-                                sampleRate,
-                                channelConfig,
-                                audioFormatPCM,
-                                minBufferSize,
-                                AudioTrack.MODE_STREAM
-                        );
-                        audioTrack.play();
-
+                        prepareMedia();
                         break;
                     }
                 }
@@ -5309,6 +5240,128 @@ frameRate = 60;
             }
         }
 
+        public void prepareMedia() {
+            if (isMediaPrepared) return;
+            
+            try {
+                if (clip.type == ClipType.VIDEO) {
+                    if (cachedSurface == null) return; // Wait for surface
+                    
+                    videoExtractor = new MediaExtractor();
+                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
+                    int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
+                    videoExtractor.selectTrack(trackIndex);
+                    MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
+
+                    String mime = format.getString(MediaFormat.KEY_MIME);
+                    try {
+                        videoDecoder = MediaCodec.createDecoderByType(mime);
+                        videoDecoder.configure(format, cachedSurface, null, 0);
+                        videoDecoder.start();
+                        isVideoDecoderFailed = false;
+                    } catch (IllegalStateException | IllegalArgumentException e) {
+                        // Hardware NO_MEMORY fallback
+                        LoggingManager.LogExceptionToNoteOverlay(context, new Exception("Hardware Decoder Failed (NO_MEMORY). Falling back to software."));
+                        videoDecoder = null;
+                        
+                        // Attempt Software Decoder
+                        MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+                        for (MediaCodecInfo codecInfo : codecList.getCodecInfos()) {
+                            if (!codecInfo.isEncoder() && !codecInfo.isHardwareAccelerated()) {
+                                for (String type : codecInfo.getSupportedTypes()) {
+                                    if (type.equalsIgnoreCase(mime)) {
+                                        try {
+                                            videoDecoder = MediaCodec.createByCodecName(codecInfo.getName());
+                                            videoDecoder.configure(format, cachedSurface, null, 0);
+                                            videoDecoder.start();
+                                            isVideoDecoderFailed = false;
+                                            break;
+                                        } catch (Exception ex) {
+                                            videoDecoder = null;
+                                        }
+                                    }
+                                }
+                            }
+                            if (videoDecoder != null) break;
+                        }
+
+                        if (videoDecoder == null) {
+                             isVideoDecoderFailed = true;
+                             LoggingManager.LogExceptionToNoteOverlay(context, new Exception("Both Hardware and Software Decoders failed."));
+                        }
+                    }
+
+                    // AUDIO stream for video
+                    try {
+                        audioExtractor = new MediaExtractor();
+                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
+                        audioExtractor.selectTrack(audioTrackIndex);
+                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+
+                        if (Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/")) {
+                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
+                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
+
+                            audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, channelConfig, audioFormatPCM, minBufferSize, AudioTrack.MODE_STREAM);
+                            audioTrack.play();
+                        }
+                    } catch (Exception e) {} // Audio file might not exist
+                } else if (clip.type == ClipType.AUDIO) {
+                    audioExtractor = new MediaExtractor();
+                    audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+                    int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
+                    audioExtractor.selectTrack(audioTrackIndex);
+                    MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+
+                    int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                    int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
+                            AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                    int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                    int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
+
+                    audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, channelConfig, audioFormatPCM, minBufferSize, AudioTrack.MODE_STREAM);
+                    audioTrack.play();
+                }
+
+                isMediaPrepared = true;
+            } catch (Exception e) {
+                LoggingManager.LogExceptionToNoteOverlay(context, e);
+            }
+        }
+
+        public void releaseMedia() {
+            if (!isMediaPrepared) return;
+
+            try {
+                if (videoDecoder != null) {
+                    videoDecoder.stop();
+                    videoDecoder.release();
+                    videoDecoder = null;
+                }
+                if (videoExtractor != null) {
+                    videoExtractor.release();
+                    videoExtractor = null;
+                }
+                if (audioTrack != null) {
+                    audioTrack.stop();
+                    audioTrack.release();
+                    audioTrack = null;
+                }
+                if (audioExtractor != null) {
+                    audioExtractor.release();
+                    audioExtractor = null;
+                }
+            } catch (Exception e) {
+                 // Safely ignore release errors
+            }
+
+            isVideoDecoderFailed = false;
+            isMediaPrepared = false;
+        }
 
         public boolean isVisible(float playheadTime) {
             return playheadTime >= clip.startTime &&
@@ -5333,7 +5386,7 @@ frameRate = 60;
         }
 
         private void pumpDecoderVideoSeek(float playheadTime) {
-            if(videoDecoder == null) return;
+            if(videoDecoder == null || isVideoDecoderFailed) return;
             if(textureView == null) return;
             if(textureView.getVisibility() == View.GONE) return;
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
@@ -5359,6 +5412,7 @@ frameRate = 60;
             }
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
+            if (audioExtractor == null || audioTrack == null) return;
 
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
             long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
@@ -5683,22 +5737,13 @@ frameRate = 60;
 
 
         public void release() {
-            if (audioExtractor != null) {
-                audioExtractor.release();
-            }
-            if(videoDecoder != null) {
-                videoDecoder.release();
-            }
-            if(videoExtractor != null) {
-                videoExtractor.release();
-            }
+            releaseMedia();
             if(renderThreadExecutorAudio != null) {
                 renderThreadExecutorAudio.shutdownNow();
             }
             if(renderThreadExecutorVideo != null) {
                 renderThreadExecutorVideo.shutdownNow();
             }
-
         }
     }
 
@@ -5753,10 +5798,12 @@ frameRate = 60;
                     {
                         if(clipRenderer.isVisible(time))
                         {
+                            clipRenderer.prepareMedia();
                             if(clipRenderer.textureView != null)
                                 clipRenderer.textureView.setVisibility(View.VISIBLE);
                         }
                         else {
+                            clipRenderer.releaseMedia();
                             if(clipRenderer.textureView != null)
                                 clipRenderer.textureView.setVisibility(View.GONE);
                             clipRenderer.isPlaying = false;
