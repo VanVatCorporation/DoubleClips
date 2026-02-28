@@ -215,6 +215,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     };
     private boolean isPlaying = false;
     private boolean isPlayingInReverse = false;
+    private boolean keepPlayingWhenClipSelected = false;
     private float previewFpsRuntime = -1f;
     private static int thumbnailAudioBarWidth = 1, thumbnailAudioBarGap = 0;
     private Handler playbackHandler = new Handler(Looper.getMainLooper());
@@ -1171,6 +1172,19 @@ public class EditingActivity extends AppCompatActivityImpl {
             rulerScroll.scrollTo(timelineScroll.getScrollX(), 0);
             if(selectedClip != null) {
                 selectedClip.movePropertiesLayoutAlong(timelineScroll.getScrollX());
+
+
+                if(selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration)
+                {
+                    deselectingClip();
+                    selectedClip = null;
+                }
+            }
+            else if (selectedTrack != null)
+            {
+                List<Clip> listClip = selectedTrack.getClipAtCurrentTime(currentTime);
+                if(!listClip.isEmpty())
+                    selectingClip(listClip.get(0));
             }
 
             if(!isPlaying)
@@ -1991,6 +2005,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             videoPropertiesEditSpecificAreaScreen.previewSpeedField.setText(String.format(java.util.Locale.US, "%.2f", activeFps / settings.frameRate));
 
             videoPropertiesEditSpecificAreaScreen.reversePlaybackCheckbox.setChecked(isPlayingInReverse);
+            videoPropertiesEditSpecificAreaScreen.keepPlaybackWhenClipSelectedCheckbox.setChecked(keepPlayingWhenClipSelected);
 
 
             videoPropertiesEditSpecificAreaScreen.audioBarWidthField.setText(String.valueOf(thumbnailAudioBarWidth));
@@ -2032,12 +2047,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         });
 
-        videoPropertiesEditSpecificAreaScreen.reversePlaybackCheckbox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                isPlayingInReverse = isChecked;
-            }
-        });
+        videoPropertiesEditSpecificAreaScreen.reversePlaybackCheckbox.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> isPlayingInReverse = isChecked);
+
+        videoPropertiesEditSpecificAreaScreen.keepPlaybackWhenClipSelectedCheckbox.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> keepPlayingWhenClipSelected = isChecked);
 
 
         videoPropertiesEditSpecificAreaScreen.audioBarWidthField.addTextChangedListener(new android.text.TextWatcher() {
@@ -2116,6 +2130,14 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     private void startPlayback() {
 
+
+        if(selectedClip != null) {
+            if(selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration)
+            {
+                currentTime = selectedClip.startTime;
+            }
+        }
+
         timelineRenderer.startPlayAt(currentTime);
         playbackLoop = new Runnable() {
             @Override
@@ -2128,11 +2150,20 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 timelineRenderer.updateTime(currentTime, false);
 
+
                 int newScrollX = (int) (currentTime * pixelsPerSecond);
                 timelineScroll.scrollTo(newScrollX, 0);
 
+                if(selectedClip != null) {
+                    if(selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration)
+                    {
+                        if(!keepPlayingWhenClipSelected)
+                            stopPlayback(false);
+                    }
+                }
+
+
                 if ((currentTime >= timeline.duration) || (currentTime <= 0f && isPlayingInReverse)) {
-                    isPlaying = false;
                     currentTime = isPlayingInReverse ? timeline.duration : 0f;
                     stopPlayback(true);
                 }
@@ -3488,6 +3519,15 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (end > max) max = end;
             }
             return max;
+        }
+        public List<Clip> getClipAtCurrentTime(float playheadTime) {
+            List<Clip> clipsSelected = new ArrayList<>();
+            for (Clip clip : clips) {
+                if (playheadTime >= clip.startTime && playheadTime < clip.startTime + clip.duration) {
+                    clipsSelected.add(clip);
+                }
+            }
+            return clipsSelected; // No clip at this time
         }
 
         public void select() {

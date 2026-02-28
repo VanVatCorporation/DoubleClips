@@ -20,6 +20,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
     public SwitchMaterial stretchMediaToFullCheckbox; // Media
     public EditText previewFpsField, previewSpeedField;
     public SwitchMaterial reversePlaybackCheckbox; // Playback
+    public SwitchMaterial keepPlaybackWhenClipSelectedCheckbox; // Playback
     public EditText audioBarWidthField, audioBarGapField;
 
     public VideoPropertiesEditSpecificAreaScreen(Context context) {
@@ -66,6 +67,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
         previewFpsField = findViewById(R.id.previewFpsField);
         previewSpeedField = findViewById(R.id.previewSpeedField);
         reversePlaybackCheckbox = findViewById(R.id.reversePlaybackCheckbox);
+        keepPlaybackWhenClipSelectedCheckbox = findViewById(R.id.keepPlayingClipSelectedCheckbox);
 
         audioBarWidthField = findViewById(R.id.audioBarWidthField);
         audioBarGapField = findViewById(R.id.audioBarGapField);

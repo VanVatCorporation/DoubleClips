@@ -554,6 +554,38 @@
                         android:checked="false" />
 
                 </RelativeLayout>
+
+                <!-- Keep playback when clip selected toggle -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_redo_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Keep Playing with Chosen Clip"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/keepPlayingClipSelectedCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
             <com.vanvatcorporation.doubleclips.impl.SectionView
