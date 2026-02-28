@@ -56,6 +56,11 @@ import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import com.vanvatcorporation.doubleclips.manager.ExoPlayerManager;
 import androidx.annotation.NonNull;
 import androidx.core.content.res.ResourcesCompat;
 
@@ -115,6 +120,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
+@UnstableApi
 public class EditingActivity extends AppCompatActivityImpl {
 
 
@@ -133,7 +139,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private FrameLayout previewViewGroup;
     private ImageButton playPauseButton, undoButton, redoButton, backButton, settingsButton;
     private Button exportButton;
-    private TimelineRenderer timelineRenderer;
+    private ExoPlayerManager exoPlayerManager;
+    private PlayerView playerView;
 
     private TrackFrameLayout addNewTrackBlankTrackSpacer;
 
@@ -1057,7 +1064,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         pausedCanvasAlertPanel = findViewById(R.id.pausedCanvasAlertPanel);
         findViewById(R.id.pausedCanvasAlertResumeButton).setOnClickListener(v -> {
-            regeneratingTimelineRenderer();
+            regenerateExoPlayerComposition();
         });
 
         playPauseButton = findViewById(R.id.playPauseButton);
@@ -1165,7 +1172,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             timeline = Timeline.loadTimeline(this, this, properties);
 
             // Regenerate timeline renderer when timeline finishes loading.
-            regeneratingTimelineRenderer();
+            regenerateExoPlayerComposition();
         });
         timelineScroll.getViewTreeObserver().addOnScrollChangedListener(() -> {
             rulerScroll.scrollTo(timelineScroll.getScrollX(), 0);
@@ -1173,14 +1180,18 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.movePropertiesLayoutAlong(timelineScroll.getScrollX());
             }
 
-            if(!isPlaying)
+            if(!isPlaying) {
                 currentTime = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
+                if (exoPlayerManager != null) {
+                    exoPlayerManager.getPlayer().seekTo((long) (currentTime * 1000L));
+                }
+            }
 
             // Get time (- centerOffset mean remove the start spacer)
             //float totalSeconds = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
             currentTimePosText.post(() -> currentTimePosText.setText(DateHelper.convertTimestampToMMSSFormat((long) (currentTime * 1000L)) + String.format(".%02d", ((long)((currentTime % 1) * 100)))));
 
-            timelineRenderer.updateTime(currentTime, !isPlaying);
+            // exoPlayer.seekTo((long) (currentTime * 1000L));
         });
 
 
@@ -1491,7 +1502,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 // TODO: Find a way to specifically build only the edited clip. Not entire timeline
                 //  this is just for testing. Resource-consuming asf.
-                regeneratingTimelineRenderer();
+                regenerateExoPlayerComposition();
 
 
 
@@ -1582,7 +1593,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 // TODO: Find a way to specifically build only the edited clip. Not entire timeline
                 //  this is just for testing. Resource-consuming asf.
-                regeneratingTimelineRenderer();
+                regenerateExoPlayerComposition();
 
 
 
@@ -1861,7 +1872,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 updateCurrentClipEnd();
                 // TODO: Find a way to specifically build only the edited clip. Not entire timeline
                 //  this is just for testing. Resource-consuming asf.
-                regeneratingTimelineRenderer();
+                regenerateExoPlayerComposition();
 
 
                 clipEditSpecificAreaScreen.keyframeScrollFrame.removeAllViews();
@@ -2115,29 +2126,29 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
     private void startPlayback() {
-
-        timelineRenderer.startPlayAt(currentTime);
+        if (exoPlayerManager != null) {
+            exoPlayerManager.getPlayer().play();
+        }
+        
         playbackLoop = new Runnable() {
             @Override
             public void run() {
                 if (!isPlaying) return;
-                float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
-                float delayInterval = (1f / activeFps);
-                float frameInterval = (1f / settings.frameRate);
-                currentTime += isPlayingInReverse ? -frameInterval : frameInterval;
-
-                timelineRenderer.updateTime(currentTime, false);
+                
+                if (exoPlayerManager != null) {
+                    currentTime = exoPlayerManager.getPlayer().getCurrentPosition() / 1000f;
+                }
 
                 int newScrollX = (int) (currentTime * pixelsPerSecond);
                 timelineScroll.scrollTo(newScrollX, 0);
 
-                if ((currentTime >= timeline.duration) || (currentTime <= 0f && isPlayingInReverse)) {
+                if (currentTime >= timeline.duration) {
                     isPlaying = false;
-                    currentTime = isPlayingInReverse ? timeline.duration : 0f;
+                    currentTime = 0f;
                     stopPlayback(true);
                 }
 
-                playbackHandler.postDelayed(this, (long)(delayInterval * 1000));
+                playbackHandler.postDelayed(this, 16); // ~60fps UI update
             }
         };
         playbackHandler.post(playbackLoop);
@@ -2145,14 +2156,17 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     private void stopPlayback(boolean recreateTimeline) {
         isPlaying = false;
+        if (exoPlayerManager != null) {
+            exoPlayerManager.getPlayer().pause();
+        }
 
         playbackHandler.removeCallbacks(playbackLoop);
         playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
 
         if(recreateTimeline)
-            regeneratingTimelineRenderer();
+            regenerateExoPlayerComposition();
     }
-    private void regeneratingTimelineRenderer()
+    private void regenerateExoPlayerComposition()
     {
 
         LoggingManager.LogToToast(this, "Begin prepare for preview!");
@@ -2160,7 +2174,10 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         // TODO: Tested for dragging back and forth clips. They're doing fine with the extractor SYNC_EXACT
         //  Limit the time of refreshing entire timeline like this.
-        timelineRenderer.buildTimeline(timeline, properties, settings, this, previewViewGroup, textCanvasControllerInfo);
+        if (exoPlayerManager != null) {
+            exoPlayerManager.buildComposition(timeline, properties, settings);
+            exoPlayerManager.getPlayer().seekTo((long) (currentTime * 1000L));
+        }
 
         pausedCanvasAlertPanel.setVisibility(View.GONE);
     }
@@ -2180,9 +2197,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             });
         }
     }
-    private void releaseTimelineRenderer()
+    private void releaseExoPlayer()
     {
-        timelineRenderer.release();
+        if (exoPlayerManager != null) {
+            exoPlayerManager.release();
+            exoPlayerManager = null;
+        }
         pausedCanvasAlertPanel.setVisibility(View.VISIBLE);
     }
     private void setCurrentTime(float value)
@@ -2193,7 +2213,35 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     void setupPreview()
     {
-        timelineRenderer = new TimelineRenderer(this);
+        exoPlayerManager = new ExoPlayerManager(this);
+        playerView = new PlayerView(this);
+        playerView.setPlayer(exoPlayerManager.getPlayer());
+        playerView.setUseController(false); // We use our own UI
+        
+        exoPlayerManager.getPlayer().addListener(new Player.Listener() {
+            @Override
+            public void onIsPlayingChanged(boolean playing) {
+                isPlaying = playing;
+                if (playing) {
+                    playPauseButton.setImageResource(R.drawable.baseline_pause_circle_24);
+                } else {
+                    playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
+                }
+            }
+
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_ENDED) {
+                    stopPlayback(false);
+                }
+            }
+        });
+
+        previewViewGroup.removeAllViews();
+        previewViewGroup.addView(playerView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
 
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         int screenHeight = metrics.heightPixels;
@@ -2239,7 +2287,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     public void finish() {
         super.finish();
 
-        releaseTimelineRenderer();
+        releaseExoPlayer();
         Timeline.saveTimeline(this, timeline, properties, settings);
     }
     @Override
@@ -2247,7 +2295,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         super.onPause();
 
         stopPlayback(false);
-        releaseTimelineRenderer();
+        releaseExoPlayer();
         Timeline.saveTimeline(this, timeline, properties, settings);
     }
     @Override
@@ -5051,756 +5099,7 @@ frameRate = 60;
 
 
 
-    public static class ClipRenderer {
-        public final Clip clip;
 
-        private MediaExtractor videoExtractor;
-        private MediaCodec videoDecoder;
-
-        private MediaExtractor audioExtractor;
-        private AudioTrack audioTrack;
-        public boolean isPlaying;
-
-        private TextureView textureView;
-        private Context context;
-
-        private ExecutorService renderThreadExecutorAudio = Executors.newFixedThreadPool(1);
-        private ExecutorService renderThreadExecutorVideo = Executors.newFixedThreadPool(1);
-
-
-
-        private Matrix matrix = new Matrix();
-        private float scaleX = 1, scaleY = 1;
-        private float rot = 0;
-        private float posX = 0, posY = 0;
-        private float opacity = 1;
-
-
-        private float scaleMatrixX = 1, scaleMatrixY = 1;
-        private float rotMatrix = 0;
-        private float posMatrixX = 0, posMatrixY = 0;
-
-
-        public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo) {
-            this.context = context;
-            this.clip = clip;
-
-            try
-            {
-
-                switch (clip.type)
-                {
-                    case VIDEO:
-                    {
-
-                        // VIDEO
-
-
-
-
-
-
-                        textureView = new TextureView(context);
-                        RelativeLayout.LayoutParams textureViewLayoutParams =
-                                new RelativeLayout.LayoutParams(clip.width, clip.height);
-                        previewViewGroup.addView(textureView, textureViewLayoutParams);
-
-
-                        textureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-                            @Override
-                            public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surfaceTexture, int width, int height) {
-                                try {
-                                    Surface surface = new Surface(surfaceTexture);
-
-                                    // Step 1: Extractor setup
-                                    videoExtractor = new MediaExtractor();
-                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
-
-                                    int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
-                                    videoExtractor.selectTrack(trackIndex);
-
-                                    MediaFormat format = videoExtractor.getTrackFormat(trackIndex);
-
-                                    // Step 2: Codec setup
-                                    videoDecoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME));
-                                    videoDecoder.configure(format, surface, null, 0);
-                                    videoDecoder.start();
-
-
-                                    surfaceTexture.setDefaultBufferSize(clip.width, clip.height); // or your target resolution
-
-                                    posX = (EditingActivity.renderToPreviewConversionX(clip.videoProperties.getValue(VideoProperties.ValueType.PosX), settings.videoWidth));
-                                    posY = (EditingActivity.renderToPreviewConversionY(clip.videoProperties.getValue(VideoProperties.ValueType.PosY), settings.videoHeight));
-                                    scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
-                                    scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
-                                    rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
-                                    opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
-
-
-                                    applyTransformation();
-                                    applyPostTransformation();
-
-                                } catch (Exception e) {
-                                    LoggingManager.LogExceptionToNoteOverlay(context, e);
-                                }
-                            }
-
-                            @Override
-                            public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-                                // Handle resize if needed
-                            }
-
-                            @Override
-                            public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                                return true; // release resources if needed
-                            }
-
-                            @Override
-                            public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-                                // Called every frame
-                            }
-                        });
-
-
-
-
-
-
-
-
-
-
-
-
-                        // AUDIO
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        // TODO: Uninitialized AudioTrack when splitting too many Clip. No reason.
-                        //  -> REASON: Too many initialize VIDEO, causing RAM to stall.
-                        if(Objects.requireNonNull(audioFormat.getString(MediaFormat.KEY_MIME)).startsWith("audio/"))
-                        {
-                            int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                            int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                    AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                            int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                            int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                            audioTrack = new AudioTrack(
-                                    AudioManager.STREAM_MUSIC,
-                                    sampleRate,
-                                    channelConfig,
-                                    audioFormatPCM,
-                                    minBufferSize,
-                                    AudioTrack.MODE_STREAM
-                            );
-                            audioTrack.play();
-                        }
-
-
-                        break;
-                    }
-                    case IMAGE:
-                    {
-                        textureView = new TextureView(context);
-                        RelativeLayout.LayoutParams textureViewLayoutParams =
-                                new RelativeLayout.LayoutParams(clip.width, clip.height);
-                        previewViewGroup.addView(textureView, textureViewLayoutParams);
-
-                        textureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-                            @Override
-                            public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surfaceTexture, int width, int height) {
-                                // Create a Surface from the TextureView
-
-                                // For IMAGE rendering
-                                // TODO: WTF sample size 1? Yes for rendering. We don't know how to forcefully extend the 8 old sampleSize
-                                Bitmap image = IOImageHelper.LoadFileAsPNGImage(context, clip.getAbsolutePreviewPath(data), 1);
-
-                                // Resize TextureView to match bitmap size
-                                ViewGroup.LayoutParams params = textureView.getLayoutParams();
-                                params.width = clip.width;
-                                params.height = clip.height;
-                                textureView.setLayoutParams(params);
-
-                                // Draw the bitmap onto the TextureView’s canvas
-                                Canvas canvas = textureView.lockCanvas();
-                                if (canvas != null) {
-                                    //canvas.drawColor(Color.BLACK); // optional background
-                                    canvas.drawBitmap(image, 0, 0, null); // draw at top-left
-                                    textureView.unlockCanvasAndPost(canvas);
-                                }
-
-
-                                surfaceTexture.setDefaultBufferSize(clip.width, clip.height); // or your target resolution
-
-                                posX = (EditingActivity.renderToPreviewConversionX(clip.videoProperties.getValue(VideoProperties.ValueType.PosX), settings.videoWidth));
-                                posY = (EditingActivity.renderToPreviewConversionY(clip.videoProperties.getValue(VideoProperties.ValueType.PosY), settings.videoHeight));
-                                scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
-                                scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
-                                rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
-                                opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
-
-                                applyTransformation();
-                                applyPostTransformation();
-
-                            }
-
-                            @Override
-                            public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {}
-
-                            @Override
-                            public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                                return true;
-                            }
-
-                            @Override
-                            public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {}
-                        });
-
-
-                        break;
-                    }
-                    case AUDIO:
-                    {
-
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
-
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
-
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
-
-                        int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                        int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                        int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                        audioTrack = new AudioTrack(
-                                AudioManager.STREAM_MUSIC,
-                                sampleRate,
-                                channelConfig,
-                                audioFormatPCM,
-                                minBufferSize,
-                                AudioTrack.MODE_STREAM
-                        );
-                        audioTrack.play();
-
-                        break;
-                    }
-                }
-
-
-                if(textureView != null)
-                {
-                    setPivot();
-                    attachGestureControls(textureView, clip, settings, editingActivity, textCanvasControllerInfo);
-                }
-
-
-            }
-            catch (Exception e)
-            {
-                LoggingManager.LogExceptionToNoteOverlay(context, e);
-            }
-        }
-
-
-        public boolean isVisible(float playheadTime) {
-            return playheadTime >= clip.startTime &&
-                    playheadTime <= clip.startTime + clip.duration;
-        }
-
-        public void renderFrame(float playheadTime, boolean isSeekingOnly) {
-            if (!isVisible(playheadTime)) {
-//                if(surfaceView != null)
-//                {
-//                    Canvas canvas = surfaceHolder.lockCanvas();
-//                    if (canvas != null) {
-//                        canvas.drawColor(Color.BLACK); // Fill canvas with black
-//                        surfaceHolder.unlockCanvasAndPost(canvas);
-//                    }
-//                }
-                return;
-            }
-//            if(isPlaying && !isSeekingOnly) return;
-
-            startPlayingAt(playheadTime, isSeekingOnly);
-        }
-
-        private void pumpDecoderVideoSeek(float playheadTime) {
-            if(videoDecoder == null) return;
-            if(textureView == null) return;
-            if(textureView.getVisibility() == View.GONE) return;
-            float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
-            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
-            int inputIndex = videoDecoder.dequeueInputBuffer(0);
-            if (inputIndex >= 0) {
-                ByteBuffer inputBuffer = videoDecoder.getInputBuffer(inputIndex);
-                int sampleSize = videoExtractor.readSampleData(inputBuffer, 0);
-
-                if (sampleSize >= 0) {
-                    videoExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-                    videoDecoder.queueInputBuffer(inputIndex, 0, sampleSize, ptsUs, 0);
-
-                } else {
-                    videoDecoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                }
-            }
-
-            MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-            int outputIndex = videoDecoder.dequeueOutputBuffer(bufferInfo, 0);
-            if (outputIndex >= 0) {
-                videoDecoder.releaseOutputBuffer(outputIndex, true); // true = render to surface
-            }
-        }
-        private void pumpDecoderAudioSeek(float playheadTime) {
-
-            float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
-            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
-            audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
-
-            ByteBuffer buffer = ByteBuffer.allocate(32768);
-
-            int sampleSize = audioExtractor.readSampleData(buffer, 0);
-            if (sampleSize < 0) return; // End of stream
-
-            byte[] chunk = new byte[sampleSize];
-            buffer.get(chunk, 0, sampleSize);
-            buffer.clear();
-
-            audioTrack.write(chunk, 0, chunk.length, AudioTrack.WRITE_NON_BLOCKING);
-
-        }
-
-
-
-
-
-        public void startPlayingAt(float playheadTime, boolean isSeekingOnly) {
-            if (!isVisible(playheadTime)) {
-//                Canvas canvas = surfaceHolder.lockCanvas();
-//                if (canvas != null) {
-//                    canvas.drawColor(Color.BLACK); // Fill canvas with black
-//                    surfaceHolder.unlockCanvasAndPost(canvas);
-//                }
-                return;
-            }
-
-
-            try {
-
-                if(textureView != null)
-                {
-                    float x = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.PosX);
-                    float y = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.PosY);
-                    float rotation = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Rot);
-                    float sx = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.ScaleX);
-                    float sy = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.ScaleY);
-                    float op = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Opacity);
-
-                    posX = x == -1 ? posX : x;
-                    posY = y == -1 ? posY : y;
-                    rot = rotation == -1 ? rot : rotation;
-                    scaleX = sx == -1 ? scaleX : sx;
-                    scaleY = sy == -1 ? scaleY : sy;
-                    opacity = op < 0 ? opacity : op;
-
-                    applyPostTransformation();
-                    //applyPostMatrixTransformation();
-                }
-
-                switch (clip.type)
-                {
-                    case VIDEO:
-                    {
-
-//                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
-//                        {
-//                            videoPlayer.seekTo((long) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000000));
-//                            System.err.println(videoPlayer.getCurrentPosition());
-//                            if(!isSeekingOnly)
-//                            {
-//                                videoPlayer.start();
-//                                isPlaying = true;
-//                            }
-//                        }
-                        renderThreadExecutorVideo.execute(() -> pumpDecoderVideoSeek(playheadTime));
-
-                        if(clip.isClipHasAudio())
-                            renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
-                        break;
-                    }
-                    case AUDIO:
-                    {
-//                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
-//                        {
-//                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000), android.media.MediaPlayer.SEEK_CLOSEST);
-//                            }
-//                            else {
-//                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000));
-//                            }
-//                            if(!isSeekingOnly)
-//                            {
-//                                audioPlayer.start();
-//                                isPlaying = true;
-//                            }
-//                        }
-
-
-                        renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
-                        break;
-                    }
-
-                }
-
-
-
-            } catch (Exception e) {
-                LoggingManager.LogExceptionToNoteOverlay(context, e);
-            }
-        }
-
-
-
-
-
-        private void setPivot() {
-            textureView.post(() -> {
-                // Not affecting the translation pos when scaling
-                textureView.setPivotX(0);
-                textureView.setPivotY(0);
-                // TODO: Research later. Can be useful (#1)
-                // But lets try if we apply the pivot to matrix
-//                textureView.setPivotX(textureView.getWidth() / 2f);
-//                textureView.setPivotY(textureView.getHeight() / 2f);
-            });
-
-        }
-
-
-        EditMode currentMode = EditMode.NONE;
-
-
-        private void attachGestureControls(TextureView tv, Clip clip, VideoSettings settings, EditingActivity editingActivity, TextView textCanvasControllerInfo) {
-            final GestureDetector tapDrag = new GestureDetector(tv.getContext(), new GestureDetector.SimpleOnGestureListener() {
-                @Override public boolean onDown(MotionEvent e) { return true; } // must return true to receive events
-                @Override public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
-
-                    if(currentMode != EditMode.NONE && currentMode != EditMode.MOVE) return true;
-                    currentMode = EditMode.MOVE;
-
-                    // Move
-                    posX -= dx;
-                    posY -= dy;
-                    posMatrixX -= dx / clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX);
-                    posMatrixY -= dy / clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY);
-                    applyTransformation();
-
-                    // Sync model
-                    clip.videoProperties.setValue(EditingActivity.previewToRenderConversionX(posX, settings.videoWidth), VideoProperties.ValueType.PosX);
-                    clip.videoProperties.setValue(EditingActivity.previewToRenderConversionY(posY, settings.videoHeight), VideoProperties.ValueType.PosY);
-
-                    textCanvasControllerInfo.setText("Pos X: " + clip.videoProperties.getValue(VideoProperties.ValueType.PosX) + " | Pos Y: " + clip.videoProperties.getValue(VideoProperties.ValueType.PosY));
-                    return true;
-                }
-                @Override public boolean onSingleTapUp(MotionEvent e) {
-                    editingActivity.selectingClip(clip);
-                    return true;
-                }
-            });
-
-            final ScaleGestureDetector scaler = new ScaleGestureDetector(tv.getContext(), new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                @Override public boolean onScale(ScaleGestureDetector detector) {
-
-                    if(currentMode != EditMode.NONE && currentMode != EditMode.SCALE && currentMode != EditMode.ROTATE) return true;
-                    currentMode = EditMode.SCALE;
-
-                    scaleX *= detector.getScaleFactor();
-                    scaleY *= detector.getScaleFactor();
-                    scaleMatrixX *= detector.getScaleFactor();
-                    scaleMatrixY *= detector.getScaleFactor();
-
-                    applyTransformation();
-
-                    // TODO: Before we going further. Let calculate first the aspect ratio of video
-                    //  only after that we based on the width and height of the following aspect ratio
-                    //  and use it for preview scaling inside the screen that smaller than the video. (Clamping)
-                    // Sync model
-                    clip.videoProperties.setValue(EditingActivity.previewToRenderConversionScalingX(scaleX, settings.videoWidth), VideoProperties.ValueType.ScaleX);
-                    clip.videoProperties.setValue(EditingActivity.previewToRenderConversionScalingY(scaleY, settings.videoHeight), VideoProperties.ValueType.ScaleY);
-
-                    setPivot();
-
-                    textCanvasControllerInfo.setText(
-                                    "Scale X: " + clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX) +
-                                    " | Scale Y: " + clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY) +
-                                    "\n" + "Rot: " + clip.videoProperties.getValue(VideoProperties.ValueType.Rot)
-                    );
-
-                    return true;
-                }
-            });
-
-            // Simple rotation detector
-            final float[] lastAngle = { Float.NaN };
-            tv.setOnTouchListener((v, event) -> {
-                tapDrag.onTouchEvent(event);
-                scaler.onTouchEvent(event);
-
-
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_POINTER_DOWN:
-                    case MotionEvent.ACTION_MOVE:
-                        if (event.getPointerCount() >= 2) {
-
-                            if(currentMode != EditMode.NONE && currentMode != EditMode.ROTATE && currentMode != EditMode.SCALE) break;
-                            currentMode = EditMode.ROTATE;
-
-                            float ax = event.getX(0), ay = event.getY(0);
-                            float bx = event.getX(1), by = event.getY(1);
-                            float angle = (float) Math.toDegrees(Math.atan2(by - ay, bx - ax)); // [-180,180]
-                            if (Float.isNaN(lastAngle[0])) {
-                                lastAngle[0] = angle;
-                            } else {
-                                float delta = normalizeAngle(angle - lastAngle[0]);
-                                rot += delta;
-                                rotMatrix += delta;
-
-                                // Normalize to [-360, 360]
-                                rot = ((rot + 360f) % 720f) - 360f;
-                                rotMatrix = ((rotMatrix + 360f) % 720f) - 360f;
-
-                                // Snap to nearest multiple of 90
-                                float nearest = Math.round(rot / Constants.CANVAS_ROTATE_SNAP_DEGREE) * Constants.CANVAS_ROTATE_SNAP_DEGREE;
-                                if (Math.abs(rot - nearest) <= Constants.CANVAS_ROTATE_SNAP_THRESHOLD_DEGREE) {
-                                    rot = nearest;
-                                }
-                                nearest = Math.round(rotMatrix / Constants.CANVAS_ROTATE_SNAP_DEGREE) * Constants.CANVAS_ROTATE_SNAP_DEGREE;
-                                if (Math.abs(rotMatrix - nearest) <= Constants.CANVAS_ROTATE_SNAP_THRESHOLD_DEGREE) {
-                                    rotMatrix = nearest;
-                                }
-
-                                applyTransformation();
-                                clip.videoProperties.setValue(rot, VideoProperties.ValueType.Rot);
-
-                                textCanvasControllerInfo.setText(
-                                        "Scale X: " + clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX) +
-                                                " | Scale Y: " + clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY) +
-                                                "\n" + "Rot: " + clip.videoProperties.getValue(VideoProperties.ValueType.Rot)
-                                );
-
-                                lastAngle[0] = angle;
-                            }
-                        }
-                        break;
-                    case MotionEvent.ACTION_POINTER_UP:
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        lastAngle[0] = Float.NaN;
-                        currentMode = EditMode.NONE;
-                        applyPostTransformation();
-                        break;
-                }
-                return true;
-            });
-        }
-
-        // TODO: Isn't handling scale properly yet.
-        // TODO: Rotation is based on shared pivot. matrix.postRotate() does have 3 parameters and the last 2 are pivot maybe.
-        private void applyTransformation() {
-            matrix.reset();
-
-            matrix.postScale(scaleMatrixX, scaleMatrixY);
-            matrix.postRotate(rotMatrix);
-            // TODO: Research later. Can be useful (#2)
-//            matrix.postScale(scaleMatrixX, scaleMatrixY, textureView.getPivotX(), textureView.getPivotY());
-//            matrix.postRotate(rotMatrix, textureView.getPivotX(), textureView.getPivotY());
-            matrix.postTranslate(posMatrixX, posMatrixY);
-
-            textureView.setTransform(matrix);
-            textureView.setAlpha(opacity);
-            textureView.invalidate();
-        }
-        private void applyPostTransformation() {
-            textureView.post(() -> {
-                // Reset the matrix state for next drag
-                scaleMatrixX = 1;
-                scaleMatrixY = 1;
-                rotMatrix = 0;
-                posMatrixX = 0;
-                posMatrixY = 0;
-                matrix.reset();
-
-                textureView.setTransform(matrix);
-                textureView.invalidate();
-
-
-                textureView.setTranslationX(posX);
-                textureView.setTranslationY(posY);
-                textureView.setScaleX(scaleX);
-                textureView.setScaleY(scaleY);
-                textureView.setRotation(rot);
-                textureView.setAlpha(opacity);
-            });
-        }
-        private void applyPostMatrixTransformation() {
-            matrix.reset();
-            matrix.setScale(scaleX, scaleY);
-            matrix.setRotate(rot);
-            matrix.setTranslate(posX, posY);
-
-            textureView.setTransform(matrix);
-            textureView.invalidate();
-        }
-
-        private float normalizeAngle(float a) {
-            // Map to [-180, 180] to avoid jump
-            while (a > 180f) a -= 360f;
-            while (a < -180f) a += 360f;
-            return a;
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-        public enum EditMode {
-            MOVE, SCALE, ROTATE, NONE
-        }
-
-
-        public void release() {
-            if (audioExtractor != null) {
-                audioExtractor.release();
-            }
-            if(videoDecoder != null) {
-                videoDecoder.release();
-            }
-            if(videoExtractor != null) {
-                videoExtractor.release();
-            }
-            if(renderThreadExecutorAudio != null) {
-                renderThreadExecutorAudio.shutdownNow();
-            }
-            if(renderThreadExecutorVideo != null) {
-                renderThreadExecutorVideo.shutdownNow();
-            }
-
-        }
-    }
-
-
-    public static class TimelineRenderer {
-        private final Context context;
-        private List<List<ClipRenderer>> trackLayers = new ArrayList<>();
-
-        public TimelineRenderer(Context context) {
-            this.context = context;
-        }
-
-        public void buildTimeline(Timeline timeline, MainAreaScreen.ProjectData properties, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo)
-        {
-            // Release the previous render session
-            release();
-
-            previewViewGroup.removeAllViews();
-
-            // Black box for blank video
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-            );
-            View blackBox = new View(context);
-            blackBox.setBackgroundColor(Color.BLACK);
-            previewViewGroup.addView(blackBox, params);
-
-            trackLayers = new ArrayList<>();
-
-            for (Track track : timeline.tracks) {
-                List<ClipRenderer> renderers = new ArrayList<>();
-                for (Clip clip : track.clips) {
-                    switch (clip.type)
-                    {
-                        case VIDEO:
-                        case AUDIO:
-                        case IMAGE:
-                            ClipRenderer clipRenderer = new ClipRenderer(context, clip, properties, settings, editingActivity, previewViewGroup, textCanvasControllerInfo);
-                            renderers.add(clipRenderer);
-                            break;
-                    }
-                }
-                trackLayers.add(renderers);
-            }
-        }
-        public void updateTime(float time, boolean isSeekingOnly)
-        {
-            for (List<ClipRenderer> trackRenderer : trackLayers) {
-                for (ClipRenderer clipRenderer : trackRenderer) {
-                    if(clipRenderer != null)
-                    {
-                        if(clipRenderer.isVisible(time))
-                        {
-                            if(clipRenderer.textureView != null)
-                                clipRenderer.textureView.setVisibility(View.VISIBLE);
-                        }
-                        else {
-                            if(clipRenderer.textureView != null)
-                                clipRenderer.textureView.setVisibility(View.GONE);
-                            clipRenderer.isPlaying = false;
-                        }
-                        clipRenderer.renderFrame(time, isSeekingOnly);
-                    }
-                }
-            }
-        }
-
-
-        public void startPlayAt(float playheadTime) {
-
-            boolean renderedAny = false;
-
-            for (List<ClipRenderer> track : trackLayers) {
-                for (ClipRenderer clipRenderer : track) {
-                    if (clipRenderer.isVisible(playheadTime)) {
-                        clipRenderer.renderFrame(playheadTime, false);
-                        renderedAny = true;
-                    }
-                }
-            }
-
-            if (!renderedAny) {
-                renderSolidBlack();
-            }
-        }
-
-        private void renderSolidBlack() {
-//            GLES20.glClearColor(0f, 0f, 0f, 1f);
-//            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        }
-
-        public void release() {
-            for (List<ClipRenderer> track : trackLayers) {
-                for (ClipRenderer cr : track) cr.release();
-            }
-            trackLayers.clear();
-        }
-    }
 
 
 
