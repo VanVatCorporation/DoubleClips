@@ -471,6 +471,9 @@
                     </LinearLayout>
                 </RelativeLayout>
 
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
                 <!-- Speed row -->
                 <RelativeLayout
                     android:layout_width="match_parent"
@@ -523,6 +526,9 @@
                     </LinearLayout>
                 </RelativeLayout>
 
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
                 <!-- Render in reverse toggle -->
                 <RelativeLayout
                     android:layout_width="match_parent"
@@ -554,6 +560,9 @@
                         android:checked="false" />
 
                 </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
                 <!-- Keep playback when clip selected toggle -->
                 <RelativeLayout
@@ -628,6 +637,9 @@
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
                 </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
                 <!-- Audio Bar Gap row -->
                 <RelativeLayout

@@ -53,6 +53,8 @@
 
 
 
+    <string name="menu_cpn_edit_track_move_up">Move track up</string>
+    <string name="menu_cpn_edit_track_move_down">Move track down</string>
 
     <string name="menu_cpn_project_element_edit">Edit title</string>
     <string name="menu_cpn_project_element_delete">Delete project</string>

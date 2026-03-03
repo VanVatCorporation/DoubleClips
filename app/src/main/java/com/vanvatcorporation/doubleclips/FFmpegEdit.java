@@ -483,10 +483,12 @@ public class FFmpegEdit {
 
 
                     StringBuilder additionCmd = new StringBuilder();
-                    if(!clip.additionalFFmpegCommand.isEmpty()) {
-                        additionCmd.append("[").append(inputMediaIndex).append("-add];")
-                                .append("[").append(inputMediaIndex).append("-add]")
-                                .append(clip.additionalFFmpegCommand);
+                    if(clip.additionalFFmpegCommand != null) {
+                        if(!clip.additionalFFmpegCommand.isEmpty()) {
+                            additionCmd.append("[").append(inputMediaIndex).append("-add];")
+                                    .append("[").append(inputMediaIndex).append("-add]")
+                                    .append(clip.additionalFFmpegCommand);
+                        }
                     }
 
 

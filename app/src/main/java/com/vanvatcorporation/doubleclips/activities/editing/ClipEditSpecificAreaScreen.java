@@ -30,7 +30,7 @@ import com.warkiz.widget.IndicatorSeekBar;
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
     public TextView durationText, totalDurationText;
-    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField;
+    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField, additionFFmpegCommandField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
     public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox;
     public LinearLayout keyframeScrollFrame;
@@ -76,6 +76,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         opacitySeekbar = findViewById(R.id.opacitySeekbar);
         speedSeekbar = findViewById(R.id.speedSeekbar);
         hueField = findViewById(R.id.hueField);
+        additionFFmpegCommandField = findViewById(R.id.additionFFmpegCommandField);
         saturationSeekbar = findViewById(R.id.saturationSeekbar);
         brightnessSeekbar = findViewById(R.id.brightnessSeekbar);
         temperatureSeekbar = findViewById(R.id.temperatureSeekbar);
@@ -120,6 +121,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             scaleXField.clearFocus();
             scaleYField.clearFocus();
             hueField.clearFocus();
+            additionFFmpegCommandField.clearFocus();
         });
     }
 

@@ -42,6 +42,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.FrameLayout;
@@ -49,6 +50,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
@@ -1867,6 +1869,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 }
 
+                selectedClip.setAdditionalFFmpegCommand(clipEditSpecificAreaScreen.additionFFmpegCommandField.getText().toString());
                 selectedClip.setMute(clipEditSpecificAreaScreen.muteAudioCheckbox.isChecked());
                 selectedClip.setLockedForTemplate(clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.isChecked());
                 selectedClip.setReverse(clipEditSpecificAreaScreen.reverseCheckbox.isChecked());
@@ -1900,6 +1903,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.brightnessSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Brightness));
             clipEditSpecificAreaScreen.temperatureSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Temperature));
 
+            clipEditSpecificAreaScreen.additionFFmpegCommandField.setText(selectedClip.additionalFFmpegCommand);
             clipEditSpecificAreaScreen.muteAudioCheckbox.setChecked(selectedClip.isMute());
             clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.setChecked(selectedClip.isLockedForTemplate());
             clipEditSpecificAreaScreen.reverseCheckbox.setChecked(selectedClip.isReverse());
@@ -2333,6 +2337,30 @@ public class EditingActivity extends AppCompatActivityImpl {
         trackInfoView.setLayoutParams(trackInfoParams);
         trackInfoView.setGravity(Gravity.CENTER);
         trackInfoView.setText( "Track " + trackCount);
+
+
+        final int finalTrackIndex = trackCount;
+        trackInfoView.setOnClickListener(v -> {
+
+            PopupMenu popup = new PopupMenu(this, v);
+            popup.getMenuInflater().inflate(R.menu.menu_cpn_edit_track_more, popup.getMenu());
+
+            popup.setOnMenuItemClickListener(item -> {
+                if(item.getItemId() == R.id.action_move_up)
+                {
+                    timeline.moveTrackUp(this, timeline.tracks.get(finalTrackIndex));
+                    return true;
+                }
+                if(item.getItemId() == R.id.action_move_down)
+                {
+                    timeline.moveTrackDown(this, timeline.tracks.get(finalTrackIndex));
+                    return true;
+                }
+                return false;
+            });
+
+            popup.show();
+        });
 
 
 
@@ -3366,6 +3394,52 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
         }
+        public void moveTrackUp(Context context, Track track) {
+            if(track != null)
+            {
+                if(track.timelineIndex > 0)
+                {
+                    Track upperTrack = tracks.get(track.timelineIndex - 1);
+                    tracks.set(track.timelineIndex - 1, track);
+                    tracks.set(track.timelineIndex, upperTrack);
+
+                    ViewParent vf = track.viewRef.getParent();
+                    if(vf instanceof ViewGroup)
+                    {
+                        ((ViewGroup) vf).removeView(track.viewRef);
+                        ((ViewGroup) vf).addView(track.viewRef, track.timelineIndex - 1);
+                    }
+
+                    reloadTrackIndex();
+                }
+                else {
+                    LoggingManager.LogToToast(context, "Track already on top");
+                }
+            }
+        }
+        public void moveTrackDown(Context context, Track track) {
+            if(track != null)
+            {
+                if(track.timelineIndex < tracks.size() - 1)
+                {
+                    Track lowerTrack = tracks.get(track.timelineIndex + 1);
+                    tracks.set(track.timelineIndex + 1, track);
+                    tracks.set(track.timelineIndex, lowerTrack);
+
+                    ViewParent vf = track.viewRef.getParent();
+                    if(vf instanceof ViewGroup)
+                    {
+                        ((ViewGroup) vf).removeView(track.viewRef);
+                        ((ViewGroup) vf).addView(track.viewRef, track.timelineIndex + 1);
+                    }
+
+                    reloadTrackIndex();
+                }
+                else {
+                    LoggingManager.LogToToast(context, "Track already on bottom");
+                }
+            }
+        }
 
         public List<Clip> getClipAtCurrentTime(float playheadTime) {
             List<Clip> clips = new ArrayList<>();
@@ -3675,7 +3749,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         public transient ImageView transitionKnotViewRef;
         public transient ImageGroupView viewRef;
         public transient LinearLayout clipPropertiesLinearLayoutGroup;
-        public transient ImageView templateLockViewRef, noSoundViewRef, muteViewRef, reverseViewRef;
+        public transient ImageView templateLockViewRef, noSoundViewRef, muteViewRef, reverseViewRef, customCommandViewRef;
         public transient HorizontalScrollView timelineScrollViewRef;
         public transient TextView durationText;
 
@@ -3750,6 +3824,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(videoProperties == null) videoProperties = new VideoProperties();
             if(keyframes == null) keyframes = new AnimatedProperty();
             if(keyframes.keyframes == null) keyframes.keyframes = new ArrayList<>();
+            if(additionalFFmpegCommand == null) additionalFFmpegCommand = "";
         }
         public void resetHandlesPosition()
         {
@@ -4061,6 +4136,13 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipPropertiesLinearLayoutGroup.addView(reverseViewRef);
             reverseViewRef.setVisibility(isReverse ? View.VISIBLE : View.GONE);
 
+            // Custom Command display
+            customCommandViewRef = new ImageView(activity);
+            styleBadgeIcon.accept(customCommandViewRef);
+            customCommandViewRef.setImageResource(R.drawable.baseline_code_24);
+            clipPropertiesLinearLayoutGroup.addView(customCommandViewRef);
+            customCommandViewRef.setVisibility(!additionalFFmpegCommand.isEmpty() ? View.VISIBLE : View.GONE);
+
             durationText = new TextView(activity);
             durationText.setBackgroundResource(R.drawable.bg_drag_handle); //bg_search_bar
             durationText.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0x88000000));
@@ -4308,6 +4390,15 @@ public class EditingActivity extends AppCompatActivityImpl {
         {
             isLockedForTemplate = value;
             templateLockViewRef.setVisibility(value ? View.VISIBLE : View.GONE);
+        }
+
+        public String getAdditionalFFmpegCommand() {
+            return additionalFFmpegCommand;
+        }
+
+        public void setAdditionalFFmpegCommand(String additionalFFmpegCommand) {
+            this.additionalFFmpegCommand = additionalFFmpegCommand;
+            muteViewRef.setVisibility(!additionalFFmpegCommand.isEmpty() ? View.VISIBLE : View.GONE);
         }
 
         public boolean isMute() {
