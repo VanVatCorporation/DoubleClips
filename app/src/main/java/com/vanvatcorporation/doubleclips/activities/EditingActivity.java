@@ -3792,6 +3792,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.isReverse = clip.isReverse;
             this.isLockedForTemplate = clip.isLockedForTemplate;
 
+            this.additionalFFmpegCommand = clip.additionalFFmpegCommand;
+            this.endTransition = clip.endTransition;
+
             this.keyframes = new AnimatedProperty(clip.keyframes);
 
 
@@ -4503,6 +4506,25 @@ public class EditingActivity extends AppCompatActivityImpl {
             resetKeyframes(instance);
             for (Keyframe keyframe : sourceProperty.keyframes) {
                 addKeyframe(instance, keyframe);
+            }
+        }
+        public void combineClips(Clip clipA, Clip clipB)
+        {
+            // If both clip are the same track, and same source
+            if(clipA.trackIndex == clipB.trackIndex && clipA.clipName.equals(clipB.clipName) &&
+                    clipA.originalDuration == clipB.originalDuration)
+            {
+                // Since both clip has the same originalDuration, we'll using both.
+                if(clipA.originalDuration - clipA.endClipTrim == clipB.startClipTrim ||
+                        clipB.originalDuration - clipB.endClipTrim == clipA.startClipTrim)
+                {
+                    // If all satisfy. Merge the video
+
+                    Clip mergedClip = new Clip(clipA);
+                    mergedClip.setEndClipTrim(clipB.endClipTrim);
+
+                    mergedClip.keyframes.keyframes.addAll(clipB.keyframes.keyframes);
+                }
             }
         }
     }
