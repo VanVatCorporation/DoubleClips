@@ -14,6 +14,7 @@ public class Constants {
     public static final String DEFAULT_TEMPLATE_CLIP_TEMP_DIRECTORY = "TemplatesClipTemp";
     public static final String DEFAULT_CLIP_DIRECTORY = "Clips";
     public static final String DEFAULT_PREVIEW_CLIP_DIRECTORY = "PreviewClips";
+    public static final String DEFAULT_CUTOUT_DIRECTORY = "Cutouts";
     public static final String DEFAULT_CLIP_TEMP_DIRECTORY = "Clips/Temp";
     public static final String DEFAULT_MULTI_FFMPEG_COMMAND_REGEX = "<Ffmpeg Command Splitter hehe lmao skibidi tung tung tung sahur>";
     public static final int SAMPLE_SIZE_PREVIEW_CLIP = 16;

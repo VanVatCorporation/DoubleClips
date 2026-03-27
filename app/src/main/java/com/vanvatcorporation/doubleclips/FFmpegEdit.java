@@ -217,10 +217,16 @@ public class FFmpegEdit {
         for (int i = 0; i < templateSettings.clips.length; i++) {
             EditingActivity.Clip clip = templateSettings.clips[i];
 
-            String inputPath = (templateSettings.isTemplateCommand && clip.isLockedForTemplate()) ?
-                    Constants.DEFAULT_TEMPLATE_CLIP_STATIC_MARK(clip.getClipName()) :
-                    templateSettings.isTemplateCommand ? Constants.DEFAULT_TEMPLATE_CLIP_MARK(i) :
-                            clip.getAbsolutePath(templateSettings.data);
+            String inputPath;
+            if (templateSettings.isTemplateCommand && clip.isLockedForTemplate()) {
+                inputPath = Constants.DEFAULT_TEMPLATE_CLIP_STATIC_MARK(clip.getClipName());
+            } else if (templateSettings.isTemplateCommand) {
+                inputPath = Constants.DEFAULT_TEMPLATE_CLIP_MARK(i);
+            } else if (clip.removeBackground && clip.type == EditingActivity.ClipType.IMAGE && IOHelper.isFileExist(clip.getCutoutPath(templateSettings.data.getProjectPath()))) {
+                inputPath = clip.getCutoutPath(templateSettings.data.getProjectPath());
+            } else {
+                inputPath = clip.getAbsolutePath(templateSettings.data);
+            }
 
             switch (clip.type) {
                 case VIDEO:

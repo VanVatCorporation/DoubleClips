@@ -941,6 +941,56 @@
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <!-- ── AI Effects ──────────────────────────────────────── -->
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:sectionTitle="AI Effects"
+                app:isOpenAtStart="true">
+
+                <!-- Remove Background toggle -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_auto_fix_high_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Remove Background"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/removeBackgroundCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
+
+                <ProgressBar
+                    android:id="@+id/removeBackgroundProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:visibility="gone"
+                    android:indeterminate="true" />
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
             <!-- ── Clip Options ────────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"

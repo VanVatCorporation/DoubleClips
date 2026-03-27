@@ -1873,6 +1873,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.setMute(clipEditSpecificAreaScreen.muteAudioCheckbox.isChecked());
                 selectedClip.setLockedForTemplate(clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.isChecked());
                 selectedClip.setReverse(clipEditSpecificAreaScreen.reverseCheckbox.isChecked());
+                selectedClip.removeBackground = clipEditSpecificAreaScreen.removeBackgroundCheckbox.isChecked();
 
                 updateClipLayouts();
                 updateCurrentClipEnd();
@@ -1907,6 +1908,21 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.muteAudioCheckbox.setChecked(selectedClip.isMute());
             clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.setChecked(selectedClip.isLockedForTemplate());
             clipEditSpecificAreaScreen.reverseCheckbox.setChecked(selectedClip.isReverse());
+            clipEditSpecificAreaScreen.removeBackgroundCheckbox.setChecked(selectedClip.removeBackground);
+            clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+
+            clipEditSpecificAreaScreen.removeBackgroundCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (selectedClip != null) {
+                    selectedClip.removeBackground = isChecked;
+                    if (isChecked) {
+                        processBackgroundRemoval(selectedClip);
+                    } else {
+                        timelineRenderer.updateTime(currentTime, true);
+                    }
+                }
+            });
+            clipEditSpecificAreaScreen.removeBackgroundCheckbox.setChecked(selectedClip.removeBackground);
+            clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
 
 
             Keyframe k = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
@@ -3742,6 +3758,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         public boolean isLockedForTemplate;    // for VIDEO type
         @Expose
         public boolean isReverse;    // for VIDEO type
+        @Expose
+        public boolean removeBackground;
 
 
         //Not serializing
@@ -3771,6 +3789,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.videoProperties = new VideoProperties();
             this.isMute = false;
             this.isReverse = false;
+            this.removeBackground = false;
         }
 
         public Clip(Clip clip) {
@@ -3790,6 +3809,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.videoProperties = new VideoProperties(clip.videoProperties);
             this.isMute = clip.isMute;
             this.isReverse = clip.isReverse;
+            this.removeBackground = clip.removeBackground;
             this.isLockedForTemplate = clip.isLockedForTemplate;
 
             this.additionalFFmpegCommand = clip.additionalFFmpegCommand;
@@ -4338,11 +4358,34 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         public String getAbsolutePreviewPath(String projectPath) {
             String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, getClipName());
+            if (removeBackground) {
+                String cutoutPath = getCutoutPath(projectPath);
+                if (IOHelper.isFileExist(cutoutPath)) {
+                    path = cutoutPath;
+                }
+            }
             // Fallback if not available yet.
             // TODO: Temporary fix for the soon preview loading. Consider block main thread for preview to have time to load first
             if(!IOHelper.isFileExist(path))
                 path = getAbsolutePath(projectPath);
             return path;
+        }
+
+        public String getCutoutPath(MainAreaScreen.ProjectData properties) {
+            return getCutoutPath(properties.getProjectPath());
+        }
+
+        public String getCutoutPath(String projectPath) {
+            String extension = ".png"; // Default for images
+            if (type == ClipType.VIDEO) {
+                extension = ".mp4"; // Mask video
+            }
+            String baseName = getClipName();
+            int lastDot = baseName.lastIndexOf('.');
+            if (lastDot > 0) {
+                baseName = baseName.substring(0, lastDot);
+            }
+            return IOHelper.CombinePath(projectPath, Constants.DEFAULT_CUTOUT_DIRECTORY, baseName + "_cutout" + extension);
         }
         /**
          * Used for EditingActivity in which didn't need high quality video. Fit for real-time preview.
@@ -5254,6 +5297,9 @@ frameRate = 60;
 
 
                         textureView = new TextureView(context);
+                        if (clip.removeBackground) {
+                            textureView.setOpaque(false);
+                        }
                         RelativeLayout.LayoutParams textureViewLayoutParams =
                                 new RelativeLayout.LayoutParams(clip.width, clip.height);
                         previewViewGroup.addView(textureView, textureViewLayoutParams);
@@ -5362,6 +5408,9 @@ frameRate = 60;
                     case IMAGE:
                     {
                         textureView = new TextureView(context);
+                        if (clip.removeBackground) {
+                            textureView.setOpaque(false);
+                        }
                         RelativeLayout.LayoutParams textureViewLayoutParams =
                                 new RelativeLayout.LayoutParams(clip.width, clip.height);
                         previewViewGroup.addView(textureView, textureViewLayoutParams);
@@ -5957,6 +6006,43 @@ frameRate = 60;
 
 
 
+    private void processBackgroundRemoval(Clip clip) {
+        String cutoutPath = clip.getCutoutPath(properties);
+        if (IOHelper.isFileExist(cutoutPath)) {
+            // Already processed
+            timelineRenderer.updateTime(currentTime, true);
+            return;
+        }
+
+        if (clip.type == ClipType.IMAGE) {
+            String sourcePath = clip.getAbsolutePath(properties);
+            Bitmap source = IOHelper.loadBitmap(sourcePath);
+            if (source == null) return;
+
+            clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.VISIBLE);
+            BackgroundRemover.removeBackground(source, new BackgroundRemover.Callback() {
+                @Override
+                public void onSuccess(Bitmap result) {
+                    runOnUiThread(() -> {
+                        IOHelper.saveBitmap(EditingActivity.this, result, cutoutPath);
+                        clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+                        timelineRenderer.updateTime(currentTime, true);
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+                        LoggingManager.LogToToast(EditingActivity.this, "Failed to remove background: " + e.getMessage());
+                    });
+                }
+            });
+        } else if (clip.type == ClipType.VIDEO) {
+            // Video masking - Part 2 Advanced
+            LoggingManager.LogToToast(this, "Video background removal is being implemented...");
+        }
+    }
 }
 
 

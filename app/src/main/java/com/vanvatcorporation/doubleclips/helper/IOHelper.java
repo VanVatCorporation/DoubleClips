@@ -30,6 +30,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 
 public class IOHelper {
@@ -779,5 +781,17 @@ public class IOHelper {
             LoggingManager.LogToNoteOverlay(context, "The specified directory is invalid or empty.");
         }
         return fileArrayList.toArray(new File[0]);
+    }
+    public static Bitmap loadBitmap(String filePath) {
+        return BitmapFactory.decodeFile(filePath);
+    }
+
+    public static void saveBitmap(Context context, Bitmap bitmap, String filePath) {
+        createEmptyFile(context, filePath);
+        try (FileOutputStream out = new FileOutputStream(filePath)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } catch (IOException e) {
+            LoggingManager.LogExceptionToNoteOverlay(context, e);
+        }
     }
 }

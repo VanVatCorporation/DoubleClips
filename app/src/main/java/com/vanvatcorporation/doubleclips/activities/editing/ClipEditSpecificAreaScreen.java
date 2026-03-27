@@ -32,7 +32,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public TextView durationText, totalDurationText;
     public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField, additionFFmpegCommandField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
-    public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox;
+    public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox, removeBackgroundCheckbox;
+    public android.widget.ProgressBar removeBackgroundProgress;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
@@ -83,6 +84,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         muteAudioCheckbox = findViewById(R.id.muteAudioCheckbox);
         lockMediaForTemplateCheckbox = findViewById(R.id.lockMediaForTemplateCheckbox);
         reverseCheckbox = findViewById(R.id.reverseCheckbox);
+        removeBackgroundCheckbox = findViewById(R.id.removeBackgroundCheckbox);
+        removeBackgroundProgress = findViewById(R.id.removeBackgroundProgress);
 
         opacitySeekbar.setDecimalScale(2);
         speedSeekbar.setDecimalScale(2);
