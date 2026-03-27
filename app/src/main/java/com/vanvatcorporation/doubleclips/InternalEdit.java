@@ -45,19 +45,21 @@ public class InternalEdit {
                         }
                         
                         String inputPath = "";
+                        EditingActivity.Clip firstClip = null;
                         if (renderSettings.timeline != null && renderSettings.timeline.tracks.size() > 0) {
                             if (renderSettings.timeline.tracks.get(0).clips.size() > 0) {
-                                inputPath = renderSettings.timeline.tracks.get(0).clips.get(0).getAbsolutePath(renderSettings.data);
+                                firstClip = renderSettings.timeline.tracks.get(0).clips.get(0);
+                                inputPath = firstClip.getAbsolutePath(renderSettings.data);
                             }
                         }
 
-                        if (!inputPath.isEmpty()) {
+                        if (!inputPath.isEmpty() && firstClip != null) {
                             int width = Integer.parseInt(renderSettings.settings.getRenderVideoWidth(renderSettings.isTemplateCommand));
                             int height = Integer.parseInt(renderSettings.settings.getRenderVideoHeight(renderSettings.isTemplateCommand));
                             int fps = renderSettings.settings.getFrameRate();
                             int bitrate = 5000000; // Hardcoded 5Mbps for POC
                             
-                            RenderEngine.executeSingleClipRender(inputPath, outputPath, width, height, bitrate, fps);
+                            RenderEngine.executeSingleClipRender(firstClip, inputPath, outputPath, width, height, bitrate, fps);
                         } else {
                             // Fake progress logic for now while setting up the core EGL classes if no clip is found
                             long fakeDuration = 3000;
@@ -66,6 +68,7 @@ public class InternalEdit {
                                 Thread.sleep(100);
                                 int progress = (int) (((System.currentTimeMillis() - startTime) / (float) fakeDuration) * 100);
                                 onLogRunnable.runWithParam("Rendering... " + progress + "%\n");
+                                onStatisticsRunnable.runWithParam(progress);
                             }
                         }
 

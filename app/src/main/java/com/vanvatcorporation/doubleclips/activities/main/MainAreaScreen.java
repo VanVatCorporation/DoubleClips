@@ -212,7 +212,8 @@ public class MainAreaScreen extends BaseAreaScreen {
     }
 
     public void addNewProjectWithName(String title) {
-        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
+//        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
+        String projectPath = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), title);
 
         File file = new File(projectPath);
         if(file.mkdirs()) //If directory created operation was success

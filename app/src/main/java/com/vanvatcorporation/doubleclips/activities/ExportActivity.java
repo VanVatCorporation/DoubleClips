@@ -31,6 +31,7 @@ import com.arthenica.ffmpegkit.Log;
 import com.arthenica.ffmpegkit.Statistics;
 import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
+import com.vanvatcorporation.doubleclips.InternalEdit;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -159,6 +160,11 @@ public class ExportActivity extends AppCompatActivityImpl {
         exportButton.setOnClickListener(v -> {
             exportClip(false);
         });
+        exportButton.setOnLongClickListener(v -> {
+            exportClipMediaCodec(false);
+            return true;
+        });
+
         exportAsTemplateButton = findViewById(R.id.exportAsTemplateButton);
         exportAsTemplateButton.setOnClickListener(v -> {
             exportClip(true);
@@ -364,6 +370,82 @@ public class ExportActivity extends AppCompatActivityImpl {
         if (!isLogUpdateRunning)
             runLogUpdate();
     }
+
+
+    private void exportClipMediaCodec(boolean exportAsTemplate) {
+
+        startExportRendering();
+
+        logText.post(() -> logText.setTextIsSelectable(false));
+
+        AdsHandler.loadBothAds(this, this);
+
+        List<File> videoFiles = new ArrayList<>();
+        for (EditingActivity.Clip clip : timeline.getLockedForTemplateClip()) {
+            videoFiles.add(new File(clip.getAbsolutePath(properties)));
+        }
+
+        List<File> previewFiles = Arrays.asList(new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.png")),
+                new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
+
+
+
+        // Detect when the child layout changes size
+        logScroll.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (bottom - top != oldBottom - oldTop) {
+                // Size changed — force ScrollView to re-measure and update
+
+                if (scrollLockCheckbox.isChecked())
+                    logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+            }
+        });
+
+        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, exportAsTemplate, true);
+
+        renderSettings.setClips(timeline.getStreamOfClip());
+
+        InternalEdit.runRender(this, renderSettings, "Exporting Video", "success", "fail",
+                () -> exportClipTo(exportAsTemplate, "", timeline.getAllReplacementClipCount(), videoFiles, previewFiles),
+                this::finishExportRendering
+                , new RunnableImpl() {
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        String log = (String) param;
+                        if (logCheckbox.isChecked()) {
+                            logText.post(() -> {
+                                String logStr = logText.getText() + "\n" + log;
+                                if (logStr.length() > Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS && truncateCheckbox.isChecked())
+                                    logStr = logStr.substring(logStr.length() - Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS);
+                                logText.setText(logStr);
+                                // Already handled above.
+                                if (scrollLockCheckbox.isChecked())
+                                    logScroll.fullScroll(View.FOCUS_DOWN);
+                            });
+                        }
+                    }
+                }, new RunnableImpl() {
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        //MediaInformationSession session = FFprobeKit.getMediaInformation(properties.getProjectPath());
+                        //double duration = Double.parseDouble(session.getMediaInformation().getDuration());
+                        double duration = properties.getProjectDuration();
+
+                        Float statistics = (Float) param;
+                        {
+                            if (statistics > 0) {
+                                int progress = (int) ((statistics * 100));
+                                statusBar.setMax(100);
+                                statusBar.setProgress(progress);
+                            }
+                        }
+                    }
+                });
+
+
+        if (!isLogUpdateRunning)
+            runLogUpdate();
+    }
+
 
     //TODO: Delete the exported clip inside project path. Detect in the beginning the export.mp4 if its exist then do the same with this method to extract it out.
     private void exportClipTo(boolean exportAsTemplate, String ffmpegCommand, int totalClip, List<File> videoFiles, List<File> previewFiles) {
