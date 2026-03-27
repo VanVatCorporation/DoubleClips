@@ -106,6 +106,13 @@
                 android:src="@drawable/baseline_play_circle_24" />
 
             <ImageButton
+                android:id="@+id/snapshotButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_toStartOf="@id/undoButton"
+                android:src="@drawable/baseline_camera_alt_24" />
+
+            <ImageButton
                 android:id="@+id/undoButton"
                 android:layout_width="40dp"
                 android:layout_height="40dp"

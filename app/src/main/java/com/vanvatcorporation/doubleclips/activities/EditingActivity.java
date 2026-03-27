@@ -25,6 +25,7 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -135,7 +136,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private TextView currentTimePosText, durationTimePosText, textCanvasControllerInfo;
     private ImageButton addNewTrackButton;
     private FrameLayout previewViewGroup;
-    private ImageButton playPauseButton, undoButton, redoButton, backButton, settingsButton;
+    private ImageButton playPauseButton, snapshotButton, undoButton, redoButton, backButton, settingsButton;
     private Button exportButton;
     private TimelineRenderer timelineRenderer;
 
@@ -1080,6 +1081,11 @@ public class EditingActivity extends AppCompatActivityImpl {
         playPauseButton.setOnLongClickListener(v -> {
             regeneratingPreviewThumbnail();
             return true;
+        });
+
+        snapshotButton = findViewById(R.id.snapshotButton);
+        snapshotButton.setOnClickListener(v -> {
+            captureSnapshot();
         });
 
 
@@ -2425,6 +2431,61 @@ public class EditingActivity extends AppCompatActivityImpl {
         addClipToTrackUi(track.viewRef, data);
 
         track.addClip(data);
+    }
+
+    private void captureSnapshot() {
+        if (timeline == null) return;
+
+        Clip targetClip = selectedClip;
+        if (targetClip == null || currentTime < targetClip.startTime || currentTime > targetClip.startTime + targetClip.duration) {
+            List<Clip> clipsAtTime = timeline.getClipAtCurrentTime(currentTime);
+            if (!clipsAtTime.isEmpty()) {
+                targetClip = clipsAtTime.get(0);
+            }
+        }
+
+        if (targetClip == null || targetClip.type != ClipType.VIDEO) {
+            LoggingManager.LogToToast(this, "No video clip found at current position");
+            return;
+        }
+
+        float localTime = currentTime - targetClip.startTime + targetClip.startClipTrim;
+        String sourcePath = targetClip.getAbsolutePath(properties);
+
+        if (!IOHelper.isFileExist(sourcePath)) {
+            LoggingManager.LogToToast(this, "Source file not found: " + sourcePath);
+            return;
+        }
+
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(sourcePath);
+            Bitmap bitmap = retriever.getFrameAtTime((long) (localTime * 1000000), MediaMetadataRetriever.OPTION_CLOSEST);
+            if (bitmap != null) {
+                String snapshotName = "snapshot_" + targetClip.getClipName() + "_" + System.currentTimeMillis() + ".png";
+                String destinationPath = IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY, snapshotName);
+
+                IOImageHelper.SaveFileAsPNGImage(this, destinationPath, bitmap);
+
+                // Notify Gallery
+                MediaScannerConnection.scanFile(this, new String[]{destinationPath}, null, (path, uri) -> {
+                    // Log to note overlay if needed
+                });
+
+                LoggingManager.LogToToast(this, "Snapshot saved: " + snapshotName);
+            } else {
+                LoggingManager.LogToToast(this, "Failed to capture snapshot");
+            }
+        } catch (Exception e) {
+            LoggingManager.LogExceptionToNoteOverlay(this, e);
+            LoggingManager.LogToToast(this, "Error capturing snapshot");
+        } finally {
+            try {
+                retriever.release();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
