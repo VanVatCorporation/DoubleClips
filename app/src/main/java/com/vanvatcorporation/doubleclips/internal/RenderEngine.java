@@ -99,8 +99,8 @@ public class RenderEngine {
             long currentImagePtsUs = 0;
             boolean imageEosSignaled = false;
             
-            int muxerTrackCount = hasAudio ? 2 : 1;
-            int addedTracks = 0;
+            boolean videoFormatAdded = false;
+            boolean audioFormatAdded = !hasAudio;
             
             while (!videoEncoderDone || !audioEncoderDone) {
                 
@@ -168,46 +168,42 @@ public class RenderEngine {
                     }
                     
                     // 3. Drain Encoder Output
-                    int encoderStatus = encoder.dequeueOutputBuffer(info, 10000);
-                    if (encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                        // no output available
-                    } else if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                        MediaFormat newFormat = encoder.getOutputFormat();
-                        videoTrackIndex = muxer.addTrack(newFormat);
-                        addedTracks++;
-                        if (addedTracks == muxerTrackCount) {
-                            muxer.start();
-                            muxerStarted = true;
-                        }
-                    } else if (encoderStatus < 0) {
-                        // ignore
-                    } else {
-                        ByteBuffer encodedData = encoder.getOutputBuffer(encoderStatus);
-                        if (encodedData == null) {
-                            throw new RuntimeException("encoderOutputBuffer " + encoderStatus + " was null");
-                        }
-                        
-                        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                            info.size = 0;
-                        }
-                        
-                        if (info.size != 0) {
-                            if (!muxerStarted) {
-                                // wait for audio track to also be ready
-                                encoder.releaseOutputBuffer(encoderStatus, false);
-                                continue;
+                    if (!videoFormatAdded || muxerStarted) {
+                        int encoderStatus = encoder.dequeueOutputBuffer(info, 10000);
+                        if (encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                            // no output available
+                        } else if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                            MediaFormat newFormat = encoder.getOutputFormat();
+                            videoTrackIndex = muxer.addTrack(newFormat);
+                            videoFormatAdded = true;
+                            if (videoFormatAdded && audioFormatAdded) {
+                                muxer.start();
+                                muxerStarted = true;
+                            }
+                        } else if (encoderStatus < 0) {
+                            // ignore
+                        } else {
+                            ByteBuffer encodedData = encoder.getOutputBuffer(encoderStatus);
+                            if (encodedData == null) {
+                                throw new RuntimeException("encoderOutputBuffer " + encoderStatus + " was null");
                             }
                             
-                            encodedData.position(info.offset);
-                            encodedData.limit(info.offset + info.size);
-                            muxer.writeSampleData(videoTrackIndex, encodedData, info);
-                        }
-                        
-                        encoder.releaseOutputBuffer(encoderStatus, false);
-                        
-                        if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                            Log.i(TAG, "Video Encoder EOS reached");
-                            videoEncoderDone = true;
+                            if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                                info.size = 0;
+                            }
+                            
+                            if (info.size != 0) {
+                                encodedData.position(info.offset);
+                                encodedData.limit(info.offset + info.size);
+                                muxer.writeSampleData(videoTrackIndex, encodedData, info);
+                            }
+                            
+                            encoder.releaseOutputBuffer(encoderStatus, false);
+                            
+                            if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                                Log.i(TAG, "Video Encoder EOS reached");
+                                videoEncoderDone = true;
+                            }
                         }
                     }
                 }
@@ -247,29 +243,31 @@ public class RenderEngine {
                     }
                     
                     // Drain Audio Encoder -> Muxer
-                    int encoderStatus = audioEncoder.dequeueOutputBuffer(audioInfo, 10000);
-                    if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                        audioTrackIndex = muxer.addTrack(audioEncoder.getOutputFormat());
-                        addedTracks++;
-                        if (addedTracks == muxerTrackCount) {
-                            muxer.start();
-                            muxerStarted = true;
-                        }
-                    } else if (encoderStatus >= 0) {
-                        ByteBuffer encodedData = audioEncoder.getOutputBuffer(encoderStatus);
-                        if ((audioInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                            audioInfo.size = 0;
-                        }
-                        
-                        if (audioInfo.size != 0 && muxerStarted) {
-                            encodedData.position(audioInfo.offset);
-                            encodedData.limit(audioInfo.offset + audioInfo.size);
-                            muxer.writeSampleData(audioTrackIndex, encodedData, audioInfo);
-                        }
-                        
-                        audioEncoder.releaseOutputBuffer(encoderStatus, false);
-                        if ((audioInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
-                            audioEncoderDone = true;
+                    if (!audioFormatAdded || muxerStarted) {
+                        int encoderStatus = audioEncoder.dequeueOutputBuffer(audioInfo, 10000);
+                        if (encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                            audioTrackIndex = muxer.addTrack(audioEncoder.getOutputFormat());
+                            audioFormatAdded = true;
+                            if (videoFormatAdded && audioFormatAdded) {
+                                muxer.start();
+                                muxerStarted = true;
+                            }
+                        } else if (encoderStatus >= 0) {
+                            ByteBuffer encodedData = audioEncoder.getOutputBuffer(encoderStatus);
+                            if ((audioInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                                audioInfo.size = 0;
+                            }
+                            
+                            if (audioInfo.size != 0) {
+                                encodedData.position(audioInfo.offset);
+                                encodedData.limit(audioInfo.offset + audioInfo.size);
+                                muxer.writeSampleData(audioTrackIndex, encodedData, audioInfo);
+                            }
+                            
+                            audioEncoder.releaseOutputBuffer(encoderStatus, false);
+                            if ((audioInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                                audioEncoderDone = true;
+                            }
                         }
                     }
                 }

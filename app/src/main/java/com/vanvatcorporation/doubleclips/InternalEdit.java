@@ -37,7 +37,7 @@ public class InternalEdit {
                         // 1. Setup Render Engine parameters based on renderSettings
                         String outputPath = IOHelper.CombinePath(
                             renderSettings.data.getProjectPath(), 
-                            (renderSettings.isFinal ? "" : (renderSettings.renderingIndex + "_")) + Constants.DEFAULT_EXPORT_CLIP_FILENAME
+                            Constants.DEFAULT_EXPORT_CLIP_FILENAME
                         );
 
                         if (renderSettings.isTemplateCommand) {
