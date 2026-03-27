@@ -4144,7 +4144,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             styleBadgeIcon.accept(customCommandViewRef);
             customCommandViewRef.setImageResource(R.drawable.baseline_code_24);
             clipPropertiesLinearLayoutGroup.addView(customCommandViewRef);
-            customCommandViewRef.setVisibility(!additionalFFmpegCommand.isEmpty() ? View.VISIBLE : View.GONE);
+            customCommandViewRef.setVisibility((additionalFFmpegCommand == null || !additionalFFmpegCommand.isEmpty()) ? View.VISIBLE : View.GONE);
 
             durationText = new TextView(activity);
             durationText.setBackgroundResource(R.drawable.bg_drag_handle); //bg_search_bar
@@ -4401,7 +4401,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         public void setAdditionalFFmpegCommand(String additionalFFmpegCommand) {
             this.additionalFFmpegCommand = additionalFFmpegCommand;
-            muteViewRef.setVisibility(!additionalFFmpegCommand.isEmpty() ? View.VISIBLE : View.GONE);
+            customCommandViewRef.setVisibility((additionalFFmpegCommand == null || !additionalFFmpegCommand.isEmpty()) ? View.VISIBLE : View.GONE);
         }
 
         public boolean isMute() {
