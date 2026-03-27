@@ -235,16 +235,19 @@ public class FFmpegEdit {
                             .append(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)).append("x").append(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand))
                             .append(":rate=").append(templateSettings.settings.getFrameRate()).append(",format=yuva420p\"").append(" ");
 
-                    // Since image is a still image, with only one frame. We need to specify it and manipulate it
-                    // some how to behave like a video, that way we can use that as a normal video playback
-                    // and working with many more effect like transition
                     String frameFilter =
                             clip.type == EditingActivity.ClipType.IMAGE ?
                                     "-loop 1 -t " + clip.duration + " -framerate " + templateSettings.settings.getFrameRate() + " " :
                                     "";
 
-                    // Completely disable frameFilter to be able to choose between video and image flexibly
                     cmd.append(templateSettings.isTemplateCommand ? "" : frameFilter).append("-i \"").append(inputPath).append("\" ");
+
+                    if (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) {
+                        String maskPath = clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4";
+                        if (IOHelper.isFileExist(maskPath)) {
+                            cmd.append("-i \"").append(maskPath).append("\" ");
+                        }
+                    }
                     break;
                 case AUDIO:
                     cmd.append("-i \"").append(inputPath).append("\" ");
@@ -338,17 +341,24 @@ public class FFmpegEdit {
                     // Transition extension: Add half of the duration to the transparent layer, if transition isn't exist, then add 0
                     filterComplex.append("[").append(inputLayerIndex).append(":v]")
                             .append("trim=duration=").append(clip.duration + fillingTransitionDuration).append(",")
-//                            .append("setpts='(PTS-STARTPTS)/").append(speedCmd).append("+").append(clip.startTime).append("/TB'").append(transparentLabel).append(";\n");
                             .append("setpts=PTS-STARTPTS+").append(clip.startTime).append("/TB").append(transparentLabel).append(";\n");
                     inputLayerIndex++;
 
+                    int sourceInputIndex = inputLayerIndex;
+                    inputLayerIndex++;
+
+                    boolean hasVideoMask = false;
+                    int maskInputIndex = -1;
+                    if (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) {
+                        String maskPath = clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4";
+                        if (IOHelper.isFileExist(maskPath)) {
+                            hasVideoMask = true;
+                            maskInputIndex = inputLayerIndex;
+                            inputLayerIndex++;
+                        }
+                    }
+
                     // Video can use start and end trim, but image cant, so we need to specify the trim for each type.
-                    // Transition extension: This time we don't use raw fillingTransitionDuration like the transparent, but we use the
-                    // value we calculate earlier using endClipTrim. Because endClipTrim has already applied to duration, so now we
-                    // can just add to it.
-                    // Image is just like transparent layer, so we add the raw fillingTransitionDuration
-                    // TODO: Add long click to the template clip replacement, then we can modify the trim of the replacement.
-                    //  long clip menu appear from below,
                     String trimFilter =
                             templateSettings.isTrimAllowed ?
                                     Constants.DEFAULT_TEMPLATE_TRIM_MARK(clipIndex) :
@@ -357,9 +367,13 @@ public class FFmpegEdit {
                                             "trim=duration=" + (clip.duration + fillingTransitionDuration);
 
                     // First we declared the stream of video
-                    filterComplex.append("[").append(inputLayerIndex).append(":v]")
-                            // Always apply the trim first and upmost.
-                            .append(trimFilter).append(",");
+                    if (hasVideoMask) {
+                        filterComplex.append("[").append(sourceInputIndex).append(":v]").append(trimFilter).append(",setpts=PTS-STARTPTS[v-raw-").append(clipIndex).append("];\n")
+                                     .append("[").append(maskInputIndex).append(":v]").append(trimFilter).append(",setpts=PTS-STARTPTS[v-mask-").append(clipIndex).append("];\n")
+                                     .append("[v-raw-").append(clipIndex).append("][v-mask-").append(clipIndex).append("]alphamerge,");
+                    } else {
+                        filterComplex.append("[").append(sourceInputIndex).append(":v]").append(trimFilter).append(",");
+                    }
 
 
                     // Let simulating 4 keyframe type in opacity for example:
@@ -564,7 +578,16 @@ public class FFmpegEdit {
 
                 // Transition extension: Same for clip
                 int delayMs = (int) (clip.startTime * 1000);
-                filterComplex.append("[").append(inputLayerIndex).append(":a]")
+                // Note: and the video input index might have shifted if there was a mask, 
+                // but audio is always in the original video input (sourceInputIndex).
+                // Wait, I need to check if sourceInputIndex is available here. 
+                // It was defined inside the switch block. I should move it out or use the logic.
+                
+                int effectiveSourceInputIndex = (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) ? 
+                    (inputLayerIndex - (IOHelper.isFileExist(clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4") ? 2 : 1)) :
+                    (inputLayerIndex - 1);
+
+                filterComplex.append("[").append(effectiveSourceInputIndex).append(":a]")
                         .append("atrim=start=").append(clip.startClipTrim).append(":end=").append(clip.startClipTrim + clip.duration + extendMediaDuration).append(",")
                         .append("adelay=").append(delayMs).append("|").append(delayMs).append(",")
                         // This handle the extension in silent to match the video
@@ -580,6 +603,9 @@ public class FFmpegEdit {
             switch (clip.type) {
                 case VIDEO:
                 case IMAGE:
+                    // inputLayerIndex is already incremented accordingly inside the case
+                    inputMediaIndex++;
+                    break;
                 case AUDIO:
                 case TEXT:
                     inputLayerIndex++;

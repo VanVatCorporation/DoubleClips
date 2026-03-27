@@ -101,6 +101,8 @@ import com.vanvatcorporation.doubleclips.impl.TrackFrameLayout;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 import com.vanvatcorporation.doubleclips.utils.AudioUtils;
+import com.vanvatcorporation.doubleclips.utils.BackgroundRemover;
+import com.vanvatcorporation.doubleclips.utils.VideoMaskGenerator;
 import com.vanvatcorporation.doubleclips.utils.TimelineUtils;
 
 import java.io.File;
@@ -6039,8 +6041,32 @@ frameRate = 60;
                 }
             });
         } else if (clip.type == ClipType.VIDEO) {
-            // Video masking - Part 2 Advanced
-            LoggingManager.LogToToast(this, "Video background removal is being implemented...");
+            clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.VISIBLE);
+            VideoMaskGenerator.generateMask(this, clip, properties, new VideoMaskGenerator.Callback() {
+                @Override
+                public void onProgress(int current, int total) {
+                    runOnUiThread(() -> {
+                        clipEditSpecificAreaScreen.removeBackgroundProgress.setProgress((int) ((current / (float) total) * 100));
+                    });
+                }
+
+                @Override
+                public void onSuccess(String maskPath) {
+                    runOnUiThread(() -> {
+                        clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+                        LoggingManager.LogToToast(EditingActivity.this, "Video background mask generated!");
+                        timelineRenderer.updateTime(currentTime, true);
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+                        LoggingManager.LogToToast(EditingActivity.this, "Failed to generate video mask: " + e.getMessage());
+                    });
+                }
+            });
         }
     }
 }
