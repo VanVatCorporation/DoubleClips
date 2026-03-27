@@ -1,6 +1,6 @@
 <div style="display: flex; align-items: center; justify-content: space-between; font-family: sans-serif; padding: 10px;">
   <div style="flex: 1; padding-right: 20px;">
-    <h1 style="margin: 0; font-size: 2em; color: #666;">DoubleClips</h1>
+    <h1 style="margin: 0; font-size: 2em; color: #666;">OpenEditz (prev: DoubleClips)</h1>
     <p style="margin: 5px 0 0; font-size: 1.1em; color: #555;">
       🎥 A free, open-source, cross-platform video editor for creators.
     </p>
@@ -15,17 +15,12 @@
 </div>
 
 
-DoubleClips is an open-source, ready-to-use video editor with functionality similar to CapCut. It offers Community Templates, Cross-platform rendering, Multitrack editing, and a variety of effects!
+OpenEditz (prev: DoubleClips) is an open-source, ready-to-use video editor with functionality similar to CapCut. It offers Community Templates, Cross-platform rendering, Multitrack editing, and a variety of effects!
 
 
 
 [<img src="https://img.buymeacoffee.com/button-api/?text=Feed%20me&emoji=%F0%9F%8D%9A&slug=viet2007ht&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt='Feed me' height="60">](https://www.buymeacoffee.com/viet2007ht)
 [<img height='50' style='border:0px;height:50px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' />](https://ko-fi.com/W7W11RA9FH)
-
-## 🧧 Happy Lunar New Year
-
-Project development will be on hold until the 10th day of the Lunar New Year (February 26) in celebration of the holiday.  
-Thank you for your understanding, and Happy New Year! 🍻
 
 ## ⚙️ Install
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/VanVatCorporation/DoubleClips/releases/latest)
