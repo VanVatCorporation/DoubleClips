@@ -468,8 +468,30 @@ public class FFmpegEdit {
 
                     filterComplex
                             // Transition extension: If there has freeze frames, then this line will handle it.
-                            .append("tpad=stop_mode=clone:stop_duration=").append(freezeFrameDuration)
-                            .append(clipLabel).append(";\n");
+                            .append("tpad=stop_mode=clone:stop_duration=").append(freezeFrameDuration);
+
+                    // 🎬 Handle "In" Animations
+                    if (clip.inAnimation != null && !"none".equals(clip.inAnimation.type)) {
+                        if ("unfold".equals(clip.inAnimation.type)) {
+                            float dur = clip.inAnimation.duration;
+                            // perspective: rotate around Y-axis from -90 to 0
+                            // x0,y0 (top-left), x1,y1 (top-right), x2,y2 (bottom-left), x3,y3 (bottom-right)
+                            // When t=0, x1=0, y1=H/4, x3=0, y3=3H/4 (folded at left edge)
+                            // When t=dur, x1=W, y1=0, x3=W, y3=H (unfolded)
+                            filterComplex.append(",perspective=eval=frame:")
+                                    .append("x0=0:y0=0:")
+                                    .append("x1='if(lte(t,").append(dur).append("),W*t/").append(dur).append(",W)':")
+                                    .append("y1='if(lte(t,").append(dur).append("),H*(1-t/").append(dur).append(")/4,0)':")
+                                    .append("x2=0:y2=H:")
+                                    .append("x3='if(lte(t,").append(dur).append("),W*t/").append(dur).append(",W)':")
+                                    .append("y3='if(lte(t,").append(dur).append("),H-H*(1-t/").append(dur).append(")/4,H)'");
+                            
+                            // Fade from white
+                            filterComplex.append(",fade=in:st=0:d=").append(dur).append(":color=white");
+                        }
+                    }
+
+                    filterComplex.append(clipLabel).append(";\n");
                     // TODO: For robust speed control
                     //'
                     //    if(between(T,0,1.5),

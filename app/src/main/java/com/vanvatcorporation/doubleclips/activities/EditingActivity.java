@@ -1883,6 +1883,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.setReverse(clipEditSpecificAreaScreen.reverseCheckbox.isChecked());
                 selectedClip.removeBackground = clipEditSpecificAreaScreen.removeBackgroundCheckbox.isChecked();
 
+                if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
+                selectedClip.inAnimation.type = (String) clipEditSpecificAreaScreen.inAnimationTypeSpinner.getSelectedItem();
+                selectedClip.inAnimation.duration = ParserHelper.TryParse(clipEditSpecificAreaScreen.inAnimationDurationField.getText().toString(), selectedClip.inAnimation.duration);
+
                 updateClipLayouts();
                 updateCurrentClipEnd();
                 // TODO: Find a way to specifically build only the edited clip. Not entire timeline
@@ -1918,6 +1922,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.reverseCheckbox.setChecked(selectedClip.isReverse());
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setChecked(selectedClip.removeBackground);
             clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
+
+            List<String> animTypes = Arrays.asList("none", "unfold");
+            if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
+            clipEditSpecificAreaScreen.inAnimationTypeSpinner.setSelection(animTypes.indexOf(selectedClip.inAnimation.type));
+            clipEditSpecificAreaScreen.inAnimationDurationField.setText(String.valueOf(selectedClip.inAnimation.duration));
 
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (selectedClip != null) {
@@ -3746,6 +3755,27 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
     }
+        public static class AnimationClip implements Serializable {
+            @Expose
+            public String type;
+            @Expose
+            public float duration;
+
+            public AnimationClip(String type, float duration) {
+                this.type = type;
+                this.duration = duration;
+            }
+
+            public AnimationClip(AnimationClip other) {
+                if (other != null) {
+                    this.type = other.type;
+                    this.duration = other.duration;
+                } else {
+                    this.type = "none";
+                    this.duration = 0.5f;
+                }
+            }
+        }
 
     public static class Clip implements Serializable {
         public static final int ELEVATION_HANDLERS = 2;
@@ -3824,6 +3854,13 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public boolean removeBackground;
 
+        @Expose
+        public AnimationClip inAnimation = null;
+        @Expose
+        public AnimationClip outAnimation = null;
+        @Expose
+        public AnimationClip comboAnimation = null;
+
 
         //Not serializing
         public transient View leftHandle, rightHandle;
@@ -3853,6 +3890,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.isMute = false;
             this.isReverse = false;
             this.removeBackground = false;
+
+            this.inAnimation = new AnimationClip("none", 0.5f);
+            this.outAnimation = new AnimationClip("none", 0.5f);
+            this.comboAnimation = new AnimationClip("none", 0.5f);
         }
 
         public Clip(Clip clip) {
@@ -3879,6 +3920,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.endTransition = clip.endTransition;
 
             this.keyframes = new AnimatedProperty(clip.keyframes);
+
+            this.inAnimation = new AnimationClip(clip.inAnimation);
+            this.outAnimation = new AnimationClip(clip.outAnimation);
+            this.comboAnimation = new AnimationClip(clip.comboAnimation);
 
 
             if(clip.type == ClipType.TEXT)
@@ -3911,6 +3956,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(keyframes == null) keyframes = new AnimatedProperty();
             if(keyframes.keyframes == null) keyframes.keyframes = new ArrayList<>();
             if(additionalFFmpegCommand == null) additionalFFmpegCommand = "";
+
+            if(inAnimation == null) inAnimation = new AnimationClip("none", 0.5f);
+            if(outAnimation == null) outAnimation = new AnimationClip("none", 0.5f);
+            if(comboAnimation == null) comboAnimation = new AnimationClip("none", 0.5f);
         }
         public void resetHandlesPosition()
         {

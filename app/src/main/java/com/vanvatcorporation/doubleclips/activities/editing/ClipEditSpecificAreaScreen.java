@@ -30,14 +30,14 @@ import com.warkiz.widget.IndicatorSeekBar;
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
     public TextView durationText, totalDurationText;
-    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField, additionFFmpegCommandField;
+    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField, additionFFmpegCommandField, inAnimationDurationField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
     public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox, removeBackgroundCheckbox;
     public android.widget.ProgressBar removeBackgroundProgress;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
-    public Spinner easingSpinner;
+    public Spinner easingSpinner, inAnimationTypeSpinner;
     public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
 
 
@@ -87,6 +87,12 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         removeBackgroundCheckbox = findViewById(R.id.removeBackgroundCheckbox);
         removeBackgroundProgress = findViewById(R.id.removeBackgroundProgress);
 
+        inAnimationTypeSpinner = findViewById(R.id.inAnimationTypeContent);
+        inAnimationDurationField = findViewById(R.id.inAnimationDurationContent);
+
+        ArrayAdapter<String> animationTypeAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, new String[]{"none", "unfold"});
+        inAnimationTypeSpinner.setAdapter(animationTypeAdapter);
+
         opacitySeekbar.setDecimalScale(2);
         speedSeekbar.setDecimalScale(2);
         saturationSeekbar.setDecimalScale(2);
@@ -125,6 +131,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             scaleYField.clearFocus();
             hueField.clearFocus();
             additionFFmpegCommandField.clearFocus();
+            inAnimationDurationField.clearFocus();
         });
     }
 
