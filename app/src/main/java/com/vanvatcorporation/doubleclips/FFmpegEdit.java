@@ -491,15 +491,37 @@ public class FFmpegEdit {
                             // y2: H/2 + H/2*p -> H
                             // x3: W/2 + W/2*p -> W
                             // y3: H/2 + H/2*p -> H
+//
+//                            String x0Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
+//                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+//                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+//                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+//                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
+//                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+//                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+//                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
 
-                            String x0Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
-                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
-                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
-                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+
+//                            String x0Expr = getIfExpr(cond, "W/8-W/8*(1-" + p + ")", "0");
+//                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+//                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+//                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+//                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
+//                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+//                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+//                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+
+
+                            String x0Expr = getIfExpr(cond, "W/8 - W/8*" + p, "0");
+                            String y0Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+                            String x1Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
+                            String y1Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+                            String x2Expr = getIfExpr(cond, "(W/2)*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
+                            String y2Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
+                            String x3Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
+                            String y3Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
+
+
 
                             filterComplex.append(",perspective=eval=frame:")
                                     .append("x0='").append(x0Expr).append("':")
@@ -512,7 +534,7 @@ public class FFmpegEdit {
                                     .append("y3='").append(y3Expr).append("'");
                             
                             // Fade from white
-                            filterComplex.append(",fade=in:st=0:d=").append(dur).append(":color=white");
+                            filterComplex.append(",fade=in:st=").append(clip.startTime).append(":d=").append(dur).append(":color=white");
                         }
                     }
 
