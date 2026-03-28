@@ -474,17 +474,42 @@ public class FFmpegEdit {
                     if (clip.inAnimation != null && !"none".equals(clip.inAnimation.type)) {
                         if ("unfold".equals(clip.inAnimation.type)) {
                             float dur = clip.inAnimation.duration;
-                            // perspective: rotate around Y-axis from -90 to 0
-                            // x0,y0 (top-left), x1,y1 (top-right), x2,y2 (bottom-left), x3,y3 (bottom-right)
-                            // When t=0, x1=0, y1=H/4, x3=0, y3=3H/4 (folded at left edge)
-                            // When t=dur, x1=W, y1=0, x3=W, y3=H (unfolded)
+                            float fps = templateSettings.settings.getFrameRate();
+                            float durFrames = dur * fps;
+                            String durFramesStr = String.valueOf(durFrames);
+                            String cond = getConditionTwo("in", "<=", durFramesStr);
+                            
+                            // progress p = in / durFrames
+                            String p = "(in/" + durFramesStr + ")";
+                            
+                            // Center expansion logic:
+                            // x0: W/2*(1-p) -> 0
+                            // y0: H/2*(1-p) -> 0
+                            // x1: W/2 + W/2*p -> W
+                            // y1: H/2*(1-p) -> 0
+                            // x2: W/2*(1-p) -> 0
+                            // y2: H/2 + H/2*p -> H
+                            // x3: W/2 + W/2*p -> W
+                            // y3: H/2 + H/2*p -> H
+
+                            String x0Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
+                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
+                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
+                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
+                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
+
                             filterComplex.append(",perspective=eval=frame:")
-                                    .append("x0=0:y0=0:")
-                                    .append("x1='if(lte(t,").append(dur).append("),W*t/").append(dur).append(",W)':")
-                                    .append("y1='if(lte(t,").append(dur).append("),H*(1-t/").append(dur).append(")/4,0)':")
-                                    .append("x2=0:y2=H:")
-                                    .append("x3='if(lte(t,").append(dur).append("),W*t/").append(dur).append(",W)':")
-                                    .append("y3='if(lte(t,").append(dur).append("),H-H*(1-t/").append(dur).append(")/4,H)'");
+                                    .append("x0='").append(x0Expr).append("':")
+                                    .append("y0='").append(y0Expr).append("':")
+                                    .append("x1='").append(x1Expr).append("':")
+                                    .append("y1='").append(y1Expr).append("':")
+                                    .append("x2='").append(x2Expr).append("':")
+                                    .append("y2='").append(y2Expr).append("':")
+                                    .append("x3='").append(x3Expr).append("':")
+                                    .append("y3='").append(y3Expr).append("'");
                             
                             // Fade from white
                             filterComplex.append(",fade=in:st=0:d=").append(dur).append(":color=white");

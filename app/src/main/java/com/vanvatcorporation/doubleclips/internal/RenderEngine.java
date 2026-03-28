@@ -138,9 +138,7 @@ public class RenderEngine {
 
                                     float[] mvp = new float[16];
                                     android.opengl.Matrix.setIdentityM(mvp, 0);
-                                    android.opengl.Matrix.translateM(mvp, 0, -1, 0, 0);
-                                    android.opengl.Matrix.rotateM(mvp, 0, -90 * (1 - progress), 0, 1, 0);
-                                    android.opengl.Matrix.translateM(mvp, 0, 1, 0, 0);
+                                    android.opengl.Matrix.scaleM(mvp, 0, progress, progress, 1.0f);
 
                                     // Redraw with animation
                                     GLES20.glClearColor(0, 0, 0, 1);
@@ -207,10 +205,7 @@ public class RenderEngine {
 
                                             float[] mvp = new float[16];
                                             android.opengl.Matrix.setIdentityM(mvp, 0);
-                                            // Rotate around left edge
-                                            android.opengl.Matrix.translateM(mvp, 0, -1, 0, 0);
-                                            android.opengl.Matrix.rotateM(mvp, 0, -90 * (1 - progress), 0, 1, 0);
-                                            android.opengl.Matrix.translateM(mvp, 0, 1, 0, 0);
+                                            android.opengl.Matrix.scaleM(mvp, 0, progress, progress, 1.0f);
 
                                             // Redraw with animation
                                             GLES20.glClearColor(0, 0, 0, 1);
