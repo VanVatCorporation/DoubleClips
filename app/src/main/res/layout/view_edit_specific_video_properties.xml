@@ -204,6 +204,47 @@
                 <View android:layout_width="match_parent" android:layout_height="0.5dp"
                     android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
 
+                <!-- CRF row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_equalizer_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/crfText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Constant rate factor"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <EditText
+                        android:id="@+id/crfField"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:background="@null"
+                        android:gravity="end"
+                        android:hint="30"
+                        android:inputType="number"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
                 <!-- Bitrate row -->
                 <RelativeLayout
                     android:layout_width="match_parent"
@@ -223,7 +264,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Bitrate (Constant rate factor)"
+                        android:text="Bitrate (Mbps)"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -240,7 +281,7 @@
                             android:layout_height="wrap_content"
                             android:background="@null"
                             android:gravity="end"
-                            android:hint="30"
+                            android:hint="15"
                             android:inputType="number"
                             android:textColor="?android:attr/textColorSecondary"
                             android:textSize="15sp" />

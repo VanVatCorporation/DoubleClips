@@ -2045,7 +2045,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             settings.videoWidth = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionXField.getText().toString(), settings.videoWidth);
             settings.videoHeight = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), settings.videoHeight);
             settings.frameRate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.frameRateField.getText().toString(), settings.frameRate);
-            settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.crf);
+            settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.crfField.getText().toString(), settings.crf);
             settings.bitrate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.bitrate);
             settings.clipCap = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.clipCapField.getText().toString(), settings.clipCap);
             settings.preset = videoPropertiesEditSpecificAreaScreen.presetSpinner.getSelectedItem().toString();
@@ -2081,10 +2081,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             videoPropertiesEditSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
             videoPropertiesEditSpecificAreaScreen.resolutionYField.setText(String.valueOf(settings.getVideoHeight()));
             videoPropertiesEditSpecificAreaScreen.frameRateField.setText(String.valueOf(settings.getFrameRate()));
-            videoPropertiesEditSpecificAreaScreen.bitrateField.setText(
-                    settings.isUseHardwareAccel() ?
-                            String.valueOf(settings.getBitrate()) :
-                            String.valueOf(settings.getCRF()));
+            videoPropertiesEditSpecificAreaScreen.crfField.setText(String.valueOf(settings.getCRF()));
+            videoPropertiesEditSpecificAreaScreen.bitrateField.setText(String.valueOf(settings.getBitrate()));
             videoPropertiesEditSpecificAreaScreen.clipCapField.setText(String.valueOf(settings.getClipCap()));
             videoPropertiesEditSpecificAreaScreen.presetSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.presetAdapter.getPosition(settings.getPreset()));
             videoPropertiesEditSpecificAreaScreen.tuneSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.tuneAdapter.getPosition(settings.getTune()));

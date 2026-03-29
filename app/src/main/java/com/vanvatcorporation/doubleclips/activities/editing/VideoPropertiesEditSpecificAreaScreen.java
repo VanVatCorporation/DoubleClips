@@ -16,7 +16,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
     public ArrayAdapter<String> presetAdapter, tuneAdapter;
 
     public Spinner presetSpinner, tuneSpinner;
-    public EditText resolutionXField, resolutionYField, frameRateField, bitrateField, clipCapField;
+    public EditText resolutionXField, resolutionYField, frameRateField, crfField, bitrateField, clipCapField;
     public SwitchMaterial stretchMediaToFullCheckbox; // Media
     public SwitchMaterial hardwareAccelCheckbox; // Hardware acceleration toggle
     public EditText previewFpsField, previewSpeedField;
@@ -49,6 +49,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
         resolutionXField = findViewById(R.id.resolutionXField);
         resolutionYField = findViewById(R.id.resolutionYField);
         frameRateField = findViewById(R.id.exportFrameRate);
+        crfField = findViewById(R.id.crfField);
         bitrateField = findViewById(R.id.bitrateField);
         clipCapField = findViewById(R.id.exportClipCap);
 
@@ -85,6 +86,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
             resolutionXField.clearFocus();
             resolutionYField.clearFocus();
             frameRateField.clearFocus();
+            crfField.clearFocus();
             bitrateField.clearFocus();
             clipCapField.clearFocus();
             presetSpinner.clearFocus();
@@ -102,11 +104,13 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
      * Grays out SW-only controls when HW is on, and HW-only controls when SW is on.
      */
     public void updateHardwareAccelState(boolean hwEnabled) {
-        // HW mode: bitrate field active, preset/tune grayed out
+        // HW mode: bitrate field active, CRF + preset/tune grayed out
         bitrateField.setEnabled(hwEnabled);
         bitrateField.setAlpha(hwEnabled ? 1.0f : 0.38f);
 
-        // SW mode: preset/tune active, bitrate grayed out
+        // SW mode: CRF + preset/tune active, bitrate grayed out
+        crfField.setEnabled(!hwEnabled);
+        crfField.setAlpha(hwEnabled ? 0.38f : 1.0f);
         presetSpinner.setEnabled(!hwEnabled);
         presetSpinner.setAlpha(hwEnabled ? 0.38f : 1.0f);
         tuneSpinner.setEnabled(!hwEnabled);

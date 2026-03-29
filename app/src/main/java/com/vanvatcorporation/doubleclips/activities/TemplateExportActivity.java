@@ -225,7 +225,7 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
 
         data = (TemplateAreaScreen.TemplateData) createrBundle.getSerializable("TemplateData");
         // Make default video settings at this point
-        settings = new EditingActivity.VideoSettings(1366, 768, 30, 30, 30, EditingActivity.VideoSettings.FfmpegPreset.ULTRAFAST, EditingActivity.VideoSettings.FfmpegTune.ZEROLATENCY);
+        settings = new EditingActivity.VideoSettings(1366, 768, 30, 30, 30, "ultrafast", "zerolatency", false);
 
         clipReplacementRecyclerView = findViewById(R.id.clipReplacementRecyclerView);
 
