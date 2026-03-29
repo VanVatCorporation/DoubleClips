@@ -1061,6 +1061,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         outerPreviewViewGroup.post(() -> {
             previewAvailableWidth = outerPreviewViewGroup.getWidth();
             previewAvailableHeight = outerPreviewViewGroup.getHeight();
+            
+            float ratioX = (float) previewAvailableWidth / settings.videoWidth;
+            float ratioY = (float) previewAvailableHeight / settings.videoHeight;
+            float rScale = Math.min(ratioX, ratioY);
+            previewViewGroup.setScaleX(rScale);
+            previewViewGroup.setScaleY(rScale);
         });
 
         pausedCanvasAlertPanel = findViewById(R.id.pausedCanvasAlertPanel);
@@ -1335,6 +1341,14 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(selectedTrack != null)
                 pickingContent();
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+        });
+
+        toolbarTrack.findViewById(R.id.addMediaButton).setOnLongClickListener(v -> {
+            if(selectedTrack != null) {
+                addClipToTrack(selectedTrack, new Clip("3DScene", currentTime, 3f, selectedTrack.timelineIndex, ClipType.SCENE_3D, false, 1366, 768));
+            }
+            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            return true;
         });
         toolbarTrack.findViewById(R.id.deleteTrackButton).setOnClickListener(v -> {
             if(selectedTrack != null) {
@@ -2045,6 +2059,17 @@ public class EditingActivity extends AppCompatActivityImpl {
             previewViewGroupParams.width = settings.videoWidth;
             previewViewGroupParams.height = settings.videoHeight;
             previewViewGroup.setLayoutParams(previewViewGroupParams);
+
+            outerPreviewViewGroup.post(() -> {
+                previewAvailableWidth = outerPreviewViewGroup.getWidth();
+                previewAvailableHeight = outerPreviewViewGroup.getHeight();
+                
+                float ratioX = (float) previewAvailableWidth / settings.videoWidth;
+                float ratioY = (float) previewAvailableHeight / settings.videoHeight;
+                float rScale = Math.min(ratioX, ratioY);
+                previewViewGroup.setScaleX(rScale);
+                previewViewGroup.setScaleY(rScale);
+            });
 
 
             // Update ruler with new fps
@@ -3424,20 +3449,20 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     public static int previewToRenderConversionX(float previewX, float renderResolutionX)
     {
-        return (int) ((previewX / Math.min(previewAvailableWidth, renderResolutionX)) * renderResolutionX);
+        return (int) previewX;
     }
     public static int previewToRenderConversionY(float previewY, float renderResolutionY)
     {
-        return (int) ((previewY / Math.min(previewAvailableHeight, renderResolutionY)) * renderResolutionY);
+        return (int) previewY;
     }
 
     public static int renderToPreviewConversionX(float renderX, float renderResolutionX)
     {
-        return (int) ((renderX * Math.min(previewAvailableWidth, renderResolutionX)) / renderResolutionX);
+        return (int) renderX;
     }
     public static int renderToPreviewConversionY(float renderY, float renderResolutionY)
     {
-        return (int) ((renderY * Math.min(previewAvailableHeight, renderResolutionY)) / renderResolutionY);
+        return (int) renderY;
     }
 
     // TODO: Using the same ratio system like below because multiplication and division is in the same order, no plus and subtract
@@ -3446,25 +3471,25 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     public static float previewToRenderConversionScalingX(float clipScaleX, float renderResolutionX)
     {
-        return clipScaleX / getRenderRatio(previewAvailableWidth, renderResolutionX);
+        return clipScaleX;
     }
     public static float previewToRenderConversionScalingY(float clipScaleY, float renderResolutionY)
     {
-        return clipScaleY / getRenderRatio(previewAvailableHeight, renderResolutionY);
+        return clipScaleY;
     }
 
     public static float renderToPreviewConversionScalingX(float clipScaleX, float renderResolutionX)
     {
-        return clipScaleX * getRenderRatio(previewAvailableWidth, renderResolutionX);
+        return clipScaleX;
     }
     public static float renderToPreviewConversionScalingY(float clipScaleY, float renderResolutionY)
     {
-        return clipScaleY * getRenderRatio(previewAvailableHeight, renderResolutionY);
+        return clipScaleY;
     }
 
     public static float getRenderRatio(float previewAvailable, float renderResolution)
     {
-        return Math.min(previewAvailable, renderResolution) / renderResolution;
+        return 1f;
     }
 
     // TODO: For the scaling. When passing the previewAvailableWidth/Height. We get
@@ -5447,9 +5472,7 @@ frameRate = 60;
 
 
                         textureView = new TextureView(context);
-                        if (clip.removeBackground) {
-                            textureView.setOpaque(false);
-                        }
+                        textureView.setOpaque(false);
                         RelativeLayout.LayoutParams textureViewLayoutParams =
                                 new RelativeLayout.LayoutParams(clip.width, clip.height);
                         previewViewGroup.addView(textureView, textureViewLayoutParams);
@@ -5558,9 +5581,7 @@ frameRate = 60;
                     case IMAGE:
                     {
                         textureView = new TextureView(context);
-                        if (clip.removeBackground) {
-                            textureView.setOpaque(false);
-                        }
+                        textureView.setOpaque(false);
                         RelativeLayout.LayoutParams textureViewLayoutParams =
                                 new RelativeLayout.LayoutParams(clip.width, clip.height);
                         previewViewGroup.addView(textureView, textureViewLayoutParams);
