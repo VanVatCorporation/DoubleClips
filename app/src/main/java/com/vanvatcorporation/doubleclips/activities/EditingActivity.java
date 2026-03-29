@@ -5665,6 +5665,35 @@ frameRate = 60;
                         applyPostTransformation();
                         break;
                     }
+                    case AUDIO:
+                    {
+
+                        audioExtractor = new MediaExtractor();
+                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+
+                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
+                        audioExtractor.selectTrack(audioTrackIndex);
+
+                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+
+                        int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+                        int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
+                                AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                        int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
+
+                        audioTrack = new AudioTrack(
+                                AudioManager.STREAM_MUSIC,
+                                sampleRate,
+                                channelConfig,
+                                audioFormatPCM,
+                                minBufferSize,
+                                AudioTrack.MODE_STREAM
+                        );
+                        audioTrack.play();
+
+                        break;
+                    }
                 }
 
 
