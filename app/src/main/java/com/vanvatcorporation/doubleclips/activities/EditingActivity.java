@@ -77,6 +77,7 @@ import com.vanvatcorporation.doubleclips.activities.editing.ClipsEditSpecificAre
 import com.vanvatcorporation.doubleclips.activities.editing.EffectEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ProjectFilesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.TextEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -143,6 +144,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private TrackFrameLayout addNewTrackBlankTrackSpacer;
 
     private TextEditSpecificAreaScreen textEditSpecificAreaScreen;
+    private Scene3dEditSpecificAreaScreen scene3dEditSpecificAreaScreen;
     private EffectEditSpecificAreaScreen effectEditSpecificAreaScreen;
     private TransitionEditSpecificAreaScreen transitionEditSpecificAreaScreen;
     private ClipsEditSpecificAreaScreen clipsEditSpecificAreaScreen;
@@ -1257,6 +1259,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             case TRANSITION:
                 transitionEditSpecificAreaScreen.open();
                 break;
+            case SCENE_3D:
+                scene3dEditSpecificAreaScreen.open();
+                break;
             case VIDEO:
             case IMAGE:
             case AUDIO:
@@ -1621,7 +1626,9 @@ public class EditingActivity extends AppCompatActivityImpl {
     {
         // ===========================       TEXT ZONE       ====================================
         textEditSpecificAreaScreen = (TextEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_text, null);
+        scene3dEditSpecificAreaScreen = (Scene3dEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_scene3d, null);
         editingZone.addView(textEditSpecificAreaScreen);
+        editingZone.addView(scene3dEditSpecificAreaScreen);
         // ===========================       TEXT ZONE       ====================================
 
 
@@ -1674,9 +1681,25 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.fontSize = ParserHelper.TryParse(textEditSpecificAreaScreen.textSizeContent.getText().toString(), 28f);
             }
         });
+        
+        scene3dEditSpecificAreaScreen.onClose.add(() -> {
+            if (selectedClip != null && selectedClip.type == ClipType.SCENE_3D) {
+                selectedClip.sceneConfig = scene3dEditSpecificAreaScreen.sceneConfigContent.getText().toString();
+                selectedClip.textureClipName = scene3dEditSpecificAreaScreen.textureClipNameContent.getText().toString();
+            }
+        });
         textEditSpecificAreaScreen.onOpen.add(() -> {
-            textEditSpecificAreaScreen.textEditContent.setText(selectedClip.textContent);
-            textEditSpecificAreaScreen.textSizeContent.setText(String.valueOf(selectedClip.fontSize));
+            if (selectedClip != null && selectedClip.type == ClipType.TEXT) {
+                textEditSpecificAreaScreen.textEditContent.setText(selectedClip.textContent);
+                textEditSpecificAreaScreen.textSizeContent.setText(String.valueOf(selectedClip.fontSize));
+            }
+        });
+
+        scene3dEditSpecificAreaScreen.onOpen.add(() -> {
+            if (selectedClip != null && selectedClip.type == ClipType.SCENE_3D) {
+                scene3dEditSpecificAreaScreen.sceneConfigContent.setText(selectedClip.sceneConfig);
+                scene3dEditSpecificAreaScreen.textureClipNameContent.setText(selectedClip.textureClipName);
+            }
         });
 
         // ===========================       TEXT ZONE       ====================================
@@ -3825,6 +3848,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         public float fontSize;    // for TEXT type
         @Expose
         public String sceneConfig; // for SCENE_3D type
+        @Expose
+        public String textureClipName; // for SCENE_3D type
 
 
         // TODO: End transition for clip later that attached to the end of this clip.
@@ -3940,6 +3965,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(clip.type == ClipType.SCENE_3D)
             {
                 this.sceneConfig = clip.sceneConfig;
+                this.textureClipName = clip.textureClipName;
             }
         }
 
