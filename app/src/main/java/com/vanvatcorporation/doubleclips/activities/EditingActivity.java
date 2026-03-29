@@ -5406,8 +5406,6 @@ frameRate = 60;
         private AudioTrack audioTrack;
         public boolean isPlaying;
 
-        public boolean isPlaying;
-
         private TextureView textureView;
         private org.rajawali3d.view.SurfaceView surfaceView;
         private Context context;

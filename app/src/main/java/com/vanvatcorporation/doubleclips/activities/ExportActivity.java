@@ -291,6 +291,10 @@ public class ExportActivity extends AppCompatActivityImpl {
 
 
     private void exportClip(boolean exportAsTemplate) {
+        preRender3DScenesThenExport(() -> exportClipImpl(exportAsTemplate));
+    }
+    
+    private void exportClipImpl(boolean exportAsTemplate) {
 
         startExportRendering();
 
@@ -373,6 +377,10 @@ public class ExportActivity extends AppCompatActivityImpl {
 
 
     private void exportClipMediaCodec(boolean exportAsTemplate) {
+        preRender3DScenesThenExport(() -> exportClipMediaCodecImpl(exportAsTemplate));
+    }
+
+    private void exportClipMediaCodecImpl(boolean exportAsTemplate) {
 
         startExportRendering();
 
@@ -446,6 +454,88 @@ public class ExportActivity extends AppCompatActivityImpl {
             runLogUpdate();
     }
 
+
+    private void preRender3DScenesThenExport(Runnable onComplete) {
+        startExportRendering();
+        List<EditingActivity.Clip> scenes = new ArrayList<>();
+        
+        if (timeline == null) {
+            onComplete.run();
+            return;
+        }
+
+        // Gather all 3D scenes
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip.type == EditingActivity.ClipType.SCENE_3D) {
+                    scenes.add(clip);
+                }
+            }
+        }
+
+        processNext3DScene(scenes, 0, onComplete);
+    }
+
+    private void processNext3DScene(List<EditingActivity.Clip> scenes, int index, Runnable onComplete) {
+        if (index >= scenes.size()) {
+            onComplete.run();
+            return;
+        }
+        EditingActivity.Clip sceneClip = scenes.get(index);
+        EditingActivity.Clip textureClip = null;
+        if (sceneClip.textureClipName != null && !sceneClip.textureClipName.isEmpty()) {
+            // Find texture clip anywhere
+            for (EditingActivity.Track track : timeline.tracks) {
+                if(track == null || track.clips == null) continue;
+                for (EditingActivity.Clip clip : track.clips) {
+                    if (clip.getClipName().equals(sceneClip.textureClipName)) {
+                        textureClip = clip;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        com.vanvatcorporation.doubleclips.utils.Scene3dExportGenerator.generatePreRenderedScene(
+            this, modifyZone, sceneClip, textureClip, properties, settings.getFrameRate(), 
+            settings.getVideoWidth(), settings.getVideoHeight(), 
+            new com.vanvatcorporation.doubleclips.utils.Scene3dExportGenerator.Callback() {
+                long lastLogTime = System.currentTimeMillis();
+                @Override
+                public void onProgress(int current, int total) {
+                    if (System.currentTimeMillis() - lastLogTime > 1000) {
+                        runOnUiThread(() -> {
+                            String msg = "Rendering 3D Scene '" + sceneClip.getClipName() + "': " + current + "/" + total + " frames";
+                            if (logCheckbox.isChecked()) {
+                                logText.append("\n" + msg);
+                                if (scrollLockCheckbox.isChecked()) logScroll.fullScroll(View.FOCUS_DOWN);
+                            } else {
+                                statusText.setText(msg);
+                            }
+                        });
+                        lastLogTime = System.currentTimeMillis();
+                    }
+                }
+                @Override
+                public void onSuccess(String imageSequencePathDir) {
+                    runOnUiThread(() -> {
+                        if (logCheckbox.isChecked()) {
+                            logText.append("\n3D Scene '" + sceneClip.getClipName() + "' pre-rendered successfully.");
+                            if (scrollLockCheckbox.isChecked()) logScroll.fullScroll(View.FOCUS_DOWN);
+                        }
+                    });
+                    processNext3DScene(scenes, index + 1, onComplete);
+                }
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        LoggingManager.LogExceptionToNoteOverlay(ExportActivity.this, e);
+                        finishExportRendering();
+                    });
+                }
+        });
+    }
 
     //TODO: Delete the exported clip inside project path. Detect in the beginning the export.mp4 if its exist then do the same with this method to extract it out.
     private void exportClipTo(boolean exportAsTemplate, String ffmpegCommand, int totalClip, List<File> videoFiles, List<File> previewFiles) {

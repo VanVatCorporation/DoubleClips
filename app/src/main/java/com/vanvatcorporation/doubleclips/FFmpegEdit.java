@@ -249,6 +249,14 @@ public class FFmpegEdit {
                         }
                     }
                     break;
+                case SCENE_3D:
+                    cmd.append("-f lavfi -i \"nullsrc=size=")
+                            .append(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)).append("x").append(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand))
+                            .append(":rate=").append(templateSettings.settings.getFrameRate()).append(",format=yuva420p\"").append(" ");
+
+                    String scenePath = IOHelper.CombinePath(templateSettings.data.getProjectPath(), "temp_scenes", clip.getClipName().replace(".", "_")) + "/frame_%05d.png";
+                    cmd.append("-framerate ").append(templateSettings.settings.getFrameRate()).append(" -i \"").append(scenePath).append("\" ");
+                    break;
                 case AUDIO:
                     cmd.append("-i \"").append(inputPath).append("\" ");
                     break;
@@ -326,6 +334,7 @@ public class FFmpegEdit {
 
 
             switch (clip.type) {
+                case SCENE_3D:
                 case VIDEO:
                 case IMAGE:
 
