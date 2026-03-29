@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3D Scene Configuration"
+            android:textAlignment="center"
+            android:textSize="20sp"
+            android:padding="10dp"
+            android:textColor="@color/white"
+            android:textStyle="bold"/>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="10dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Scene Config (JSON/OBJ URL)"
+                    android:textColor="#FFFFFF" />
+
+                <EditText
+                    android:id="@+id/sceneConfigContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="100dp"
+                    android:gravity="top|start"
+                    android:inputType="textMultiLine"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#888888"
+                    android:hint="{...}"
+                    android:textColorHint="#888888"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="Texture mapping from Clip Name:"
+                    android:textColor="#FFFFFF" />
+
+                <EditText
+                    android:id="@+id/textureClipNameContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Type clip name to use as texture"
+                    android:textColorHint="#888888"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#888888"
+                    android:inputType="text"/>
+
+            </LinearLayout>
+        </ScrollView>
+
+    </LinearLayout>
+</com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificAreaScreen>
