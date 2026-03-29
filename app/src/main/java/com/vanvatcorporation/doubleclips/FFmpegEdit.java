@@ -521,14 +521,38 @@ public class FFmpegEdit {
 //                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
 
 
-                            String x0Expr = getIfExpr(cond, "W/8 - W/8*" + p, "0");
-                            String y0Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-                            String x1Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
-                            String y1Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-                            String x2Expr = getIfExpr(cond, "(W/2)*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
-                            String y2Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
-                            String x3Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
-                            String y3Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
+//                            String x0Expr = getIfExpr(cond, "W/8 - W/8*" + p, "0");
+//                            String y0Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+//                            String x1Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
+//                            String y1Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+//                            String x2Expr = getIfExpr(cond, "(W/2)*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
+//                            String y2Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
+//                            String x3Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
+//                            String y3Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
+
+
+
+                            String dx = "W/12";   // corner offset W/8
+                            String dy = "H/12";   // corner offset H/8
+//                            String hx = "W/2";    // softened half width
+//                            String hy = "H/2";    // softened half height
+                            String leftRatio = "W/6";   // tweakable
+                            String rightRatio = "5*W/6"; // tweakable
+                            String topRatio = "H/6";    // tweakable
+                            String bottomRatio = "5*H/6"; // tweakable
+
+
+                            String x0Expr = getIfExpr(cond, dx + " - " + dx + "*" + p, "0");
+                            String y0Expr = getIfExpr(cond, "(" + dy + ")*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+
+                            String x1Expr = getIfExpr(cond, rightRatio + " + " + leftRatio + "*" + p, "W");
+                            String y1Expr = getIfExpr(cond, "(" + dy + ")*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
+
+                            String x2Expr = getIfExpr(cond, "(" + leftRatio + ")*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
+                            String y2Expr = getIfExpr(cond, bottomRatio + " + " + topRatio + "*" + p, "H");
+
+                            String x3Expr = getIfExpr(cond, rightRatio + " + " + topRatio + "*" + p, "W");
+                            String y3Expr = getIfExpr(cond, bottomRatio + " + " + leftRatio + "*" + p, "H");
 
 
 
