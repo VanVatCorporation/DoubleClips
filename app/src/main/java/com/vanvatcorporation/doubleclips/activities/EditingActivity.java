@@ -3823,6 +3823,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         public String textContent;    // for TEXT type
         @Expose
         public float fontSize;    // for TEXT type
+        @Expose
+        public String sceneConfig; // for SCENE_3D type
 
 
         // TODO: End transition for clip later that attached to the end of this clip.
@@ -3935,6 +3937,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 this.effect = clip.effect;
             }
+            if(clip.type == ClipType.SCENE_3D)
+            {
+                this.sceneConfig = clip.sceneConfig;
+            }
         }
 
 
@@ -3960,6 +3966,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(inAnimation == null) inAnimation = new AnimationClip("none", 0.5f);
             if(outAnimation == null) outAnimation = new AnimationClip("none", 0.5f);
             if(comboAnimation == null) comboAnimation = new AnimationClip("none", 0.5f);
+
+            if(sceneConfig == null && type == ClipType.SCENE_3D) {
+                sceneConfig = "{\"camera\":{\"position\":[0.0,0.0,6.0],\"lookAt\":[0.0,0.0,0.0]},\"objects\":[]}";
+            }
         }
         public void resetHandlesPosition()
         {
@@ -4693,7 +4703,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         IMAGE,
         TEXT,
         TRANSITION,
-        EFFECT
+        EFFECT,
+        SCENE_3D
     }
     public static class EffectTemplate implements Serializable {
         @Expose
@@ -5369,7 +5380,10 @@ frameRate = 60;
         private AudioTrack audioTrack;
         public boolean isPlaying;
 
+        public boolean isPlaying;
+
         private TextureView textureView;
+        private org.rajawali3d.view.SurfaceView surfaceView;
         private Context context;
 
         private ExecutorService renderThreadExecutorAudio = Executors.newFixedThreadPool(1);
@@ -5580,33 +5594,30 @@ frameRate = 60;
 
                         break;
                     }
-                    case AUDIO:
+                    case SCENE_3D:
                     {
+                        surfaceView = new org.rajawali3d.view.SurfaceView(context);
+                        surfaceView.setZOrderOnTop(true);
+                        surfaceView.setEGLConfigChooser(8, 8, 8, 8, 16, 0); 
+                        surfaceView.getHolder().setFormat(android.graphics.PixelFormat.TRANSPARENT);
+                        surfaceView.setFrameRate(30);
+                        surfaceView.setRenderMode(android.opengl.GLSurfaceView.RENDERMODE_WHEN_DIRTY);
 
-                        audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+                        com.vanvatcorporation.doubleclips.ext.rajawali.RajawaliSceneRenderer renderer = new com.vanvatcorporation.doubleclips.ext.rajawali.RajawaliSceneRenderer(context, clip.sceneConfig);
+                        surfaceView.setSurfaceRenderer(renderer);
 
-                        int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
-                        audioExtractor.selectTrack(audioTrackIndex);
+                        RelativeLayout.LayoutParams surfaceViewLayoutParams =
+                                new RelativeLayout.LayoutParams(clip.width, clip.height);
+                        previewViewGroup.addView(surfaceView, surfaceViewLayoutParams);
 
-                        MediaFormat audioFormat = audioExtractor.getTrackFormat(audioTrackIndex);
+                        posX = (EditingActivity.renderToPreviewConversionX(clip.videoProperties.getValue(VideoProperties.ValueType.PosX), settings.videoWidth));
+                        posY = (EditingActivity.renderToPreviewConversionY(clip.videoProperties.getValue(VideoProperties.ValueType.PosY), settings.videoHeight));
+                        scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
+                        scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
+                        rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
+                        opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
 
-                        int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
-                        int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
-                                AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
-                        int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
-
-                        audioTrack = new AudioTrack(
-                                AudioManager.STREAM_MUSIC,
-                                sampleRate,
-                                channelConfig,
-                                audioFormatPCM,
-                                minBufferSize,
-                                AudioTrack.MODE_STREAM
-                        );
-                        audioTrack.play();
-
+                        applyPostTransformation();
                         break;
                     }
                 }
@@ -5616,6 +5627,10 @@ frameRate = 60;
                 {
                     setPivot();
                     attachGestureControls(textureView, clip, settings, editingActivity, textCanvasControllerInfo);
+                }
+                else if(surfaceView != null)
+                {
+                    attachGestureControls(surfaceView, clip, settings, editingActivity, textCanvasControllerInfo);
                 }
 
 
@@ -5773,6 +5788,13 @@ frameRate = 60;
                         renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
                         break;
                     }
+                    case SCENE_3D:
+                    {
+                        if (surfaceView != null && !isSeekingOnly) {
+                            surfaceView.requestRender();
+                        }
+                        break;
+                    }
 
                 }
 
@@ -5804,7 +5826,7 @@ frameRate = 60;
         EditMode currentMode = EditMode.NONE;
 
 
-        private void attachGestureControls(TextureView tv, Clip clip, VideoSettings settings, EditingActivity editingActivity, TextView textCanvasControllerInfo) {
+        private void attachGestureControls(View tv, Clip clip, VideoSettings settings, EditingActivity editingActivity, TextView textCanvasControllerInfo) {
             final GestureDetector tapDrag = new GestureDetector(tv.getContext(), new GestureDetector.SimpleOnGestureListener() {
                 @Override public boolean onDown(MotionEvent e) { return true; } // must return true to receive events
                 @Override public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
@@ -5940,12 +5962,25 @@ frameRate = 60;
 //            matrix.postRotate(rotMatrix, textureView.getPivotX(), textureView.getPivotY());
             matrix.postTranslate(posMatrixX, posMatrixY);
 
-            textureView.setTransform(matrix);
-            textureView.setAlpha(opacity);
-            textureView.invalidate();
+            if (textureView != null) {
+                textureView.setTransform(matrix);
+                textureView.setAlpha(opacity);
+                textureView.invalidate();
+            } else if (surfaceView != null) {
+                // Not ideal, but SurfaceView doesn't support Matrix transforms natively like TextureView
+                surfaceView.setTranslationX(posX);
+                surfaceView.setTranslationY(posY);
+                surfaceView.setScaleX(scaleX);
+                surfaceView.setScaleY(scaleY);
+                surfaceView.setRotation(rot);
+                surfaceView.setAlpha(opacity);
+            }
         }
         private void applyPostTransformation() {
-            textureView.post(() -> {
+            View targetView = textureView != null ? textureView : surfaceView;
+            if (targetView == null) return;
+            
+            targetView.post(() -> {
                 // Reset the matrix state for next drag
                 scaleMatrixX = 1;
                 scaleMatrixY = 1;
@@ -5954,16 +5989,17 @@ frameRate = 60;
                 posMatrixY = 0;
                 matrix.reset();
 
-                textureView.setTransform(matrix);
-                textureView.invalidate();
+                if (textureView != null) {
+                    textureView.setTransform(matrix);
+                    textureView.invalidate();
+                }
 
-
-                textureView.setTranslationX(posX);
-                textureView.setTranslationY(posY);
-                textureView.setScaleX(scaleX);
-                textureView.setScaleY(scaleY);
-                textureView.setRotation(rot);
-                textureView.setAlpha(opacity);
+                targetView.setTranslationX(posX);
+                targetView.setTranslationY(posY);
+                targetView.setScaleX(scaleX);
+                targetView.setScaleY(scaleY);
+                targetView.setRotation(rot);
+                targetView.setAlpha(opacity);
             });
         }
         private void applyPostMatrixTransformation() {
@@ -6054,6 +6090,7 @@ frameRate = 60;
                         case VIDEO:
                         case AUDIO:
                         case IMAGE:
+                        case SCENE_3D:
                             ClipRenderer clipRenderer = new ClipRenderer(context, clip, properties, settings, editingActivity, previewViewGroup, textCanvasControllerInfo);
                             renderers.add(clipRenderer);
                             break;
@@ -6072,10 +6109,14 @@ frameRate = 60;
                         {
                             if(clipRenderer.textureView != null)
                                 clipRenderer.textureView.setVisibility(View.VISIBLE);
+                            if(clipRenderer.surfaceView != null)
+                                clipRenderer.surfaceView.setVisibility(View.VISIBLE);
                         }
                         else {
                             if(clipRenderer.textureView != null)
                                 clipRenderer.textureView.setVisibility(View.GONE);
+                            if(clipRenderer.surfaceView != null)
+                                clipRenderer.surfaceView.setVisibility(View.GONE);
                             clipRenderer.isPlaying = false;
                         }
                         clipRenderer.renderFrame(time, isSeekingOnly);
