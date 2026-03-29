@@ -190,7 +190,7 @@ public class FFmpegEdit {
         {
             String previousRenderedClipPath = IOHelper.CombinePath(templateSettings.data.getProjectPath(), ((templateSettings.renderingIndex - 1) + "_") + Constants.DEFAULT_EXPORT_CLIP_FILENAME);
 
-            cmd.append("-i \"").append(previousRenderedClipPath).append("\" ");
+            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel mediacodec " : "").append("-i \"").append(previousRenderedClipPath).append("\" ");
 
         }
         else {
@@ -240,12 +240,19 @@ public class FFmpegEdit {
                                     "-loop 1 -t " + clip.duration + " -framerate " + templateSettings.settings.getFrameRate() + " " :
                                     "";
 
-                    cmd.append(templateSettings.isTemplateCommand ? "" : frameFilter).append("-i \"").append(inputPath).append("\" ");
+                    // For VIDEO clips, add hwaccel if enabled; IMAGE/SCENE frames do not use MediaCodec
+                    boolean addHwAccel = clip.type == EditingActivity.ClipType.VIDEO
+                            && templateSettings.settings.isUseHardwareAccel()
+                            && !templateSettings.isTemplateCommand;
+                    cmd.append(templateSettings.isTemplateCommand ? "" : frameFilter)
+                            .append(addHwAccel ? "-hwaccel mediacodec " : "")
+                            .append("-i \"").append(inputPath).append("\" ");
 
                     if (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) {
                         String maskPath = clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4";
                         if (IOHelper.isFileExist(maskPath)) {
-                            cmd.append("-i \"").append(maskPath).append("\" ");
+                            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel mediacodec " : "")
+                                    .append("-i \"").append(maskPath).append("\" ");
                         }
                     }
                     break;
@@ -809,12 +816,18 @@ public class FFmpegEdit {
 
         cmd.append("-filter_complex \"").append(filterComplex).append("\" ")
                 .append("-map \"").append( (mapTag != null ? mapTag.tag : "[base]") ).append("\" ")
-                .append(audioMaps)
-                //.append("-t ").append(templateSettings.timeline.duration)
-                .append(" -c:v libx264 -preset ").append(templateSettings.settings.getPreset())
-                .append(" -tune ").append(templateSettings.settings.getTune())
-                .append(" -crf ").append(templateSettings.settings.getCRF())
-                .append(" -y ").append("\"")
+                .append(audioMaps);
+
+        // Encoder selection: hardware (MediaCodec) or software (libx264)
+        if (templateSettings.settings.isUseHardwareAccel()) {
+            cmd.append(" -c:v h264_mediacodec")
+               .append(" -b:v ").append(templateSettings.settings.getBitrate()).append("M");
+        } else {
+            cmd.append(" -c:v libx264 -preset ").append(templateSettings.settings.getPreset())
+               .append(" -tune ").append(templateSettings.settings.getTune())
+               .append(" -crf ").append(templateSettings.settings.getCRF());
+        }
+        cmd.append(" -y ").append("\"")
                 .append(outputStr)
                 .append("\"");
 

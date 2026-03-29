@@ -18,8 +18,9 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
     public ArrayAdapter<String> presetAdapter, tuneAdapter;
 
     public Spinner presetSpinner, tuneSpinner;
-    public EditText resolutionXField, resolutionYField, frameRateText, crfText, clipCapText;
+    public EditText resolutionXField, resolutionYField, frameRateText, crfText, bitrateText, clipCapText;
     public SwitchMaterial stretchMediaToFullCheckbox; // Media
+    public SwitchMaterial hardwareAccelCheckbox; // Hardware acceleration toggle
 
 
 
@@ -49,6 +50,7 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
         resolutionYField = findViewById(R.id.resolutionYField);
         frameRateText = findViewById(R.id.exportFrameRate);
         crfText = findViewById(R.id.exportCRF);
+        bitrateText = findViewById(R.id.exportBitrate);
         clipCapText = findViewById(R.id.exportClipCap);
 
         presetSpinner = findViewById(R.id.exportPreset);
@@ -63,6 +65,13 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
         tuneSpinner.setSelection(5); // ZEROLATENCY
 
         stretchMediaToFullCheckbox = findViewById(R.id.stretchToFullCheckbox);
+        hardwareAccelCheckbox = findViewById(R.id.hardwareAccelCheckbox);
+
+        // Wire toggle: gray out SW-only or HW-only controls based on state
+        hardwareAccelCheckbox.setOnCheckedChangeListener((buttonView, isChecked) ->
+                updateHardwareAccelState(isChecked));
+        // Apply initial state
+        updateHardwareAccelState(hardwareAccelCheckbox.isChecked());
 
 
         onClose.add(() -> {
@@ -70,11 +79,29 @@ public class VideoPropertiesExportSpecificAreaScreen extends BaseEditSpecificAre
             resolutionYField.clearFocus();
             frameRateText.clearFocus();
             crfText.clearFocus();
+            bitrateText.clearFocus();
             clipCapText.clearFocus();
             presetSpinner.clearFocus();
             tuneSpinner.clearFocus();
         });
 
         animationScreen = AnimationScreen.ToBottom;
+    }
+
+    /**
+     * Grays out SW-only controls when HW is on, and HW-only controls when SW is on.
+     */
+    public void updateHardwareAccelState(boolean hwEnabled) {
+        // HW mode: bitrate field active
+        bitrateText.setEnabled(hwEnabled);
+        bitrateText.setAlpha(hwEnabled ? 1.0f : 0.38f);
+
+        // SW mode: CRF + preset/tune active
+        crfText.setEnabled(!hwEnabled);
+        crfText.setAlpha(hwEnabled ? 0.38f : 1.0f);
+        presetSpinner.setEnabled(!hwEnabled);
+        presetSpinner.setAlpha(hwEnabled ? 0.38f : 1.0f);
+        tuneSpinner.setEnabled(!hwEnabled);
+        tuneSpinner.setAlpha(hwEnabled ? 0.38f : 1.0f);
     }
 }

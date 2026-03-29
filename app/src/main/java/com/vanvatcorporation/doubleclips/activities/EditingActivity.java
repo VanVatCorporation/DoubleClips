@@ -2046,10 +2046,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             settings.videoHeight = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), settings.videoHeight);
             settings.frameRate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.frameRateField.getText().toString(), settings.frameRate);
             settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.crf);
+            settings.bitrate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.bitrate);
             settings.clipCap = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.clipCapField.getText().toString(), settings.clipCap);
             settings.preset = videoPropertiesEditSpecificAreaScreen.presetSpinner.getSelectedItem().toString();
             settings.tune = videoPropertiesEditSpecificAreaScreen.tuneSpinner.getSelectedItem().toString();
             settings.isStretchToFull = videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.isChecked();
+            settings.useHardwareAccel = videoPropertiesEditSpecificAreaScreen.hardwareAccelCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
 
@@ -2079,11 +2081,16 @@ public class EditingActivity extends AppCompatActivityImpl {
             videoPropertiesEditSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
             videoPropertiesEditSpecificAreaScreen.resolutionYField.setText(String.valueOf(settings.getVideoHeight()));
             videoPropertiesEditSpecificAreaScreen.frameRateField.setText(String.valueOf(settings.getFrameRate()));
-            videoPropertiesEditSpecificAreaScreen.bitrateField.setText(String.valueOf(settings.getCRF()));
+            videoPropertiesEditSpecificAreaScreen.bitrateField.setText(
+                    settings.isUseHardwareAccel() ?
+                            String.valueOf(settings.getBitrate()) :
+                            String.valueOf(settings.getCRF()));
             videoPropertiesEditSpecificAreaScreen.clipCapField.setText(String.valueOf(settings.getClipCap()));
             videoPropertiesEditSpecificAreaScreen.presetSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.presetAdapter.getPosition(settings.getPreset()));
             videoPropertiesEditSpecificAreaScreen.tuneSpinner.setSelection(videoPropertiesEditSpecificAreaScreen.tuneAdapter.getPosition(settings.getTune()));
             videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.setChecked(settings.isStretchToFull());
+            videoPropertiesEditSpecificAreaScreen.hardwareAccelCheckbox.setChecked(settings.isUseHardwareAccel());
+            videoPropertiesEditSpecificAreaScreen.updateHardwareAccelState(settings.isUseHardwareAccel());
 
             float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
             videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", activeFps));
@@ -4832,20 +4839,24 @@ public class EditingActivity extends AppCompatActivityImpl {
         int videoHeight;
         int frameRate;
         int crf;
+        int bitrate;
         int clipCap;
         String preset;
         String tune;
         boolean isStretchToFull;
+        boolean useHardwareAccel;
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune, boolean isStretchToFull)
         {
             this.videoWidth = videoWidth;
             this.videoHeight = videoHeight;
             this.frameRate = frameRate;
             this.crf = crf;
+            this.bitrate = 15;
             this.clipCap = clipCap;
             this.preset = preset;
             this.tune = tune;
             this.isStretchToFull = isStretchToFull;
+            this.useHardwareAccel = true;
         }
 
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune)
@@ -4854,10 +4865,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.videoHeight = videoHeight;
             this.frameRate = frameRate;
             this.crf = crf;
+            this.bitrate = 15;
             this.clipCap = clipCap;
             this.preset = preset;
             this.tune = tune;
             this.isStretchToFull = false;
+            this.useHardwareAccel = true;
         }
 
         public int getVideoWidth() {
@@ -4872,6 +4885,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         public int getCRF() {
             return crf;
         }
+        public int getBitrate() {
+            return bitrate;
+        }
         public int getClipCap() {
             return clipCap;
         }
@@ -4883,6 +4899,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         public boolean isStretchToFull() {
             return isStretchToFull;
+        }
+        public boolean isUseHardwareAccel() {
+            return useHardwareAccel;
         }
 
 
@@ -4914,10 +4933,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.videoHeight = loadSettings.videoHeight;
             this.frameRate = loadSettings.frameRate;
             this.crf = loadSettings.crf;
+            this.bitrate = loadSettings.bitrate > 0 ? loadSettings.bitrate : 15;
             this.clipCap = loadSettings.clipCap;
             this.preset = loadSettings.preset;
             this.tune = loadSettings.tune;
             this.isStretchToFull = loadSettings.isStretchToFull;
+            this.useHardwareAccel = loadSettings.useHardwareAccel;
         }
         public static VideoSettings loadSettings(Context context, MainAreaScreen.ProjectData data) {
             return new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME)), VideoSettings.class);

@@ -229,10 +229,12 @@ public class ExportActivity extends AppCompatActivityImpl {
             settings.videoHeight = ParserHelper.TryParse(videoPropertiesExportSpecificAreaScreen.resolutionYField.getText().toString(), settings.videoHeight);
             settings.frameRate = ParserHelper.TryParse(videoPropertiesExportSpecificAreaScreen.frameRateText.getText().toString(), settings.frameRate);
             settings.crf = ParserHelper.TryParse(videoPropertiesExportSpecificAreaScreen.crfText.getText().toString(), settings.crf);
+            settings.bitrate = ParserHelper.TryParse(videoPropertiesExportSpecificAreaScreen.bitrateText.getText().toString(), settings.bitrate);
             settings.clipCap = ParserHelper.TryParse(videoPropertiesExportSpecificAreaScreen.clipCapText.getText().toString(), settings.clipCap);
             settings.preset = videoPropertiesExportSpecificAreaScreen.presetSpinner.getSelectedItem().toString();
             settings.tune = videoPropertiesExportSpecificAreaScreen.tuneSpinner.getSelectedItem().toString();
             settings.isStretchToFull = videoPropertiesExportSpecificAreaScreen.stretchMediaToFullCheckbox.isChecked();
+            settings.useHardwareAccel = videoPropertiesExportSpecificAreaScreen.hardwareAccelCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
 
@@ -259,10 +261,13 @@ public class ExportActivity extends AppCompatActivityImpl {
             videoPropertiesExportSpecificAreaScreen.resolutionYField.setText(String.valueOf(settings.getVideoHeight()));
             videoPropertiesExportSpecificAreaScreen.frameRateText.setText(String.valueOf(settings.getFrameRate()));
             videoPropertiesExportSpecificAreaScreen.crfText.setText(String.valueOf(settings.getCRF()));
+            videoPropertiesExportSpecificAreaScreen.bitrateText.setText(String.valueOf(settings.getBitrate()));
             videoPropertiesExportSpecificAreaScreen.clipCapText.setText(String.valueOf(settings.getClipCap()));
             videoPropertiesExportSpecificAreaScreen.presetSpinner.setSelection(videoPropertiesExportSpecificAreaScreen.presetAdapter.getPosition(settings.getPreset()));
             videoPropertiesExportSpecificAreaScreen.tuneSpinner.setSelection(videoPropertiesExportSpecificAreaScreen.tuneAdapter.getPosition(settings.getTune()));
             videoPropertiesExportSpecificAreaScreen.stretchMediaToFullCheckbox.setChecked(settings.isStretchToFull());
+            videoPropertiesExportSpecificAreaScreen.hardwareAccelCheckbox.setChecked(settings.isUseHardwareAccel());
+            videoPropertiesExportSpecificAreaScreen.updateHardwareAccelState(settings.isUseHardwareAccel());
 
         });
 

@@ -18,6 +18,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
     public Spinner presetSpinner, tuneSpinner;
     public EditText resolutionXField, resolutionYField, frameRateField, bitrateField, clipCapField;
     public SwitchMaterial stretchMediaToFullCheckbox; // Media
+    public SwitchMaterial hardwareAccelCheckbox; // Hardware acceleration toggle
     public EditText previewFpsField, previewSpeedField;
     public SwitchMaterial reversePlaybackCheckbox; // Playback
     public SwitchMaterial keepPlaybackWhenClipSelectedCheckbox; // Playback
@@ -63,6 +64,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
         tuneSpinner.setSelection(5); // ZEROLATENCY
 
         stretchMediaToFullCheckbox = findViewById(R.id.stretchToFullCheckbox);
+        hardwareAccelCheckbox = findViewById(R.id.hardwareAccelCheckbox);
 
         previewFpsField = findViewById(R.id.previewFpsField);
         previewSpeedField = findViewById(R.id.previewSpeedField);
@@ -71,6 +73,12 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
 
         audioBarWidthField = findViewById(R.id.audioBarWidthField);
         audioBarGapField = findViewById(R.id.audioBarGapField);
+
+        // Wire toggle: gray out SW-only or HW-only controls based on state
+        hardwareAccelCheckbox.setOnCheckedChangeListener((buttonView, isChecked) ->
+                updateHardwareAccelState(isChecked));
+        // Apply initial state
+        updateHardwareAccelState(hardwareAccelCheckbox.isChecked());
 
 
         onClose.add(() -> {
@@ -88,5 +96,20 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
         });
 
         animationScreen = AnimationScreen.ToBottom;
+    }
+
+    /**
+     * Grays out SW-only controls when HW is on, and HW-only controls when SW is on.
+     */
+    public void updateHardwareAccelState(boolean hwEnabled) {
+        // HW mode: bitrate field active, preset/tune grayed out
+        bitrateField.setEnabled(hwEnabled);
+        bitrateField.setAlpha(hwEnabled ? 1.0f : 0.38f);
+
+        // SW mode: preset/tune active, bitrate grayed out
+        presetSpinner.setEnabled(!hwEnabled);
+        presetSpinner.setAlpha(hwEnabled ? 0.38f : 1.0f);
+        tuneSpinner.setEnabled(!hwEnabled);
+        tuneSpinner.setAlpha(hwEnabled ? 0.38f : 1.0f);
     }
 }
