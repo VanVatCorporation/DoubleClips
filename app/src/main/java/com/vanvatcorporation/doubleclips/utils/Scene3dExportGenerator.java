@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.widget.FrameLayout;
+import android.widget.RelativeLayout;
 
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.ReturnCode;
@@ -24,7 +25,7 @@ public class Scene3dExportGenerator {
         void onFailure(Exception e);
     }
 
-    public static void generatePreRenderedScene(Context context, FrameLayout hiddenContainer, 
+    public static void generatePreRenderedScene(Context context, RelativeLayout hiddenContainer,
                                                 EditingActivity.Clip sceneClip, 
                                                 EditingActivity.Clip textureClip, 
                                                 MainAreaScreen.ProjectData data,
@@ -60,7 +61,7 @@ public class Scene3dExportGenerator {
         }
     }
 
-    private static void renderRajawaliFrames(Context context, FrameLayout hiddenContainer, 
+    private static void renderRajawaliFrames(Context context, RelativeLayout hiddenContainer,
                                              EditingActivity.Clip sceneClip, String targetDir, 
                                              String textureFramesDir, int fps, int width, int height, 
                                              Callback callback) {
