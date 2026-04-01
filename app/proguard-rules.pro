@@ -77,3 +77,8 @@
 -keep class okio.** { *; }
 -keep interface okio.** { *; }
 -dontwarn okio.**
+
+# Keep Retrofit classes (dependency of OkHttp)
+-keep class retrofit2.** { *; }
+-keep interface retrofit2.** { *; }
+-dontwarn retrofit2.**
