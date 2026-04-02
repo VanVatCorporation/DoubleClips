@@ -44,15 +44,12 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
-import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
-import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
+import com.vanvatcorporation.doubleclips.helper.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.Executors;

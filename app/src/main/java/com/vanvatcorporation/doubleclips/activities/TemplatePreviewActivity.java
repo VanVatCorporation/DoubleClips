@@ -1,7 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -30,25 +29,20 @@ import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
-import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
-import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.ExoPlayerExtended;
 import com.vanvatcorporation.doubleclips.R;
-import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
-import com.vanvatcorporation.doubleclips.helper.ImageHelper;
-import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
-import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
+import com.vanvatcorporation.doubleclips.helper.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import org.json.JSONException;
@@ -58,14 +52,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.MediaType;
-import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;

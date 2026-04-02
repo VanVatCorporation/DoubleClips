@@ -37,7 +37,7 @@ import com.vanvatcorporation.doubleclips.helper.NotificationHelper;
 import com.vanvatcorporation.doubleclips.helper.ProgressCompressionHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 import com.vanvatcorporation.doubleclips.impl.ViewPagerImpl;
-import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl2;
+import com.vanvatcorporation.doubleclips.helper.java.RunnableImpl2;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 import com.vanvatcorporation.doubleclips.popups.CompressionPopup;
 

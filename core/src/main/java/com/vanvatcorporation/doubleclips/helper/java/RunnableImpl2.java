@@ -1,4 +1,4 @@
-package com.vanvatcorporation.doubleclips.impl.java;
+package com.vanvatcorporation.doubleclips.helper.java;
 
 public interface RunnableImpl2
 {

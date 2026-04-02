@@ -1,4 +1,4 @@
-package com.vanvatcorporation.doubleclips.impl.java;
+package com.vanvatcorporation.doubleclips.helper.java;
 
 import java.util.ArrayList;
 import java.util.Arrays;

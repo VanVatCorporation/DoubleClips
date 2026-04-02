@@ -1,11 +1,5 @@
 package com.vanvatcorporation.doubleclips.constants;
 
-import android.content.Context;
-import android.view.View;
-
-import com.vanvatcorporation.doubleclips.helper.IOHelper;
-import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
-
 import java.io.Serializable;
 import java.util.HashMap;
 

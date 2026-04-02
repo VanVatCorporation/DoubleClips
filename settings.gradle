@@ -18,3 +18,5 @@ dependencyResolutionManagement {
 rootProject.name = "DoubleClips"
 
 include ':app'
+include ':core'
+//include ':desktop'
