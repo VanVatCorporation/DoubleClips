@@ -72,13 +72,15 @@ Quick start:
 ## 🚀 Roadmap
 
 
-### 🎥 Actually using Rajawali to edit 3D scenes? 
+### 🎥 Actually using Rajawali to edit 3D scenes? (WIP)
 
 Right now, the project includes Rajawali, but it isn’t fully functional across the app. The idea is to let you modify 3D scenes and edit them like any other Clip instance, with Rajawali’s JSON structure attached. Once implemented, DoubleClips should be able to use Rajawali alongside the traditional FFmpeg, potentially supporting 3D text and other features, making the app more powerful for video editing.
 
 ### 🤖 AI-generated content? 
 
 If you’ve used CapCut, you might have noticed some templates now support it. Guess what? DoubleClips can do it too! However, running text generation AI takes a lot of resources, and our current machine can’t handle it on its own. So how would it manage a single prompt for a video? Without a powerful server, we need your help to tame this beast, upgrade the API, and more. Check out the *Donate* section below for details.
+
+Alongside AI-generated content, we also plan to implement an AI agent for editing. For example, it could offer text suggestions, recommend effects, or edit project properties in JSON.
 
 ### 💼 iOS/MacOS/Windows/Linux Support?
 
@@ -127,4 +129,8 @@ Send me a cup of coffee via:
 ## ⭐️ Star History
 
 ![Star History Chart](https://api.star-history.com/svg?repos=VanVatCorporation/DoubleClips&type=Date)
+
+
+## Abbreviation
+- WIP = Work in progress
 
