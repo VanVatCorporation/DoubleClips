@@ -62,8 +62,12 @@ dependencies {
     implementation "androidx.media3:media3-ui:1.9.0"
 
 
-    implementation files('libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar')
+//    implementation files('libs/ffmpeg-kit-full-gpl-6.0-2.LTS.aar') // full 4kb
+//    implementation files('libs/ffmpeg-kit-lts-ndk-r25-16k.aar') // partially 16kb (lack perspective)
+//    implementation files('libs/ffmpeg-kit-main-ndk-r25-16k.aar') // partially 16kb (lack perspective)
+    implementation files('libs/ffmpeg-kit-16kb-6.1.1.aar') // full 16kb (untested)
     implementation 'com.arthenica:smart-exception-java:0.2.1'
+//    implementation 'com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1'
 
     implementation files('libs/rajawali-1.2.1970.aar')
     implementation files('libs/IndicatorSeekbar.aar')
