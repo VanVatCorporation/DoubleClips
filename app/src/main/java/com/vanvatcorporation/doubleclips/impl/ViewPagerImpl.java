@@ -9,7 +9,8 @@ import androidx.annotation.NonNull;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
-import com.vanvatcorporation.doubleclips.helper.java.RunnableImpl2;
+import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
+import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl2;
 
 import org.jetbrains.annotations.Contract;
 

@@ -8,10 +8,11 @@ import android.util.Log;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
-import com.vanvatcorporation.doubleclips.helper.java.RunnableImpl;
+import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.internal.RenderEngine;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
+import java.io.File;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 

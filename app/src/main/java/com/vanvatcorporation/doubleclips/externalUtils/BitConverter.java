@@ -1,7 +1,7 @@
 package com.vanvatcorporation.doubleclips.externalUtils;
 
 import com.vanvatcorporation.doubleclips.helper.ObjectPrimitiveHelper;
-import com.vanvatcorporation.doubleclips.helper.java.ArrayListImpl;
+import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
