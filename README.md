@@ -82,7 +82,7 @@ If you’ve used CapCut, you might have noticed some templates now support it. G
 
 Alongside AI-generated content, we also plan to implement an AI agent for editing. For example, it could offer text suggestions, recommend effects, or edit project properties in JSON.
 
-### 💼 iOS/MacOS/Windows/Linux Support?
+### 💼 iOS/MacOS/Windows/Linux Support? (WIP - https://github.com/VanVatCorporation/DoubleClips-Desktop)
 
 Of course, we plan to expand beyond Android. Imagine not needing a mobile device to use the template system, unlike CapCut (correct me if I’m wrong). With DoubleClips, any device will have the same functionality, with the only difference being video rendering speed. You also won’t need a CapCut subscription for cloud storage to move projects from mobile to PC. Instead, you can simply export your project as a zip file, transfer it to your PC, and reimport it—switching between platforms with just a few clicks!
 
