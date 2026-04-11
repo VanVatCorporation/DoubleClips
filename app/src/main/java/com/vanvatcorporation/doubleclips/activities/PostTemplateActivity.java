@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities;
 
+import android.app.AlertDialog;
 import android.net.Uri;
 import android.os.Bundle;
 import android.widget.Button;
@@ -43,6 +44,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private View uploadProgressFill;
     private FrameLayout progressContainer;
     private TextView uploadStatusText;
+    private LinearLayout uploadFailedActionContainer;
     private TextView successTemplateIdText;
     private Button btnUploadDone;
 
@@ -104,12 +106,37 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         uploadProgressFill = findViewById(R.id.uploadProgressFill);
         uploadPreviewImage = findViewById(R.id.uploadPreviewImage);
         uploadStatusText = findViewById(R.id.uploadStatusText);
+        uploadFailedActionContainer = findViewById(R.id.uploadFailedActionContainer);
         successTemplateIdText = findViewById(R.id.successTemplateIdText);
         btnUploadDone = findViewById(R.id.btnUploadDone);
 
-        btnUpload.setOnClickListener(v -> uploadTemplate());
+        Button btnUploadBack = findViewById(R.id.btnUploadBack);
+        Button btnUploadRetry = findViewById(R.id.btnUploadRetry);
+
+        btnUpload.setOnClickListener(v -> {
+
+            titleEditText.clearFocus();
+            descriptionEditText.clearFocus();
+
+            uploadTemplate();
+        });
         btnSaveDraft.setOnClickListener(v -> finish());
         btnUploadDone.setOnClickListener(v -> finish());
+
+        btnUploadBack.setOnClickListener(v -> {
+            uploadProgressFill.getLayoutParams().width = 0;
+            uploadProgressFill.requestLayout();
+            viewFlipper.setInAnimation(this, R.anim.slide_in_left);
+            viewFlipper.setOutAnimation(this, R.anim.slide_out_right);
+            viewFlipper.showPrevious(); // Move back to Detail View
+        });
+
+        btnUploadRetry.setOnClickListener(v -> {
+            // Reset Progress UI
+            uploadProgressFill.getLayoutParams().width = 0;
+            uploadProgressFill.requestLayout();
+            uploadTemplate();
+        });
     }
 
     private void setupPreview() {
@@ -152,6 +179,8 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
 
     private void uploadTemplate() {
         if (AuthRepository.getInstance(this).getCurrentUser() == null) {
+            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to post template").create().show();
+
             return;
         }
 
@@ -187,8 +216,16 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         field.put("ffmpegCommand", ffmpegCommand);
         field.put("templateTotalClips", String.valueOf(totalClip));
 
-        viewFlipper.showNext(); // Move to the Upload Progress Page
+        // Only advance if we are coming from the Details screen (Index 1)
+        if (viewFlipper.getDisplayedChild() == 1) {
+            viewFlipper.setInAnimation(this, R.anim.slide_in_right);
+            viewFlipper.setOutAnimation(this, R.anim.slide_out_left);
+            viewFlipper.showNext();
+        }
+        
         uploadStatusText.setText("Uploading template...");
+        uploadFailedActionContainer.setVisibility(View.GONE);
+        uploadProgressFill.setBackgroundColor(getColor(R.color.ios_blue));
 
         ExportActivity.uploadTemplateNecessityItems(
                 this,
@@ -223,6 +260,8 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                                 }
                             } else {
                                 uploadStatusText.setText("Failed to upload: " + result);
+                                uploadFailedActionContainer.setVisibility(View.VISIBLE);
+                                uploadProgressFill.setBackgroundColor(getColor(R.color.red));
                             }
                         });
                     }
