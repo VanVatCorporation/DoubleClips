@@ -244,15 +244,32 @@
 
         <FrameLayout
             android:id="@+id/progressContainer"
-            android:layout_width="160dp"
-            android:layout_height="160dp"
+            android:layout_width="180dp"
+            android:layout_height="180dp"
             android:layout_centerInParent="true">
 
+            <!-- Background Progress Indicator -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_margin="8dp"
-                app:cardCornerRadius="8dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#222222">
+
+                <!-- The blue filling part -->
+                <View
+                    android:id="@+id/uploadProgressFill"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:background="@color/ios_blue" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- Preview Image on top with margin to reveal the border fill -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="10dp"
+                app:cardCornerRadius="10dp"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="#121212">
                 <ImageView
@@ -261,18 +278,6 @@
                     android:layout_height="match_parent"
                     android:scaleType="centerCrop" />
             </androidx.cardview.widget.CardView>
-
-            <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:id="@+id/uploadProgressRing"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:indicatorSize="150dp"
-                app:trackThickness="6dp"
-                app:indicatorColor="@color/ios_blue"
-                app:trackColor="#333333"
-                android:layout_gravity="center"
-                android:progress="0"
-                android:max="100"/>
         </FrameLayout>
 
         <TextView

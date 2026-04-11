@@ -26,8 +26,9 @@ import java.util.Map;
 import org.json.JSONObject;
 import android.view.View;
 import android.widget.TextView;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
 import android.widget.TextView;
+import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 
 public class PostTemplateActivity extends AppCompatActivityImpl {
 
@@ -39,7 +40,8 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private EditText descriptionEditText;
 
     private ImageView uploadPreviewImage;
-    private CircularProgressIndicator uploadProgressRing;
+    private View uploadProgressFill;
+    private FrameLayout progressContainer;
     private TextView uploadStatusText;
     private TextView successTemplateIdText;
     private Button btnUploadDone;
@@ -98,8 +100,9 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
             player.play();
         });
 
+        progressContainer = findViewById(R.id.progressContainer);
+        uploadProgressFill = findViewById(R.id.uploadProgressFill);
         uploadPreviewImage = findViewById(R.id.uploadPreviewImage);
-        uploadProgressRing = findViewById(R.id.uploadProgressRing);
         uploadStatusText = findViewById(R.id.uploadStatusText);
         successTemplateIdText = findViewById(R.id.successTemplateIdText);
         btnUploadDone = findViewById(R.id.btnUploadDone);
@@ -130,8 +133,9 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private void setupDetails() {
         if (defaultTitle != null) {
             // Display the placeholder first.
-//            titleEditText.setText(defaultTitle);
-//            descriptionEditText.setText(defaultTitle); // Use as default description as well
+            // titleEditText.setText(defaultTitle);
+            // descriptionEditText.setText(defaultTitle); // Use as default description as
+            // well
         }
 
         if (previewFilePaths != null && !previewFilePaths.isEmpty()) {
@@ -168,13 +172,12 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         String templateTitle = titleEditText.getText().toString();
         String templateDesc = descriptionEditText.getText().toString();
 
-        if(templateTitle.isEmpty()) {
+        if (templateTitle.isEmpty()) {
             templateTitle = defaultTitle;
         }
-        if(templateDesc.isEmpty()) {
+        if (templateDesc.isEmpty()) {
             templateDesc = defaultTitle;
         }
-
 
         Map<String, String> field = new HashMap<>();
         field.put("accountUsername", AuthRepository.getInstance(this).getCurrentUser().getUsername());
@@ -197,7 +200,10 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                     @Override
                     public void onProgress(int progress) {
                         runOnUiThread(() -> {
-                            uploadProgressRing.setProgressCompat(progress, true);
+                            int maxWidth = progressContainer.getWidth();
+                            uploadProgressFill.getLayoutParams().width = (int) (maxWidth * (progress / 100f));
+                            uploadProgressFill.requestLayout();
+
                             uploadStatusText.setText("Uploading... " + progress + "%");
                         });
                     }
@@ -209,7 +215,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                                 try {
                                     JSONObject json = new JSONObject(result);
                                     String templateId = json.optString("templateId", "");
-                                    
+
                                     viewFlipper.showNext(); // Move to Step 4
                                     successTemplateIdText.setText("Template ID: " + templateId);
                                 } catch (Exception e) {
@@ -220,8 +226,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                             }
                         });
                     }
-                }
-        );
+                });
     }
 
     @Override
