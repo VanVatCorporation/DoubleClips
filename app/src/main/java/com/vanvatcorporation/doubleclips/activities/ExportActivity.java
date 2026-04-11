@@ -651,11 +651,16 @@ public class ExportActivity extends AppCompatActivityImpl {
 
 
 
+    public interface UploadCallback {
+        void onResult(boolean success, String result);
+    }
+
     public static void uploadTemplateNecessityItems(Context context,
                                                     String serverUrl,
                                                     Map<String, String> fields,
                                                     List<File> videoFiles,
-                                                    List<File> previewFiles) {
+                                                    List<File> previewFiles,
+                                                    UploadCallback callback) {
         OkHttpClient client = new OkHttpClient();
         try {
             // Build multipart body
@@ -696,6 +701,9 @@ public class ExportActivity extends AppCompatActivityImpl {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     LoggingManager.LogExceptionToNoteOverlay(context, e);
+                    if (callback != null) {
+                        callback.onResult(false, e.getMessage());
+                    }
                 }
 
                 @Override
@@ -703,16 +711,24 @@ public class ExportActivity extends AppCompatActivityImpl {
                     if (response.isSuccessful()) {
                         String responseBody = response.body().string();
                         LoggingManager.LogToToast(context, "Server returned OK status: " + responseBody);
+                        System.err.println(responseBody);
+                        if (callback != null) {
+                            callback.onResult(true, responseBody);
+                        }
                     } else {
                         LoggingManager.LogToToast(context, "Server returned non-OK status: " + response.code());
+                        if (callback != null) {
+                            callback.onResult(false, "Server returned non-OK status: " + response.code());
+                        }
                     }
                 }
             });
 
         } catch (Exception e) {
             LoggingManager.LogExceptionToNoteOverlay(context, e);
+            if (callback != null) {
+                callback.onResult(false, e.getMessage());
+            }
         }
     }
-
-
 }

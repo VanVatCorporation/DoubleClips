@@ -23,6 +23,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.json.JSONObject;
+import android.view.View;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
 public class PostTemplateActivity extends AppCompatActivityImpl {
 
     private ViewFlipper viewFlipper;
@@ -31,6 +36,10 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private ImageView thumbnailImageView;
     private EditText titleEditText;
     private EditText descriptionEditText;
+
+    private ProgressBar uploadProgressBar;
+    private TextView uploadStatusText;
+    private Button btnUploadDone;
 
     private String ffmpegCommand;
     private int totalClip;
@@ -73,17 +82,26 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         btnNext.setOnClickListener(v -> {
             // Move to Details View
             player.pause();
+            viewFlipper.setInAnimation(this, R.anim.slide_in_right);
+            viewFlipper.setOutAnimation(this, R.anim.slide_out_left);
             viewFlipper.showNext();
         });
 
         detailsBackButton.setOnClickListener(v -> {
             // Move back to Preview View
+            viewFlipper.setInAnimation(this, R.anim.slide_in_left);
+            viewFlipper.setOutAnimation(this, R.anim.slide_out_right);
             viewFlipper.showPrevious();
             player.play();
         });
 
+        uploadProgressBar = findViewById(R.id.uploadProgressBar);
+        uploadStatusText = findViewById(R.id.uploadStatusText);
+        btnUploadDone = findViewById(R.id.btnUploadDone);
+
         btnUpload.setOnClickListener(v -> uploadTemplate());
         btnSaveDraft.setOnClickListener(v -> finish());
+        btnUploadDone.setOnClickListener(v -> finish());
     }
 
     private void setupPreview() {
@@ -106,8 +124,9 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
 
     private void setupDetails() {
         if (defaultTitle != null) {
-            titleEditText.setText(defaultTitle);
-            descriptionEditText.setText(defaultTitle); // Use as default description as well
+            // Display the placeholder first.
+//            titleEditText.setText(defaultTitle);
+//            descriptionEditText.setText(defaultTitle); // Use as default description as well
         }
 
         if (previewFilePaths != null && !previewFilePaths.isEmpty()) {
@@ -142,6 +161,14 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         String templateTitle = titleEditText.getText().toString();
         String templateDesc = descriptionEditText.getText().toString();
 
+        if(templateTitle.isEmpty()) {
+            templateTitle = defaultTitle;
+        }
+        if(templateDesc.isEmpty()) {
+            templateDesc = defaultTitle;
+        }
+
+
         Map<String, String> field = new HashMap<>();
         field.put("accountUsername", AuthRepository.getInstance(this).getCurrentUser().getUsername());
         field.put("accountPassword", "********");
@@ -150,15 +177,33 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         field.put("ffmpegCommand", ffmpegCommand);
         field.put("templateTotalClips", String.valueOf(totalClip));
 
+        viewFlipper.showNext(); // Move to the Upload Progress Page
+        uploadStatusText.setText("Uploading template...");
+
         ExportActivity.uploadTemplateNecessityItems(
                 this,
                 "https://app.vanvatcorp.com/doubleclips/api/post-template",
                 field,
                 videoFiles,
-                previewFiles
-        );
+                previewFiles,
+                (success, result) -> runOnUiThread(() -> {
+                    uploadProgressBar.setVisibility(View.GONE);
+                    btnUploadDone.setVisibility(View.VISIBLE);
 
-        finish();
+                    if (success) {
+                        try {
+                            JSONObject json = new JSONObject(result);
+                            String resMsg = json.optString("returnResult", "Unknown Error");
+                            String templateId = json.optString("templateId", "");
+                            uploadStatusText.setText(resMsg + (!templateId.isEmpty() ? "\nTemplate ID: " + templateId : ""));
+                        } catch (Exception e) {
+                            uploadStatusText.setText("Uploaded successfully, but couldn't parse response.");
+                        }
+                    } else {
+                        uploadStatusText.setText("Failed to upload: " + result);
+                    }
+                })
+        );
     }
 
     @Override

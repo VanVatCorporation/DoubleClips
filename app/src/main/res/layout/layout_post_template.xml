@@ -4,7 +4,10 @@
     android:id="@+id/viewFlipper"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212">
+    android:background="#121212"
+    android:inAnimation="@anim/slide_in_right"
+    android:outAnimation="@anim/slide_out_left"
+    android:displayedChild="1">
 
     <!-- Step 1: Video Preview -->
     <RelativeLayout
@@ -30,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="Xem trước"
+                android:text="Preview"
                 android:textColor="@android:color/white"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -52,7 +55,7 @@
             android:layout_alignParentBottom="true"
             android:layout_margin="16dp"
             android:backgroundTint="@android:color/white"
-            android:text="Tiếp tục"
+            android:text="Next"
             android:textColor="@android:color/black"
             android:textStyle="bold" />
     </RelativeLayout>
@@ -82,7 +85,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="Thêm chi tiết"
+                android:text="Edit details"
                 android:textColor="@android:color/white"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -125,7 +128,7 @@
                         android:layout_marginStart="16dp"
                         android:background="@android:color/transparent"
                         android:gravity="top|start"
-                        android:hint="Đặt tiêu đề cho Video ngắn của bạn"
+                        android:hint="Template title..."
                         android:textColor="@android:color/white"
                         android:textColorHint="#AAAAAA"
                         android:textSize="16sp" />
@@ -157,7 +160,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
                         android:background="@android:color/transparent"
-                        android:hint="Thêm nội dung mô tả"
+                        android:hint="Add description..."
                         android:textColor="@android:color/white"
                         android:textColorHint="#AAAAAA"
                         android:textSize="16sp" />
@@ -189,7 +192,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
-                        android:text="Vị trí"
+                        android:text="Location (Unimplemented)"
                         android:textColor="@android:color/white"
                         android:textSize="16sp" />
                 </LinearLayout>
@@ -219,7 +222,7 @@
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
                 android:backgroundTint="#333333"
-                android:text="Lưu bản nháp"
+                android:text="Save draft"
                 android:textColor="@android:color/white" />
 
             <Button
@@ -229,9 +232,64 @@
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:backgroundTint="@android:color/white"
-                android:text="Tải template lên"
+                android:text="Upload template"
                 android:textColor="@android:color/black"
                 android:textStyle="bold" />
         </LinearLayout>
+    </RelativeLayout>
+    <!-- Step 3: Upload Progress -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#121212">
+
+        <RelativeLayout
+            android:id="@+id/uploadTopBar"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_alignParentTop="true"
+            android:background="#1E1E1E">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="Uploading..."
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </RelativeLayout>
+
+        <ProgressBar
+            android:id="@+id/uploadProgressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:indeterminateTint="@android:color/white" />
+
+        <TextView
+            android:id="@+id/uploadStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/uploadProgressBar"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="16dp"
+            android:text="Processing..."
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnUploadDone"
+            android:layout_width="120dp"
+            android:layout_height="50dp"
+            android:layout_below="@id/uploadStatusText"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="@android:color/white"
+            android:text="Done"
+            android:textColor="@android:color/black"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
     </RelativeLayout>
 </ViewFlipper>
