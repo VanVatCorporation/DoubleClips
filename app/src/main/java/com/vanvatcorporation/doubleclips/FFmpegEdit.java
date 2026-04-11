@@ -486,6 +486,10 @@ public class FFmpegEdit {
                             // Transition extension: If there has freeze frames, then this line will handle it.
                             .append("tpad=stop_mode=clone:stop_duration=").append(freezeFrameDuration);
 
+                    // TODO: Dynamic Ffmpeg command for transition, with custom resource.
+                    //  Deliver with .zip pack, upload transition API, contains .gif for display.
+                    //  which FFmpeg does support.
+                    //  For now it's hardcoded.
                     // 🎬 Handle "In" Animations
                     if (clip.inAnimation != null && !"none".equals(clip.inAnimation.type)) {
                         if ("unfold".equals(clip.inAnimation.type)) {

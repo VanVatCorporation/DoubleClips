@@ -86,6 +86,10 @@
         <activity android:name=".activities.TemplateExportActivity"
             android:exported="true">
         </activity>
+        <activity android:name=".activities.PostTemplateActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="true">
+        </activity>
         <activity android:name=".dynamiclibs.auth.LoginActivity"
             android:exported="true">
         </activity>

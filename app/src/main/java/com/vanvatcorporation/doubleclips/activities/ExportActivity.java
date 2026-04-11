@@ -167,6 +167,12 @@ public class ExportActivity extends AppCompatActivityImpl {
 
         exportAsTemplateButton = findViewById(R.id.exportAsTemplateButton);
         exportAsTemplateButton.setOnClickListener(v -> {
+
+            if(AuthRepository.getInstance(this).getCurrentUser() == null) {
+                new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to post template").create().show();
+                return;
+            }
+
             exportClip(true);
         });
 
@@ -565,15 +571,20 @@ public class ExportActivity extends AppCompatActivityImpl {
             FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, false);
             ffmpegCommand = generateCmdFull(this, renderSettings);
 
-            Map<String, String> field = new HashMap<>();
-            field.put("accountUsername", AuthRepository.getInstance(this).getCurrentUser().getUsername());
-            field.put("accountPassword", "********");
-            field.put("templateTitle", properties.getProjectTitle());
-            field.put("templateDescription", properties.getProjectTitle());
-            field.put("ffmpegCommand", ffmpegCommand);
-            field.put("templateTotalClips", String.valueOf(totalClip));
+            ArrayList<String> strVideoFiles = new ArrayList<>();
+            for (File file : videoFiles) strVideoFiles.add(file.getAbsolutePath());
 
-            uploadTemplateNecessityItems(this, "https://app.vanvatcorp.com/doubleclips/api/post-template", field, videoFiles, previewFiles);
+            ArrayList<String> strPreviewFiles = new ArrayList<>();
+            for (File file : previewFiles) strPreviewFiles.add(file.getAbsolutePath());
+
+            Intent templateIntent = new Intent(this, PostTemplateActivity.class);
+            templateIntent.putExtra("ffmpegCommand", ffmpegCommand);
+            templateIntent.putExtra("totalClip", totalClip);
+            templateIntent.putStringArrayListExtra("videoFilePaths", strVideoFiles);
+            templateIntent.putStringArrayListExtra("previewFilePaths", strPreviewFiles);
+            templateIntent.putExtra("defaultTitle", properties.getProjectTitle());
+
+            startActivity(templateIntent);
         }
 
 
