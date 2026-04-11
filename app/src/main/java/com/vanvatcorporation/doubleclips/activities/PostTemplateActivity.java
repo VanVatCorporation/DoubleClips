@@ -25,7 +25,8 @@ import java.util.Map;
 
 import org.json.JSONObject;
 import android.view.View;
-import android.widget.ProgressBar;
+import android.widget.TextView;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 import android.widget.TextView;
 
 public class PostTemplateActivity extends AppCompatActivityImpl {
@@ -37,8 +38,10 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private EditText titleEditText;
     private EditText descriptionEditText;
 
-    private ProgressBar uploadProgressBar;
+    private ImageView uploadPreviewImage;
+    private CircularProgressIndicator uploadProgressRing;
     private TextView uploadStatusText;
+    private TextView successTemplateIdText;
     private Button btnUploadDone;
 
     private String ffmpegCommand;
@@ -95,8 +98,10 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
             player.play();
         });
 
-        uploadProgressBar = findViewById(R.id.uploadProgressBar);
+        uploadPreviewImage = findViewById(R.id.uploadPreviewImage);
+        uploadProgressRing = findViewById(R.id.uploadProgressRing);
         uploadStatusText = findViewById(R.id.uploadStatusText);
+        successTemplateIdText = findViewById(R.id.successTemplateIdText);
         btnUploadDone = findViewById(R.id.btnUploadDone);
 
         btnUpload.setOnClickListener(v -> uploadTemplate());
@@ -132,7 +137,9 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         if (previewFilePaths != null && !previewFilePaths.isEmpty()) {
             for (String path : previewFilePaths) {
                 if (path.endsWith(".png")) {
-                    thumbnailImageView.setImageURI(Uri.fromFile(new File(path)));
+                    Uri imgUri = Uri.fromFile(new File(path));
+                    thumbnailImageView.setImageURI(imgUri);
+                    uploadPreviewImage.setImageURI(imgUri);
                     break;
                 }
             }
@@ -186,23 +193,34 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                 field,
                 videoFiles,
                 previewFiles,
-                (success, result) -> runOnUiThread(() -> {
-                    uploadProgressBar.setVisibility(View.GONE);
-                    btnUploadDone.setVisibility(View.VISIBLE);
-
-                    if (success) {
-                        try {
-                            JSONObject json = new JSONObject(result);
-                            String resMsg = json.optString("returnResult", "Unknown Error");
-                            String templateId = json.optString("templateId", "");
-                            uploadStatusText.setText(resMsg + (!templateId.isEmpty() ? "\nTemplate ID: " + templateId : ""));
-                        } catch (Exception e) {
-                            uploadStatusText.setText("Uploaded successfully, but couldn't parse response.");
-                        }
-                    } else {
-                        uploadStatusText.setText("Failed to upload: " + result);
+                new ExportActivity.UploadCallback() {
+                    @Override
+                    public void onProgress(int progress) {
+                        runOnUiThread(() -> {
+                            uploadProgressRing.setProgressCompat(progress, true);
+                            uploadStatusText.setText("Uploading... " + progress + "%");
+                        });
                     }
-                })
+
+                    @Override
+                    public void onResult(boolean success, String result) {
+                        runOnUiThread(() -> {
+                            if (success) {
+                                try {
+                                    JSONObject json = new JSONObject(result);
+                                    String templateId = json.optString("templateId", "");
+                                    
+                                    viewFlipper.showNext(); // Move to Step 4
+                                    successTemplateIdText.setText("Template ID: " + templateId);
+                                } catch (Exception e) {
+                                    uploadStatusText.setText("Uploaded successfully, but couldn't parse response.");
+                                }
+                            } else {
+                                uploadStatusText.setText("Failed to upload: " + result);
+                            }
+                        });
+                    }
+                }
         );
     }
 

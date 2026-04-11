@@ -6,8 +6,7 @@
     android:layout_height="match_parent"
     android:background="#121212"
     android:inAnimation="@anim/slide_in_right"
-    android:outAnimation="@anim/slide_out_left"
-    android:displayedChild="1">
+    android:outAnimation="@anim/slide_out_left">
 
     <!-- Step 1: Video Preview -->
     <RelativeLayout
@@ -165,7 +164,7 @@
                         android:textColorHint="#AAAAAA"
                         android:textSize="16sp" />
                 </LinearLayout>
-                
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
@@ -196,7 +195,7 @@
                         android:textColor="@android:color/white"
                         android:textSize="16sp" />
                 </LinearLayout>
-                
+
                  <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
@@ -243,53 +242,100 @@
         android:layout_height="match_parent"
         android:background="#121212">
 
-        <RelativeLayout
-            android:id="@+id/uploadTopBar"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_alignParentTop="true"
-            android:background="#1E1E1E">
+        <FrameLayout
+            android:id="@+id/progressContainer"
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_centerInParent="true">
 
-            <TextView
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="8dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#121212">
+                <ImageView
+                    android:id="@+id/uploadPreviewImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop" />
+            </androidx.cardview.widget.CardView>
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/uploadProgressRing"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:text="Uploading..."
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-        </RelativeLayout>
-
-        <ProgressBar
-            android:id="@+id/uploadProgressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:indeterminateTint="@android:color/white" />
+                app:indicatorSize="150dp"
+                app:trackThickness="6dp"
+                app:indicatorColor="@color/ios_blue"
+                app:trackColor="#333333"
+                android:layout_gravity="center"
+                android:progress="0"
+                android:max="100"/>
+        </FrameLayout>
 
         <TextView
             android:id="@+id/uploadStatusText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/uploadProgressBar"
+            android:layout_below="@id/progressContainer"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="16dp"
-            android:text="Processing..."
+            android:text="Uploading..."
             android:textColor="@android:color/white"
-            android:textSize="16sp" />
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <!-- Step 4: Upload Success -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#121212">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:src="@drawable/baseline_check_box_24"
+                app:tint="#34C759" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Upload Completed!"
+                android:textColor="@android:color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/successTemplateIdText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Template ID: ..."
+                android:textColor="#AAAAAA"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnUploadDone"
-            android:layout_width="120dp"
+            android:layout_width="200dp"
             android:layout_height="50dp"
-            android:layout_below="@id/uploadStatusText"
+            android:layout_alignParentBottom="true"
             android:layout_centerHorizontal="true"
-            android:layout_marginTop="24dp"
+            android:layout_marginBottom="32dp"
             android:backgroundTint="@android:color/white"
             android:text="Done"
             android:textColor="@android:color/black"
-            android:textStyle="bold"
-            android:visibility="gone" />
-
+            android:textStyle="bold" />
     </RelativeLayout>
 </ViewFlipper>
