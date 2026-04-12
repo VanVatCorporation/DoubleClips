@@ -47,10 +47,6 @@ OpenEditz (prev: DoubleClips) is an open-source, ready-to-use video editor with 
 
 ## ✅ Requirements
 
-### 👨‍💻 Windows / MacOS / Linux
-
-- We’re currently developing the Android and iOS versions, so they’re not available just yet.
-
 ### 📱 Android
 
 - Minimum SDK: 24 (Nougat, Android 7.0)
