@@ -57,7 +57,7 @@
         
         <!-- Navigation bar -->
         <item name="android:navigationBarColor">@color/md_theme_light_background</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:ignore="NewApi">true</item>
         
         <!-- System window insets -->
         <item name="android:fitsSystemWindows">true</item>
