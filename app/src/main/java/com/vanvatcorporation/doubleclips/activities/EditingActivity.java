@@ -1310,6 +1310,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         // ===========================       DEFAULT ZONE       ====================================
 
 
+        toolbarDefault.findViewById(R.id.addTrackButton).setOnClickListener(v -> {
+            Track track = addNewTrack();
+            track.viewRef.trackInfo = track;
+        });
         toolbarDefault.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
             List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {

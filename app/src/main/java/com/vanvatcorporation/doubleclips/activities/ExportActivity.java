@@ -1,8 +1,5 @@
 package com.vanvatcorporation.doubleclips.activities;
 
-import static com.vanvatcorporation.doubleclips.FFmpegEdit.generateCmdFull;
-import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -297,12 +294,12 @@ public class ExportActivity extends AppCompatActivityImpl {
 
     private void generateCommand() {
         FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, false, false);
-        String cmd = generateCmdFull(this, renderSettings);
+        String cmd = FFmpegEdit.generateCmdFull(this, renderSettings);
         commandText.setText(cmd);
     }
     private void generateTemplateCommand() {
         FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, true);
-        String cmd = generateCmdFull(this, renderSettings);
+        String cmd = FFmpegEdit.generateCmdFull(this, renderSettings);
         commandText.setText(cmd);
     }
 
@@ -350,7 +347,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         String[] cmdAfterSplit = cmd.split(Constants.DEFAULT_MULTI_FFMPEG_COMMAND_REGEX);
         for (int i = 0; i < cmdAfterSplit.length; i++) {
             String cmdEach = cmdAfterSplit[i];
-            runAnyCommand(this, cmdEach, "Exporting Video", (i == cmdAfterSplit.length - 1 ? () -> exportClipTo(exportAsTemplate, cmd, timeline.getAllReplacementClipCount(), videoFiles, previewFiles) : () -> {
+            FFmpegEdit.runAnyCommand(this, cmdEach, "Exporting Video", (i == cmdAfterSplit.length - 1 ? () -> exportClipTo(exportAsTemplate, cmd, timeline.getAllReplacementClipCount(), videoFiles, previewFiles) : () -> {
                     }), this::finishExportRendering
                     , new RunnableImpl() {
                         @Override
@@ -575,7 +572,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                     .renameTo(new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
 
             FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, true, false);
-            ffmpegCommand = generateCmdFull(this, renderSettings);
+            ffmpegCommand = FFmpegEdit.generateCmdFull(this, renderSettings);
 
             ArrayList<String> strVideoFiles = new ArrayList<>();
             for (File file : videoFiles) strVideoFiles.add(file.getAbsolutePath());

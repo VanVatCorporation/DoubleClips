@@ -17,10 +17,10 @@
         android:paddingHorizontal="4dp">
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
-            android:id="@+id/seeMediaButton"
+            android:id="@+id/addTrackButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
-            app:navIcon="@drawable/baseline_perm_media_24"
+            app:navIcon="@drawable/baseline_add_24"
             app:navText="Add" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout

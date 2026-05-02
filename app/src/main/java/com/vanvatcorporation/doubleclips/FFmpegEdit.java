@@ -181,6 +181,8 @@ public class FFmpegEdit {
 
     public static String generateExportCmdPartially(Context context, RenderSettings templateSettings) {
 
+        String hardwareAcceleratedName = "mediacodec";
+
         FfmpegFilterComplexTags tags = new FfmpegFilterComplexTags();
 
         StringBuilder cmd = new StringBuilder();
@@ -190,7 +192,7 @@ public class FFmpegEdit {
         {
             String previousRenderedClipPath = IOHelper.CombinePath(templateSettings.data.getProjectPath(), ((templateSettings.renderingIndex - 1) + "_") + Constants.DEFAULT_EXPORT_CLIP_FILENAME);
 
-            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel mediacodec " : "").append("-i \"").append(previousRenderedClipPath).append("\" ");
+            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel " + hardwareAcceleratedName + " " : "").append("-i \"").append(previousRenderedClipPath).append("\" ");
 
         }
         else {
@@ -245,13 +247,13 @@ public class FFmpegEdit {
                             && templateSettings.settings.isUseHardwareAccel()
                             && !templateSettings.isTemplateCommand;
                     cmd.append(templateSettings.isTemplateCommand ? "" : frameFilter)
-                            .append(addHwAccel ? "-hwaccel mediacodec " : "")
+                            .append(addHwAccel ? "-hwaccel " + hardwareAcceleratedName + " " : "")
                             .append("-i \"").append(inputPath).append("\" ");
 
                     if (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) {
                         String maskPath = clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4";
                         if (IOHelper.isFileExist(maskPath)) {
-                            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel mediacodec " : "")
+                            cmd.append(templateSettings.settings.isUseHardwareAccel() ? "-hwaccel " + hardwareAcceleratedName + " " : "")
                                     .append("-i \"").append(maskPath).append("\" ");
                         }
                     }
@@ -824,7 +826,7 @@ public class FFmpegEdit {
 
         // Encoder selection: hardware (MediaCodec) or software (libx264)
         if (templateSettings.settings.isUseHardwareAccel()) {
-            cmd.append(" -c:v h264_mediacodec")
+            cmd.append(" -c:v h264_" + hardwareAcceleratedName)
                .append(" -b:v ").append(templateSettings.settings.getBitrate()).append("M");
         } else {
             cmd.append(" -c:v libx264 -preset ").append(templateSettings.settings.getPreset())
@@ -837,9 +839,9 @@ public class FFmpegEdit {
 
         return cmd.toString();
     }
-    public static String generateCmdFull(Context context, EditingActivity.VideoSettings settings, EditingActivity.Timeline timeline, MainAreaScreen.ProjectData data, boolean isTemplateCommand, boolean is) {
+    public static String generateCmdFull(Context context, EditingActivity.VideoSettings settings, EditingActivity.Timeline timeline, MainAreaScreen.ProjectData data, boolean isTemplateCommand, boolean isTrimAllowed) {
 
-        RenderSettings renderSettings = new RenderSettings(settings, timeline, new EditingActivity.Clip[0], data, 0, false, isTemplateCommand, is);
+        RenderSettings renderSettings = new RenderSettings(settings, timeline, new EditingActivity.Clip[0], data, 0, false, isTemplateCommand, isTrimAllowed);
         return generateCmdFull(context, renderSettings);
     }
     public static String generateCmdFull(Context context, RenderSettings renderSettings) {
