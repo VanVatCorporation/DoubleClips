@@ -823,6 +823,7 @@ public class FFmpegEdit {
         cmd.append("-filter_complex \"").append(filterComplex).append("\" ")
                 .append("-map \"").append( (mapTag != null ? mapTag.tag : "[base]") ).append("\" ")
                 .append(audioMaps);
+        cmd.append(" -threads 0");
 
         // Encoder selection: hardware (MediaCodec) or software (libx264)
         if (templateSettings.settings.isUseHardwareAccel()) {
