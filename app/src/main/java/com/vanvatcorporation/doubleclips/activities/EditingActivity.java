@@ -45,7 +45,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
@@ -1200,7 +1199,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else if (selectedTrack != null)
             {
-                List<Clip> listClip = selectedTrack.getClipAtCurrentTime(currentTime);
+                List<Clip> listClip = selectedTrack.getClipsAtCurrentTime(currentTime);
                 if(!listClip.isEmpty())
                     selectingClip(listClip.get(0));
             }
@@ -1315,7 +1314,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             track.viewRef.trackInfo = track;
         });
         toolbarDefault.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
-            List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
+            List<Clip> affectedClips = timeline.getClipsAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
                 selectedClip.splitClip(this, timeline, currentTime);
             }
@@ -1363,7 +1362,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         });
         toolbarTrack.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
-            List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
+            List<Clip> affectedClips = timeline.getClipsAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
                 selectedClip.splitClip(this, timeline, currentTime);
             }
@@ -1472,7 +1471,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         });
         toolbarClip.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
-            List<Clip> affectedClips = timeline.getClipAtCurrentTime(currentTime);
+            List<Clip> affectedClips = timeline.getClipsAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
                 // Use command for undo/redo support
                 executeCommand(new SplitClipCommand(this, selectedClip, currentTime));
@@ -2504,7 +2503,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         Clip targetClip = selectedClip;
         if (targetClip == null || currentTime < targetClip.startTime || currentTime > targetClip.startTime + targetClip.duration) {
-            List<Clip> clipsAtTime = timeline.getClipAtCurrentTime(currentTime);
+            List<Clip> clipsAtTime = timeline.getClipsAtCurrentTime(currentTime);
             if (!clipsAtTime.isEmpty()) {
                 targetClip = clipsAtTime.get(0);
             }
@@ -3529,14 +3528,26 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         public void removeTrack(Track track) {
             tracks.remove(track);
+            reloadTrackIndex();
         }
-        public void reloadTrackIndex()
-        {
+
+        public void reloadTrackIndex() {
             for (int i = 0; i < tracks.size(); i++) {
                 tracks.get(i).timelineIndex = i;
                 for (Clip clip : tracks.get(i).clips) {
                     clip.trackIndex = i;
                 }
+            }
+        }
+        /**
+         * Reassign keyframe into the current timeline in respect of framePerSecond
+         * @param framePerSecond
+         */
+        public void reassignClips(int framePerSecond) {
+            if (framePerSecond <= 0) return;
+
+            for (Track track : tracks) {
+                track.reassignClips(framePerSecond);
             }
         }
         public void moveTrackUp(Context context, Track track) {
@@ -3586,7 +3597,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         }
 
-        public List<Clip> getClipAtCurrentTime(float playheadTime) {
+        public List<Clip> getClipsAtCurrentTime(float playheadTime) {
             List<Clip> clips = new ArrayList<>();
             for (Track track : tracks) {
                 for (Clip clip : track.clips) {
@@ -3596,6 +3607,18 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
             return clips; // No clip at this time
+        }
+
+        public void recalculateDuration() {
+            float max = 0f;
+            for (Track track : tracks) {
+                float endTime = track.getTrackEndTime();
+                if (endTime > max) {
+                    max = endTime;
+                }
+                track.sortClips();
+            }
+            duration = max;
         }
         public Track getTrackFromClip(Clip selectedClip) {
             for (Track track : tracks) {
@@ -3739,7 +3762,25 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             return max;
         }
-        public List<Clip> getClipAtCurrentTime(float playheadTime) {
+
+        public void reassignClips(int framePerSecond) {
+            if (framePerSecond <= 0) return;
+
+            for (Clip clip : clips) {
+                double currentTime = clip.getStartTime();
+
+                // 1. Find which frame index we are closest to
+                // Example: 3.14 * 30 = 94.2. Round(94.2) = 94.
+                long closestFrameIndex = Math.round(currentTime * framePerSecond);
+
+                // 2. Convert that frame index back into seconds
+                // Example: 94 / 30.0 = 3.1333...
+                double snappedTime = (double) closestFrameIndex / framePerSecond;
+
+                clip.setStartTime((float) snappedTime);
+            }
+        }
+        public List<Clip> getClipsAtCurrentTime(float playheadTime) {
             List<Clip> clipsSelected = new ArrayList<>();
             for (Clip clip : clips) {
                 if (playheadTime >= clip.startTime && playheadTime < clip.startTime + clip.duration) {
