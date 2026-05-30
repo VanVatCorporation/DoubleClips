@@ -2233,37 +2233,57 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         timelineRenderer.startPlayAt(currentTime);
         playbackLoop = new Runnable() {
+            private long lastFrameTime = -1;
+
             @Override
             public void run() {
                 if (!isPlaying) return;
+
+                long now = System.nanoTime();
+
+                // First frame: just record time and schedule next
+                if (lastFrameTime < 0) {
+                    lastFrameTime = now;
+                } else {
+                    // Use ACTUAL elapsed time instead of fixed frameInterval
+                    float elapsed = (now - lastFrameTime) / 1_000_000_000f;
+                    lastFrameTime = now;
+
+                    currentTime += isPlayingInReverse ? -elapsed : elapsed;
+                }
+
                 float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
-                float delayInterval = (1f / activeFps);
-                float frameInterval = (1f / settings.frameRate);
-                currentTime += isPlayingInReverse ? -frameInterval : frameInterval;
+                long targetIntervalMs = (long)(1000f / activeFps);
+
+                // Compensate: subtract time already spent in this callback
+                long spent = (System.nanoTime() - now) / 1_000_000;
+                long nextDelay = Math.max(0, targetIntervalMs - spent);
 
                 timelineRenderer.updateTime(currentTime, false);
 
-
-                int newScrollX = (int) (currentTime * pixelsPerSecond);
+                int newScrollX = (int)(currentTime * pixelsPerSecond);
                 timelineScroll.scrollTo(newScrollX, 0);
 
-                if(selectedClip != null) {
-                    if(selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration)
-                    {
-                        if(!keepPlayingWhenClipSelected)
+                if (selectedClip != null) {
+                    if (selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration) {
+                        if (!keepPlayingWhenClipSelected) {
                             stopPlayback(false);
+                            return;
+                        }
                     }
                 }
 
-
-                if ((currentTime >= timeline.duration) || (currentTime <= 0f && isPlayingInReverse)) {
+                if (currentTime >= timeline.duration || (currentTime <= 0f && isPlayingInReverse)) {
                     currentTime = isPlayingInReverse ? timeline.duration : 0f;
                     stopPlayback(true);
+                    return; // avoid scheduling after stop
                 }
 
-                playbackHandler.postDelayed(this, (long)(delayInterval * 1000));
+                playbackHandler.postDelayed(this, nextDelay);
             }
         };
+
+// Reset lastFrameTime before posting (use a wrapper or reset field on play start)
         playbackHandler.post(playbackLoop);
     }
 
