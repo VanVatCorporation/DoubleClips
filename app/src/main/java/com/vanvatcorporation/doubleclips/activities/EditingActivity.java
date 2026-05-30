@@ -18,6 +18,7 @@ import android.graphics.PorterDuff;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -5515,8 +5516,8 @@ frameRate = 60;
         private AudioTrack audioTrack;
 
         // Preallocate once as a field — not every call
-        private ByteBuffer audioBuffer = ByteBuffer.allocate(65536); // larger for WAV chunks
-        private byte[] audioChunk = new byte[65536];
+        private ByteBuffer audioBuffer = ByteBuffer.allocate(32768); // larger for WAV chunks
+        private byte[] audioChunk = new byte[32768];
 
         public boolean isPlaying;
 
@@ -5768,7 +5769,9 @@ frameRate = 60;
                         int sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE);
                         int channelConfig = (audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) == 1) ?
                                 AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-                        int audioFormatPCM = AudioFormat.ENCODING_PCM_16BIT;
+                        int audioFormatPCM = audioFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)
+                                ? audioFormat.getInteger(MediaFormat.KEY_PCM_ENCODING)
+                                : AudioFormat.ENCODING_PCM_16BIT;
                         int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormatPCM);
 
                         audioTrack = new AudioTrack(
@@ -5858,34 +5861,26 @@ frameRate = 60;
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
             if (audioTrack == null || audioExtractor == null) return;
-
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
-            long ptsUs = (long)(clipTime * 1_000_000L);
-
-            audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
             audioTrack.flush(); // discard stale buffered audio from previous position
+            audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
 
-            // Pump multiple chunks, not just one — fill ~100ms worth of audio
-            long endPtsUs = ptsUs + 100_000L; // 100ms window
+            audioBuffer.clear();
+            int sampleSize = audioExtractor.readSampleData(audioBuffer, 0);
+            if (sampleSize < 0) return; // End of stream
 
-            while (true) {
-                audioBuffer.clear();
-                int sampleSize = audioExtractor.readSampleData(audioBuffer, 0);
-                if (sampleSize < 0) break; // EOS
-
-                long samplePts = audioExtractor.getSampleTime();
-                if (samplePts > endPtsUs) break; // filled our window
-
-                // Reuse chunk array, resize only if needed
-                if (audioChunk.length < sampleSize) {
-                    audioChunk = new byte[sampleSize];
-                }
-
-                audioBuffer.get(audioChunk, 0, sampleSize);
-                audioTrack.write(audioChunk, 0, sampleSize, AudioTrack.WRITE_NON_BLOCKING);
-
-                audioExtractor.advance();
+            // Reuse chunk array, resize only if needed
+            if (audioChunk.length < sampleSize) {
+                audioChunk = new byte[sampleSize];
             }
+
+            audioBuffer.get(audioChunk, 0, sampleSize);
+            audioTrack.write(audioChunk, 0, sampleSize, AudioTrack.WRITE_NON_BLOCKING);
+        }
+        private void streamContinuousAudio()
+        {
+
         }
 
 
