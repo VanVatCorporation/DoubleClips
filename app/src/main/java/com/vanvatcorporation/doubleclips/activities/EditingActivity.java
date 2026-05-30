@@ -2240,6 +2240,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (!isPlaying) return;
 
                 long now = System.nanoTime();
+                float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
+                float playbackSpeed = activeFps / settings.frameRate;
+                long targetIntervalMs = (long)(1000f / activeFps);
 
                 // First frame: just record time and schedule next
                 if (lastFrameTime < 0) {
@@ -2249,11 +2252,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                     float elapsed = (now - lastFrameTime) / 1_000_000_000f;
                     lastFrameTime = now;
 
-                    currentTime += isPlayingInReverse ? -elapsed : elapsed;
+                    currentTime += (isPlayingInReverse ? -elapsed : elapsed) * playbackSpeed;
                 }
-
-                float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
-                long targetIntervalMs = (long)(1000f / activeFps);
 
                 // Compensate: subtract time already spent in this callback
                 long spent = (System.nanoTime() - now) / 1_000_000;
@@ -5513,6 +5513,11 @@ frameRate = 60;
 
         private MediaExtractor audioExtractor;
         private AudioTrack audioTrack;
+
+        // Preallocate once as a field — not every call
+        private ByteBuffer audioBuffer = ByteBuffer.allocate(65536); // larger for WAV chunks
+        private byte[] audioChunk = new byte[65536];
+
         public boolean isPlaying;
 
         private TextureView textureView;
@@ -5823,48 +5828,64 @@ frameRate = 60;
         }
 
         private void pumpDecoderVideoSeek(float playheadTime) {
-            if(videoDecoder == null) return;
-            if(textureView == null) return;
-            if(textureView.getVisibility() == View.GONE) return;
+            if (videoDecoder == null || textureView == null) return;
+            if (textureView.getVisibility() == View.GONE) return;
+
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
-            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
-            int inputIndex = videoDecoder.dequeueInputBuffer(0);
+            long ptsUs = (long)(clipTime * 1_000_000L);
+
+            // ✅ Seek BEFORE reading — your original code read first, then seeked
+            videoExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+
+            int inputIndex = videoDecoder.dequeueInputBuffer(5_000L); // small timeout vs 0
             if (inputIndex >= 0) {
                 ByteBuffer inputBuffer = videoDecoder.getInputBuffer(inputIndex);
+                inputBuffer.clear();
                 int sampleSize = videoExtractor.readSampleData(inputBuffer, 0);
 
                 if (sampleSize >= 0) {
-                    videoExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
                     videoDecoder.queueInputBuffer(inputIndex, 0, sampleSize, ptsUs, 0);
-
                 } else {
                     videoDecoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                 }
             }
 
             MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-            int outputIndex = videoDecoder.dequeueOutputBuffer(bufferInfo, 0);
+            int outputIndex = videoDecoder.dequeueOutputBuffer(bufferInfo, 5_000L);
             if (outputIndex >= 0) {
-                videoDecoder.releaseOutputBuffer(outputIndex, true); // true = render to surface
+                videoDecoder.releaseOutputBuffer(outputIndex, true);
             }
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
+            if (audioTrack == null || audioExtractor == null) return;
 
             float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
-            long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
+            long ptsUs = (long)(clipTime * 1_000_000L);
+
             audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+            audioTrack.flush(); // discard stale buffered audio from previous position
 
-            ByteBuffer buffer = ByteBuffer.allocate(32768);
+            // Pump multiple chunks, not just one — fill ~100ms worth of audio
+            long endPtsUs = ptsUs + 100_000L; // 100ms window
 
-            int sampleSize = audioExtractor.readSampleData(buffer, 0);
-            if (sampleSize < 0) return; // End of stream
+            while (true) {
+                audioBuffer.clear();
+                int sampleSize = audioExtractor.readSampleData(audioBuffer, 0);
+                if (sampleSize < 0) break; // EOS
 
-            byte[] chunk = new byte[sampleSize];
-            buffer.get(chunk, 0, sampleSize);
-            buffer.clear();
+                long samplePts = audioExtractor.getSampleTime();
+                if (samplePts > endPtsUs) break; // filled our window
 
-            audioTrack.write(chunk, 0, chunk.length, AudioTrack.WRITE_NON_BLOCKING);
+                // Reuse chunk array, resize only if needed
+                if (audioChunk.length < sampleSize) {
+                    audioChunk = new byte[sampleSize];
+                }
 
+                audioBuffer.get(audioChunk, 0, sampleSize);
+                audioTrack.write(audioChunk, 0, sampleSize, AudioTrack.WRITE_NON_BLOCKING);
+
+                audioExtractor.advance();
+            }
         }
 
 
