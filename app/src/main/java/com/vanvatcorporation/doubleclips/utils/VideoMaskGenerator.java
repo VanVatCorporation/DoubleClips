@@ -104,7 +104,7 @@ public class VideoMaskGenerator {
     private static void encodeMaskVideo(Context context, String tempDir, String cutoutPath, Callback callback) {
         // 3. Re-encode frames into a grayscale mp4
         // Assuming 30fps for now, ideally should match source
-        String encodeCmd = String.format("-framerate 30 -i \"%s/frame_%%05d.png\" -c:v libx264 -pix_fmt yuv420p -y \"%s\"", 
+        String encodeCmd = String.format("-framerate 30 -i \"%s/frame_%%05d.png\" -c:v libopenh264 -pix_fmt yuv420p -y \"%s\"",
                 tempDir, cutoutPath);
 
         LoggingManager.LogToPersistentDataPath(context, "Encoding mask video: " + encodeCmd);

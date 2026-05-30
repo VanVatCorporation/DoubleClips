@@ -830,11 +830,49 @@ public class EditingActivity extends AppCompatActivityImpl {
         processingText.setText(getString(R.string.processing) + " " + "\"" + clip.getClipName() + "\"");
 
 
+        int videoWidth = 2;
+        int videoHeight = 1;
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            // SAFEGUARD 1: Attempts to initialize data source.
+            // If the file is completely invalid (e.g., a PDF or text file), this will throw an exception.
+            retriever.setDataSource(originalClipPath);
+
+            // Extract width and height metadata strings
+            String widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+            String heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+
+            // SAFEGUARD 2: Check if dimensions actually exist.
+            // If it's a valid media file but an AUDIO file (like an MP3), these keys will return null.
+            if (widthStr != null && heightStr != null) {
+                videoWidth = Integer.parseInt(widthStr);
+                videoHeight = Integer.parseInt(heightStr);
+            } else {
+                LoggingManager.LogToNoteOverlay(this, "File is media, but contains no video tracks (likely an audio file).");
+            }
+
+        } catch (Exception e) {
+            LoggingManager.LogExceptionToNoteOverlay(this, e);
+        } finally {
+            // Always clean up resources
+            try {
+                retriever.release();
+            } catch (Exception e) {
+                LoggingManager.LogExceptionToNoteOverlay(this, e);
+            }
+        }
+
+
+        String scaleStr;
+        if(videoWidth < videoHeight) scaleStr = "-2:720";
+        else scaleStr = "1280:-2";
 
         String previewGeneratedVideoCmd = "-i \"" + originalClipPath +
-                "\" -vf \"scale=1280:-2\" -c:v libx264 -preset ultrafast -crf 32 -x264-params keyint=1 -an -y \"" + previewClipPath + "\"";
+                "\" -vf \"scale=" + scaleStr + "\" -c:v libopenh264 -preset ultrafast -crf 32 -g 1 -an -y \"" + previewClipPath.substring(0, previewClipPath.lastIndexOf('.')) + Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION + "\"";
+//        String previewGeneratedVideoCmd = "-i \"" + originalClipPath +
+//                "\" -vf \"scale=" + scaleStr + "\" -c:v h264_mediacodec -b:v 512k -g 1 -an -y \"" + previewClipPath + "\"";
         String previewGeneratedAudioCmd = "-i \"" + originalClipPath +
-                "\" -vn -ac 1 -ar 22050 -c:a pcm_s16le -y \"" + previewClipPath.substring(0, previewClipPath.lastIndexOf('.')) + ".wav\"";
+                "\" -vn -ac 1 -ar 22050 -c:a pcm_s16le -y \"" + previewClipPath.substring(0, previewClipPath.lastIndexOf('.')) + Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION + "\"";
 
 
         processingDescription.setTextColor(0xFF00AA00);
@@ -888,7 +926,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         {
                             // After preview process, render the thumbnail
                             Executors.newSingleThreadExecutor().execute(() -> {
-                                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip));
+                                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
                                 clip.viewRef.post(() -> {
                                     clip.viewRef.setFilledImageBitmap(retrieveBitmap);
                                 });
@@ -1023,6 +1061,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         pixelsPerSecond = basePixelsPerSecond;
+        previewFpsRuntime = settings.frameRate;
 
 
         setContentView(R.layout.layout_editing);
@@ -1212,7 +1251,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             //float totalSeconds = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
             currentTimePosText.post(() -> currentTimePosText.setText(DateHelper.convertTimestampToMMSSFormat((long) (currentTime * 1000L)) + String.format(".%02d", ((long)((currentTime % 1) * 100)))));
 
-            timelineRenderer.updateTime(currentTime, !isPlaying);
+            if(isPlayingInReverse || !isPlaying || previewFpsRuntime != settings.frameRate) {
+                timelineRenderer.updateTime(currentTime, true);
+            }
         });
 
 
@@ -2215,6 +2256,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 scaleFactor = Math.max(MIN_SCALE_FACTOR, Math.min(scaleFactor, MAX_SCALE_FACTOR));
 
                 pixelsPerSecond = (int) (basePixelsPerSecond * scaleFactor);
+                stopPlayback(false);
                 updateTimelineZoom();
                 return true;
             }
@@ -2294,6 +2336,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         playbackHandler.removeCallbacks(playbackLoop);
         playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
 
+        timelineRenderer.updateTime(currentTime, true); // To stop audio playback
+
         if(recreateTimeline)
             regeneratingTimelineRenderer();
     }
@@ -2318,7 +2362,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             clip.viewRef.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF000000));
             clip.viewRef.showLoading();
             Executors.newSingleThreadExecutor().execute(() -> {
-                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties), clip));
+                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
                 clip.viewRef.post(() -> {
                     clip.viewRef.setFilledImageBitmap(retrieveBitmap);
                 });
@@ -2615,7 +2659,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         clipView.showLoading();
         // Set the thumbnail using preview for less resource consumption.
         Executors.newSingleThreadExecutor().execute(() -> {
-            Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data));
+            Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), data));
             clipView.post(() -> {
                 clipView.setFilledImageBitmap(retrieveBitmap);
             });
@@ -3672,7 +3716,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if(nearestClip != null) break;
             }
             if(nearestClip != null)
-                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), extractThumbnail(context, nearestClip.getAbsolutePreviewPath(data), nearestClip, 1).get(0), 25);
+                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), extractThumbnail(context, nearestClip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), nearestClip, 1).get(0), 25);
 
             data.setProjectTimestamp(new Date().getTime());
             data.setProjectDuration((long) (timeline.duration * 1000));
@@ -4597,23 +4641,23 @@ public class EditingActivity extends AppCompatActivityImpl {
          * @param properties The Project Data.
          * @return The path for preview file.
          */
-        public String getAbsolutePreviewPath(MainAreaScreen.ProjectData properties) {
-            return getAbsolutePreviewPath(properties.getProjectPath());
-        }
-        public String getAbsolutePreviewPath(String projectPath) {
-            String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, getClipName());
-            if (removeBackground) {
-                String cutoutPath = getCutoutPath(projectPath);
-                if (IOHelper.isFileExist(cutoutPath)) {
-                    path = cutoutPath;
-                }
-            }
-            // Fallback if not available yet.
-            // TODO: Temporary fix for the soon preview loading. Consider block main thread for preview to have time to load first
-            if(!IOHelper.isFileExist(path))
-                path = getAbsolutePath(projectPath);
-            return path;
-        }
+//        public String getAbsolutePreviewPath(MainAreaScreen.ProjectData properties) {
+//            return getAbsolutePreviewPath(properties.getProjectPath());
+//        }
+//        public String getAbsolutePreviewPath(String projectPath) {
+//            String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, getClipName());
+//            if (removeBackground) {
+//                String cutoutPath = getCutoutPath(projectPath);
+//                if (IOHelper.isFileExist(cutoutPath)) {
+//                    path = cutoutPath;
+//                }
+//            }
+//            // Fallback if not available yet.
+//            // TODO: Temporary fix for the soon preview loading. Consider block main thread for preview to have time to load first
+//            if(!IOHelper.isFileExist(path))
+//                path = getAbsolutePath(projectPath);
+//            return path;
+//        }
 
         public String getCutoutPath(MainAreaScreen.ProjectData properties) {
             return getCutoutPath(properties.getProjectPath());
@@ -4729,9 +4773,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             String oldName = this.clipName;
             // Apply the filename change for both preview path and
             File file = new File(getAbsolutePath(data));
-            File filePreview = new File(getAbsolutePreviewPath(data));
+            File filePreview = new File(getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION));
             if(file.renameTo(new File(getAbsolutePath(data).replace(this.clipName, clipName))) &&
-                    filePreview.renameTo(new File(getAbsolutePreviewPath(data).replace(this.clipName, clipName)))) {
+                    filePreview.renameTo(new File(getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION).replace(this.clipName, clipName)))) {
                 // Apply the filename changes for the whole timeline
                 for (Track track : timeline.tracks) {
                     for (Clip clip : track.clips) {
@@ -5576,7 +5620,7 @@ frameRate = 60;
 
                                     // Step 1: Extractor setup
                                     videoExtractor = new MediaExtractor();
-                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data));
+                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION));
 
                                     int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
                                     videoExtractor.selectTrack(trackIndex);
@@ -5637,7 +5681,7 @@ frameRate = 60;
                         // AUDIO
 
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION));
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -5683,7 +5727,7 @@ frameRate = 60;
 
                                 // For IMAGE rendering
                                 // TODO: WTF sample size 1? Yes for rendering. We don't know how to forcefully extend the 8 old sampleSize
-                                Bitmap image = IOImageHelper.LoadFileAsPNGImage(context, clip.getAbsolutePreviewPath(data), 1);
+                                Bitmap image = IOImageHelper.LoadFileAsPNGImage(context, clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), 1);
 
                                 // Resize TextureView to match bitmap size
                                 ViewGroup.LayoutParams params = textureView.getLayoutParams();
@@ -5759,7 +5803,7 @@ frameRate = 60;
                     {
 
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, ".wav"));
+                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION));
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -5878,11 +5922,77 @@ frameRate = 60;
             audioBuffer.get(audioChunk, 0, sampleSize);
             audioTrack.write(audioChunk, 0, sampleSize, AudioTrack.WRITE_NON_BLOCKING);
         }
-        private void streamContinuousAudio()
-        {
+        boolean audioRunning;
+        private void streamContinuousAudio(float clipTime) {
+            if (audioTrack == null || audioExtractor == null) return;
 
+            stopAudio();
+            audioRunning = true;
+
+            renderThreadExecutorAudio.execute(() -> {
+                try {
+                    long ptsUs = (long) (clipTime * 1_000_000L);
+
+                    // 2. Seek the extractor to the correct timestamp
+                    audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+
+                    // 3. MUST call play() before a blocking write loop, otherwise it deadlocks
+                    // when the internal hardware buffer fills up!
+                    audioTrack.play();
+
+                    // Allocate a reusable buffer
+                    ByteBuffer buffer = ByteBuffer.allocate(65536);
+
+                    while (audioRunning) {
+                        // Clear buffer for the next read
+                        buffer.clear();
+
+                        // Read the sample data
+                        int sampleSize = audioExtractor.readSampleData(buffer, 0);
+                        if (sampleSize < 0) {
+                            break; // End of stream reached
+                        }
+
+                        // 4. Write to AudioTrack in BLOCKING mode.
+                        // Using the API 21+ ByteBuffer signature to avoid creating new byte[] arrays on every loop.
+                        int written = audioTrack.write(buffer, sampleSize, AudioTrack.WRITE_BLOCKING);
+
+                        if (written < 0) {
+                            System.err.println("AudioTrack write error: " + written);
+                            break; // Handle error state
+                        }
+
+                        // 5. CRITICAL: Advance the extractor to the next chunk of audio!
+                        audioExtractor.advance();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    // Optional: If the loop finishes naturally (end of file), stop the track
+                    if (audioRunning && audioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                        audioTrack.stop();
+                    }
+                }
+            });
         }
 
+        private void stopAudio() {
+            softStopAudio();
+
+            if (audioTrack != null) {
+                // Pause stops the hardware from playing immediately
+                if (audioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                    audioTrack.pause();
+                }
+                // Flush instantly dumps the unplayed audio in the hardware buffer.
+                // This is crucial for a video editor so you don't hear a "tail" of audio
+                // after the user hits the pause button.
+                audioTrack.flush();
+            }
+        }
+        private void softStopAudio() {
+            audioRunning = false; // This gracefully breaks the while loop in the Executor
+        }
 
 
 
@@ -5922,46 +6032,46 @@ frameRate = 60;
 
                 switch (clip.type)
                 {
-                    case VIDEO:
-                    {
-
-//                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
-//                        {
-//                            videoPlayer.seekTo((long) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000000));
-//                            System.err.println(videoPlayer.getCurrentPosition());
-//                            if(!isSeekingOnly)
-//                            {
-//                                videoPlayer.start();
-//                                isPlaying = true;
-//                            }
-//                        }
-                        renderThreadExecutorVideo.execute(() -> pumpDecoderVideoSeek(playheadTime));
-
-                        if(clip.isClipHasAudio())
-                            renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
-                        break;
-                    }
-                    case AUDIO:
-                    {
-//                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
-//                        {
-//                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000), android.media.MediaPlayer.SEEK_CLOSEST);
-//                            }
-//                            else {
-//                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000));
-//                            }
-//                            if(!isSeekingOnly)
-//                            {
-//                                audioPlayer.start();
-//                                isPlaying = true;
-//                            }
-//                        }
-
-
-                        renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
-                        break;
-                    }
+//                    case VIDEO:
+//                    {
+//
+////                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
+////                        {
+////                            videoPlayer.seekTo((long) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000000));
+////                            System.err.println(videoPlayer.getCurrentPosition());
+////                            if(!isSeekingOnly)
+////                            {
+////                                videoPlayer.start();
+////                                isPlaying = true;
+////                            }
+////                        }
+//                        renderThreadExecutorVideo.execute(() -> pumpDecoderVideoSeek(playheadTime));
+//
+//                        if(clip.isClipHasAudio())
+//                            renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
+//                        break;
+//                    }
+//                    case AUDIO:
+//                    {
+////                        if(clip.getLocalClipTime(playheadTime) * 1000 > 0 && clip.getLocalClipTime(playheadTime) * 1000 < clip.duration)
+////                        {
+////                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+////                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000), android.media.MediaPlayer.SEEK_CLOSEST);
+////                            }
+////                            else {
+////                                audioPlayer.seekTo((int) (clip.getTrimmedLocalTime(clip.getLocalClipTime(playheadTime)) * 1000));
+////                            }
+////                            if(!isSeekingOnly)
+////                            {
+////                                audioPlayer.start();
+////                                isPlaying = true;
+////                            }
+////                        }
+//
+//
+//                        renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
+//                        break;
+//                    }
                     case SCENE_3D:
                     {
                         if (surfaceView != null && !isSeekingOnly) {
@@ -5970,6 +6080,26 @@ frameRate = 60;
                         break;
                     }
 
+                }
+
+                float clipTime = Math.max(0, playheadTime - clip.startTime + clip.startClipTrim);
+
+                if (isSeekingOnly) {
+                    softStopAudio();
+                    isPlaying = false;
+                    if (clip.type == ClipType.VIDEO || clip.type == ClipType.AUDIO) {
+                        if (clip.type == ClipType.VIDEO)
+                            renderThreadExecutorVideo.execute(() -> pumpDecoderVideoSeek(playheadTime));
+                        renderThreadExecutorAudio.execute(() -> pumpDecoderAudioSeek(playheadTime));
+                    }
+                } else {
+                    if (clip.type == ClipType.VIDEO) {
+                        renderThreadExecutorVideo.execute(() -> pumpDecoderVideoSeek(playheadTime));
+                    }
+                    if (!isPlaying) {
+                        isPlaying = true;
+                        streamContinuousAudio(clipTime);
+                    }
                 }
 
 

@@ -825,12 +825,12 @@ public class FFmpegEdit {
                 .append(audioMaps);
         cmd.append(" -threads 0");
 
-        // Encoder selection: hardware (MediaCodec) or software (libx264)
+        // Encoder selection: hardware (MediaCodec) or software (libopenh264)
         if (templateSettings.settings.isUseHardwareAccel()) {
             cmd.append(" -c:v h264_" + hardwareAcceleratedName)
                .append(" -b:v ").append(templateSettings.settings.getBitrate()).append("M");
         } else {
-            cmd.append(" -c:v libx264 -preset ").append(templateSettings.settings.getPreset())
+            cmd.append(" -c:v libopenh264 -preset ").append(templateSettings.settings.getPreset())
                .append(" -tune ").append(templateSettings.settings.getTune())
                .append(" -crf ").append(templateSettings.settings.getCRF());
         }
