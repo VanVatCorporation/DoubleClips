@@ -107,6 +107,8 @@ import com.vanvatcorporation.doubleclips.utils.BackgroundRemover;
 import com.vanvatcorporation.doubleclips.utils.VideoMaskGenerator;
 import com.vanvatcorporation.doubleclips.utils.TimelineUtils;
 
+import org.rajawali3d.view.SurfaceView;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
@@ -5579,6 +5581,10 @@ frameRate = 60;
         private float rot = 0;
         private float posX = 0, posY = 0;
         private float opacity = 1;
+        private float hue = 0;
+        private float saturation = 1;
+        private float brightness = 0;
+        private float temperature = 6500;
 
 
         private float scaleMatrixX = 1, scaleMatrixY = 1;
@@ -6019,12 +6025,19 @@ frameRate = 60;
                     float sy = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.ScaleY);
                     float op = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Opacity);
 
-                    posX = x == -1 ? posX : x;
-                    posY = y == -1 ? posY : y;
-                    rot = rotation == -1 ? rot : rotation;
+                    hue = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Hue);
+                    saturation = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Saturation);
+                    brightness = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Brightness);
+                    temperature = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Temperature);
+
+                    posX = x;
+                    posY = y;
+                    rot = rotation;
                     scaleX = sx == -1 ? scaleX : sx;
                     scaleY = sy == -1 ? scaleY : sy;
                     opacity = op < 0 ? opacity : op;
+
+
 
                     applyPostTransformation();
                     //applyPostMatrixTransformation();
@@ -6269,6 +6282,7 @@ frameRate = 60;
             if (textureView != null) {
                 textureView.setTransform(matrix);
                 textureView.setAlpha(opacity);
+                applyColorEffects(textureView);
                 textureView.invalidate();
             } else if (surfaceView != null) {
                 // Not ideal, but SurfaceView doesn't support Matrix transforms natively like TextureView
@@ -6278,6 +6292,7 @@ frameRate = 60;
                 surfaceView.setScaleY(scaleY);
                 surfaceView.setRotation(rot);
                 surfaceView.setAlpha(opacity);
+                applyColorEffectsToSurfaceView(surfaceView);
             }
         }
         private void applyPostTransformation() {
@@ -6304,6 +6319,12 @@ frameRate = 60;
                 targetView.setScaleY(scaleY);
                 targetView.setRotation(rot);
                 targetView.setAlpha(opacity);
+
+
+                if(targetView instanceof TextureView)
+                    applyColorEffects((TextureView)targetView);
+                else
+                    applyColorEffectsToSurfaceView((SurfaceView) targetView);
             });
         }
         private void applyPostMatrixTransformation() {
@@ -6315,6 +6336,211 @@ frameRate = 60;
             textureView.setTransform(matrix);
             textureView.invalidate();
         }
+
+
+
+// -----------------------------------------------------------------------
+// Shared: build the combined ColorMatrix from hue/saturation/brightness
+// -----------------------------------------------------------------------
+
+        /**
+         * Builds a combined ColorMatrix that applies hue rotation, saturation, and
+         * brightness — mirroring the JavaFX ColorAdjust logic exactly.
+         */
+        private android.graphics.ColorMatrix buildColorAdjustMatrix() {
+            android.graphics.ColorMatrix result = new android.graphics.ColorMatrix();
+
+            // --- Brightness ---
+            // JavaFX: brightness / 10.0f, clamped to [-1, 1].
+            // A value of 0.0 is neutral; 10.0 maps to +1.0 (pure white shift).
+            // In ColorMatrix we add (brightness * 255) to each RGB channel via the
+            // translate column (indices 4, 9, 14).
+            float brightnessNorm = Math.max(-1f, Math.min(1f, brightness / 10.0f));
+            float brightnessTranslate = brightnessNorm * 255f;
+            android.graphics.ColorMatrix brightnessMatrix = new android.graphics.ColorMatrix(new float[]{
+                    1, 0, 0, 0, brightnessTranslate,
+                    0, 1, 0, 0, brightnessTranslate,
+                    0, 0, 1, 0, brightnessTranslate,
+                    0, 0, 0, 1, 0
+            });
+
+            // --- Saturation ---
+            // JavaFX: model 1.0 is neutral.
+            //   saturation >= 1.0 → jfxSaturation = (saturation - 1) / 9,  range [0, 1]
+            //   saturation <  1.0 → jfxSaturation = (saturation - 1) / 11, range [-1, 0)
+            // Android setSaturation(0) = greyscale, (1) = unchanged, so we map:
+            //   jfxSaturation  0.0 → androidSat 1.0  (neutral)
+            //   jfxSaturation  1.0 → androidSat 2.0  (fully saturated boost)
+            //   jfxSaturation -1.0 → androidSat 0.0  (greyscale)
+            float jfxSaturation;
+            if (saturation >= 1.0f) {
+                jfxSaturation = (saturation - 1.0f) / 9.0f;
+            } else {
+                jfxSaturation = (saturation - 1.0f) / 11.0f;
+            }
+            jfxSaturation = Math.max(-1f, Math.min(1f, jfxSaturation));
+            float androidSat = jfxSaturation + 1.0f; // shift: [-1,1] → [0,2]
+            android.graphics.ColorMatrix saturationMatrix = new android.graphics.ColorMatrix();
+            saturationMatrix.setSaturation(androidSat);
+
+            // --- Hue ---
+            // JavaFX: hue in [-360, 360], mapped to [-1, 1] via / 360.
+            // We rotate the hue angle in degrees using a YIQ-based rotation matrix.
+            float hueNorm = hue;
+            if (Math.abs(hueNorm) > 360) hueNorm %= 360;
+            android.graphics.ColorMatrix hueMatrix = buildHueRotationMatrix(hueNorm);
+
+            // Combine: result = hue × saturation × brightness  (post-concat order)
+            result.set(brightnessMatrix);
+            result.postConcat(saturationMatrix);
+            result.postConcat(hueMatrix);
+
+            return result;
+        }
+
+        /**
+         * Builds a hue-rotation ColorMatrix for the given angle in degrees.
+         * Uses the standard YIQ/luminance-preserving rotation approach.
+         */
+        private android.graphics.ColorMatrix buildHueRotationMatrix(float degrees) {
+            float rad = (float) Math.toRadians(degrees);
+            float cos = (float) Math.cos(rad);
+            float sin = (float) Math.sin(rad);
+
+            // Luminance weights (ITU-R BT.601)
+            float lr = 0.213f, lg = 0.715f, lb = 0.072f;
+
+            return new android.graphics.ColorMatrix(new float[]{
+                    lr + cos*(1-lr) + sin*(-lr),   lg + cos*(-lg)  + sin*(-lg),   lb + cos*(-lb)  + sin*(1-lb), 0, 0,
+                    lr + cos*(-lr)  + sin*(0.143f), lg + cos*(1-lg) + sin*(0.140f),lb + cos*(-lb)  + sin*(-0.283f),0, 0,
+                    lr + cos*(-lr)  + sin*(-(1-lr)),lg + cos*(-lg)  + sin*(lg),    lb + cos*(1-lb) + sin*(lb),   0, 0,
+                    0,                              0,                              0,                             1, 0
+            });
+        }
+
+// -----------------------------------------------------------------------
+// Temperature tint — mirrors getTemperatureColor() + SOFT_LIGHT blend
+// -----------------------------------------------------------------------
+
+        /**
+         * Returns a temperature tint as a pre-multiplied ColorMatrix that approximates
+         * the JavaFX SOFT_LIGHT blend of a solid color over the image.
+         *
+         * SOFT_LIGHT formula (per channel): if src <= 0.5 → dst - (1-2*src)*dst*(1-dst)
+         *                                   if src >  0.5 → dst + (2*src-1)*(D(dst)-dst)
+         *   where D(x) = sqrt(x) for the brighter branch.
+         *
+         * Because ColorMatrix is linear, we approximate the per-pixel blend with a
+         * linear scale + translate that matches the curve at dst = 0.5 (midtone target).
+         */
+        private android.graphics.ColorMatrix buildTemperatureMatrix() {
+            if (Math.abs(temperature - 6500) <= 10) {
+                // Neutral — identity matrix
+                android.graphics.ColorMatrix m = new android.graphics.ColorMatrix();
+                m.reset();
+                return m;
+            }
+
+            float r, g, b, alpha;
+            if (temperature < 6500) {
+                // Warm: yellow/orange tint — Color(1.0, 0.6, 0.0, 0.4 * t)
+                double t = Math.max(0, Math.min(1, (6500 - temperature) / 5000.0));
+                r = 1.0f; g = 0.6f; b = 0.0f;
+                alpha = (float)(0.4 * t);
+            } else {
+                // Cool: blue tint — Color(0.0, 0.4, 1.0, 0.4 * t)
+                double t = Math.max(0, Math.min(1, (temperature - 6500) / 5000.0));
+                r = 0.0f; g = 0.4f; b = 1.0f;
+                alpha = (float)(0.4 * t);
+            }
+
+            // Linearise the SOFT_LIGHT approximation at dst=0.5:
+            //   src <= 0.5 branch: scale = 1 - (1-2*src)*(1-dst)*... ≈ 1 + (2*src-1)*0.25
+            //   Simplified to: out = scale*dst + translate, solved at dst=0 and dst=1.
+            //
+            // At dst=0: soft_light(src,0)=0  → translate = 0
+            // At dst=1: soft_light(src,1)=1  → scale = 1
+            // The tint manifests as a midtone push, so we encode it as:
+            //   out_channel = dst * (1 - alpha*src) + alpha*src*sqrt(dst)  [continuous approx]
+            // For ColorMatrix (linear only) we pick the tangent at dst=0.5:
+            //   d/d(dst) at 0.5 ≈ (1 - alpha*src) + alpha*src/(2*sqrt(0.5))
+            float scaleR  = 1f - alpha * r  + alpha * r  * 0.7071f; // 1/sqrt(2) ≈ 0.7071
+            float scaleG  = 1f - alpha * g  + alpha * g  * 0.7071f;
+            float scaleB  = 1f - alpha * b  + alpha * b  * 0.7071f;
+            // Translate: the "lift" at dst=0 from the bright-src branch is 0 in soft-light,
+            // but the warm/cool shift introduces a small toe — we add half the alpha*src push.
+            float transR = alpha * r  * 0.5f * 255f;
+            float transG = alpha * g  * 0.5f * 255f;
+            float transB = alpha * b  * 0.5f * 255f;
+
+            return new android.graphics.ColorMatrix(new float[]{
+                    scaleR, 0,      0,      0, transR,
+                    0,      scaleG, 0,      0, transG,
+                    0,      0,      scaleB, 0, transB,
+                    0,      0,      0,      1, 0
+            });
+        }
+
+// -----------------------------------------------------------------------
+// Apply to TextureView  (supports ColorFilter directly)
+// -----------------------------------------------------------------------
+
+        private void applyColorEffects(android.view.TextureView tv) {
+            android.graphics.ColorMatrix combined = buildColorAdjustMatrix();
+            combined.postConcat(buildTemperatureMatrix());
+            tv.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null);
+            android.graphics.Paint paint = new android.graphics.Paint();
+            paint.setColorFilter(new android.graphics.ColorMatrixColorFilter(combined));
+            tv.setLayerPaint(paint);
+        }
+
+// -----------------------------------------------------------------------
+// Apply to Rajawali SurfaceView  (no Paint support — drive via material)
+// -----------------------------------------------------------------------
+
+        /**
+         * Rajawali's SurfaceView renders through OpenGL, so we can't use
+         * ColorMatrixColorFilter. Instead we expose the computed values so the
+         * Rajawali material/renderer can consume them (e.g. as uniform floats
+         * passed into a custom fragment shader or via Object3D tinting).
+         *
+         * Call getRajawaliColorMatrix() from your renderer whenever you rebuild
+         * the material for this clip's surface.
+         */
+        private android.graphics.ColorMatrix rajawaliColorMatrix;
+
+        private void applyColorEffectsToSurfaceView(org.rajawali3d.view.SurfaceView sv) {
+            android.graphics.ColorMatrix combined = buildColorAdjustMatrix();
+            combined.postConcat(buildTemperatureMatrix());
+            rajawaliColorMatrix = combined;
+
+            // If your renderer exposes a method to accept a ColorMatrix or its
+            // float[20] array, call it here, for example:
+            //
+            //   if (renderer != null) {
+            //       renderer.setColorMatrix(combined.getArray());
+            //   }
+            //
+            // The float[20] layout is:
+            //   [ scaleR, 0,      0,      0,  translateR*255,
+            //     0,      scaleG, 0,      0,  translateG*255,
+            //     0,      0,      scaleB, 0,  translateB*255,
+            //     0,      0,      0,      1,  0              ]
+        }
+
+        /** Exposes the latest combined colour matrix for the Rajawali renderer. */
+        public float[] getRajawaliColorMatrix() {
+            return rajawaliColorMatrix != null ? rajawaliColorMatrix.getArray() : null;
+        }
+
+
+
+
+
+
+
+
+
 
         private float normalizeAngle(float a) {
             // Map to [-180, 180] to avoid jump
