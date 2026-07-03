@@ -26,6 +26,19 @@ OpenEditz (prev: DoubleClips) is an open-source, ready-to-use video editor with 
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/VanVatCorporation/DoubleClips/releases/latest)
 [<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=com.vanvatcorporation.doubleclips)
 
+## 📸 Screenshots
+
+[#-screenshots](#-screenshots)
+
+<p align="center">
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/1_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/2_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/3_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/4_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/5_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/6_2.png" width="200" />
+</p>
+
 ## 🚜 Current Features
 
 - Real-time preview (Early access).
