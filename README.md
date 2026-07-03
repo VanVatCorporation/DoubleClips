@@ -28,8 +28,6 @@ OpenEditz (prev: DoubleClips) is an open-source, ready-to-use video editor with 
 
 ## 📸 Screenshots
 
-[#-screenshots](#-screenshots)
-
 <p align="center">
   <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/1_2.png" width="200" />
   <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/2_2.png" width="200" />
