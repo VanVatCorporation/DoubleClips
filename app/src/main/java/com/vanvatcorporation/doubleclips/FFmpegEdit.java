@@ -1220,6 +1220,8 @@ public class FFmpegEdit {
         {
             case "~":
                 return "between(" + a + "," + b + "," + c +")";
+            case "[~)":
+                return "(gte(" + a + ", " + b + ") * lt(" + a + ", " + c + "))";
             case "---":
                 return "---";
             default:

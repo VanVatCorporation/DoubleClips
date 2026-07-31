@@ -5268,6 +5268,7 @@ frameRate = 60;
     public static class Keyframe implements Serializable {
         @Expose
         private float time; // seconds, in local clip time
+        @Expose private long frame; // frames, in local clip frame
         @Expose
         public VideoProperties value;
         @Expose
@@ -5281,12 +5282,23 @@ frameRate = 60;
             this.easing = easing;
         }
 
-        public float getLocalTime()
-        {
+
+
+        public float getLocalTime() {
             return time;
         }
-        public float getGlobalTime(Clip clip)
-        {
+        public void setLocalTime(float time) {
+            this.time = time;
+        }
+
+        public long getLocalFrame() {
+            return frame;
+        }
+        public void setLocalFrame(long frame) {
+            this.frame = frame;
+        }
+
+        public float getGlobalTime(Clip clip) {
             return time + clip.startTime;
         }
 
@@ -5473,6 +5485,29 @@ frameRate = 60;
                             : (1 + ease(2 * t - 1, EasingType.EASE_OUT_BOUNCE)) / 2;
 
                 default: return t;
+            }
+        }
+
+        /**
+         * Reassign keyframe into the current timeline in respect of framePerSecond
+         * @param framePerSecond
+         */
+        public void reassignKeyframes(int framePerSecond) {
+            if (framePerSecond <= 0) return;
+
+            for (Keyframe k : keyframes) {
+                double currentTime = k.getLocalTime();
+
+                // 1. Find which frame index we are closest to
+                // Example: 3.14 * 30 = 94.2. Round(94.2) = 94.
+                long closestFrameIndex = Math.round(currentTime * framePerSecond);
+
+                // 2. Convert that frame index back into seconds
+                // Example: 94 / 30.0 = 3.1333...
+                double snappedTime = (double) closestFrameIndex / framePerSecond;
+
+                k.setLocalTime((float) snappedTime);
+                k.setLocalFrame(closestFrameIndex);
             }
         }
 
