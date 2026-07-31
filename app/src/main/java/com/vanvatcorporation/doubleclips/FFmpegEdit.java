@@ -35,6 +35,8 @@
 
 package com.vanvatcorporation.doubleclips;
 
+import static com.vanvatcorporation.doubleclips.FFmpegEditNative.hardwareAcceleratedName;
+
 import android.content.Context;
 
 import com.arthenica.ffmpegkit.FFmpegKit;
@@ -66,11 +68,11 @@ public class FFmpegEdit {
     public static void runAnyCommand(Context context, String cmd, String taskName,
                                      Runnable onSuccessRunnable, Runnable onFailRunnable,
                                      RunnableImpl onLogRunnable, RunnableImpl onStatisticsRunnable) {
-        runAnyCommand(context, cmd, taskName, "Ran command!", "Command failed: ", true, onSuccessRunnable, onFailRunnable, onLogRunnable, onStatisticsRunnable);
+        FFmpegEditNative.runAnyCommand(context, cmd, taskName, "Ran command!", "Command failed: ", true, onSuccessRunnable, onFailRunnable, onLogRunnable, onStatisticsRunnable);
     }
 
     public static void runAnyCommand(Context context, String cmd, String taskName, String successMessage, String failMessage, boolean includeFullReport) {
-        runAnyCommand(context, cmd, taskName, successMessage, failMessage, includeFullReport, () -> {
+        FFmpegEditNative.runAnyCommand(context, cmd, taskName, successMessage, failMessage, includeFullReport, () -> {
         }, () -> {
         }, new RunnableImpl() {
             @Override
@@ -85,63 +87,6 @@ public class FFmpegEdit {
         });
     }
 
-    public static void runAnyCommand(Context context, String cmd, String taskName, String successMessage, String failMessage, boolean includeFullReport,
-                                     Runnable onSuccessRunnable, Runnable onFailRunnable,
-                                     RunnableImpl onLogRunnable, RunnableImpl onStatisticsRunnable) {
-        LoggingManager.LogToPersistentDataPath(context, cmd);
-
-
-
-        queue.enqueue(
-                new FfmpegRenderQueue.FfmpegRenderQueueInfo(
-                        taskName,
-                        () -> {
-
-                            FFmpegKit.executeAsync(cmd, session -> {
-                                        if (ReturnCode.isSuccess(session.getReturnCode())) {
-                                            StringBuilder builder = new StringBuilder();
-                                            if (includeFullReport) {
-                                                builder.append("Report: ").append("\n")
-                                                        .append("Output: ").append(session.getOutput()).append("\n")
-                                                        .append("State: ").append(session.getState()).append("\n")
-                                                        .append("Return code: ").append(session.getReturnCode()).append("\n");
-                                            }
-                                            LoggingManager.LogToPersistentDataPath(context, successMessage + builder);
-                                            onSuccessRunnable.run();
-                                        } else {
-                                            StringBuilder builder = new StringBuilder();
-                                            if (includeFullReport) {
-                                                builder.append("Report: ").append("\n")
-                                                        .append("Output: ").append(session.getOutput()).append("\n")
-                                                        .append("State: ").append(session.getState()).append("\n")
-                                                        .append("Return code: ").append(session.getReturnCode()).append("\n")
-                                                        .append("Stacktrace: ").append(session.getFailStackTrace()).append("\n");
-                                            }
-                                            LoggingManager.LogToPersistentDataPath(context, failMessage + builder);
-                                            onFailRunnable.run();
-                                        }
-
-                                        // TODO: Add a slightly user friendly delay (Execute next ffmpeg rendering part in 3, 2, 1), dynamically into logText
-                                        Executors.newSingleThreadExecutor().execute(() -> {
-                                            try {
-                                                Thread.sleep(1000);
-                                            } catch (InterruptedException ignored) {
-
-                                            }
-                                            queue.taskCompleted(); // Move to next task
-                                        });
-
-                                    },
-                                    onLogRunnable::runWithParam,
-                                    onStatisticsRunnable::runWithParam
-                            );
-
-                        }
-                )
-
-        );
-
-    }
 
 
 
@@ -180,8 +125,6 @@ public class FFmpegEdit {
     }
 
     public static String generateExportCmdPartially(Context context, RenderSettings templateSettings) {
-
-        String hardwareAcceleratedName = "mediacodec";
 
         FfmpegFilterComplexTags tags = new FfmpegFilterComplexTags();
 
