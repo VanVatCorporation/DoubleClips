@@ -443,10 +443,10 @@ public class FFmpegEdit {
                             float durFrames = dur * fps;
                             String durFramesStr = String.valueOf(durFrames);
                             String cond = getConditionTwo("in", "<=", durFramesStr);
-                            
+
                             // progress p = in / durFrames
                             String p = "(in/" + durFramesStr + ")";
-                            
+
                             // Center expansion logic:
                             // x0: W/2*(1-p) -> 0
                             // y0: H/2*(1-p) -> 0
@@ -521,7 +521,7 @@ public class FFmpegEdit {
                                     .append("y2='").append(y2Expr).append("':")
                                     .append("x3='").append(x3Expr).append("':")
                                     .append("y3='").append(y3Expr).append("'");
-                            
+
                             // Fade from white
                             filterComplex.append(",fade=in:st=").append(clip.startTime).append(":d=").append(dur).append(":color=white");
                         }
@@ -603,12 +603,19 @@ public class FFmpegEdit {
                             .append("trim=duration=").append(clip.duration).append(",")
                             .append("setpts=PTS-STARTPTS+").append(clip.startTime).append("/TB").append(transparentLabel).append(";\n");
 
+                    String textXExpr = clip.hasAnimatedProperties() ?
+                            getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.PosX) :
+                            String.valueOf(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.PosX));
+                    String textYExpr = clip.hasAnimatedProperties() ?
+                            getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.PosY) :
+                            String.valueOf(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.PosY));
+
                     filterComplex.append(transparentLabel)
                             .append("drawtext=").append("fontfile='/system/fonts/DroidSans.ttf'")
                             .append(":fontsize=").append(clip.fontSize)
                             .append(":text='").append(clip.textContent.replace(":", "\\:").replace("'", "\\'"))
-                            .append("':x=").append("(w-text_w)/2")//.append(clip.posX) Centralize text
-                            .append(":y=").append("(h-text_h)/2")//.append(clip.posY) Centralize text
+                            .append("':x=").append("(w-text_w)/2 + ").append(textXExpr)
+                            .append(":y=").append("(h-text_h)/2 + ").append(textYExpr)
                             .append(":enable='").append(getConditionThree("t", String.valueOf(clip.startTime), String.valueOf(clip.startTime + clip.duration), "~")).append("'").append(",")
                             .append("fps=").append(templateSettings.settings.getFrameRate())
                             .append(outputLabel).append(";\n");
@@ -636,12 +643,12 @@ public class FFmpegEdit {
 
                 // Transition extension: Same for clip
                 int delayMs = (int) (clip.startTime * 1000);
-                // Note: and the video input index might have shifted if there was a mask, 
+                // Note: and the video input index might have shifted if there was a mask,
                 // but audio is always in the original video input (sourceInputIndex).
-                // Wait, I need to check if sourceInputIndex is available here. 
+                // Wait, I need to check if sourceInputIndex is available here.
                 // It was defined inside the switch block. I should move it out or use the logic.
-                
-                int effectiveSourceInputIndex = (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) ? 
+
+                int effectiveSourceInputIndex = (clip.type == EditingActivity.ClipType.VIDEO && clip.removeBackground) ?
                     (inputLayerIndex - (IOHelper.isFileExist(clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4") ? 2 : 1)) :
                     (inputLayerIndex - 1);
 
@@ -1123,7 +1130,7 @@ public class FFmpegEdit {
                                         7.5625f + "*pow(1-" + r + "-" + (2.25f/2.75f) + ",2)+0.9375",
                                         7.5625f + "*pow(1-" + r + "-" + (2.625f/2.75f) + ",2)+0.984375"
                                         )
-                                        )
+                                )
                         ))
                         .toString();
             case EASE_IN_OUT_BOUNCE:
