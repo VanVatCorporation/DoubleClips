@@ -1,6 +1,10 @@
 <div style="display: flex; align-items: center; justify-content: space-between; font-family: sans-serif; padding: 10px;">
   <div style="flex: 1; padding-right: 20px;">
     <h1 style="margin: 0; font-size: 2em; color: #666;">OpenEditz (prev: DoubleClips)</h1>
+
+[![Discord](https://img.shields.io/discord/1402598564152086538?label=Discord&logo=discord&logoColor=fff&color=5865F2&style=flat)](https://discord.gg/aT3MDFKpMj)
+[![X](https://img.shields.io/badge/follow-%40doublecliper-000?logo=x&logoColor=fff&style=flat)](https://x.com/doublecliper)
+[![License: GNU](https://img.shields.io/badge/license-GNU-green?style=flat)](LICENSE)
     <p style="margin: 5px 0 0; font-size: 1.1em; color: #555;">
       🎥 A free, open-source, cross-platform video editor for creators.
     </p>
@@ -25,6 +29,17 @@ OpenEditz (prev: DoubleClips) is an open-source, ready-to-use video editor with 
 ## ⚙️ Install
 [<img src="./assets/get-it-on-github.png" alt='Get it on GitHub' height="80">](https://github.com/VanVatCorporation/DoubleClips/releases/latest)
 [<img src="./assets/google-play-badge.png" alt='Get it on Google Play' height="80">](https://play.google.com/store/apps/details?id=com.vanvatcorporation.doubleclips)
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/1_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/2_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/3_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/4_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/5_2.png" width="200" />
+  <img src="https://github.com/VanVatCorporation/DoubleClips/raw/main/assets/screenshots/6_2.png" width="200" />
+</p>
 
 ## 🚜 Current Features
 
