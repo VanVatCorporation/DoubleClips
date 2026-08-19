@@ -1,0 +1,1 @@
+Open-source, watermark-free video editor with multitrack editing and FFmpeg support.

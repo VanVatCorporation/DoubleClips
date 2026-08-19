@@ -1,0 +1,3 @@
+- Replaced libx264 with libopenh264.
+- Basic HSL color adjustments now available in Preview.
+- Fixed audio stuttering and glitching during normal speed playback.

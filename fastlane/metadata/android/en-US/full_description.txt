@@ -1,0 +1,15 @@
+Are you frustrated by monthly charges from subscription-based video editing software? OpenEditz offers a better solution. Your privacy remains protected, and we never impose recurring fees. Instead, users can choose to contribute voluntarily.
+
+OpenEditz provides powerful functionality—including Templates, Effects, Transitions, and more—all at no cost except your time. Make the switch to this open-source alternative and avoid unnecessary charges today!
+
+<b>Features:</b>
+<ul>
+  <li><b>Real-time Preview:</b> Edit and view changes dynamically (Early Access).</li>
+  <li><b>Multitrack Editing:</b> Layer multiple audio and video tracks seamlessly.</li>
+  <li><b>Precise Audio & Video Seeking:</b> Frame-accurate timeline navigation.</li>
+  <li><b>No Watermarks or Subscriptions:</b> Free and open-source forever.</li>
+  <li><b>Cross-Platform Rendering:</b> Export your timeline as a JSON/ZIP file to render on stronger devices or PC.</li>
+  <li><b>Raw FFmpeg Command Editing:</b> Generate and customize raw FFmpeg commands for advanced editing power.</li>
+  <li><b>Full Export Parameter Control:</b> Customize CRF, resolution (4K, 8K, etc.), framerate, and codecs without restrictions.</li>
+  <li><b>Transitions & Templates:</b> Use smooth transitions and shareable community templates.</li>
+</ul>
