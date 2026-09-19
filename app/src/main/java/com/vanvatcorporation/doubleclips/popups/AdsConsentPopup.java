@@ -7,7 +7,6 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 
 import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.R;
@@ -26,40 +25,43 @@ public class AdsConsentPopup {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
 
-        // Wire up buttons
-        dialogView.findViewById(R.id.rewardedAdsButton).setOnClickListener(v -> {
+        View rewardedBtn     = dialogView.findViewById(R.id.rewardedAdsButton);
+        View interstitialBtn = dialogView.findViewById(R.id.interstitialAdsButton);
+
+        // Hide ad buttons when frequency caps are reached so the popup still
+        // shows (for transparency) but cannot trigger extra invalid traffic.
+        boolean canRewarded     = AdsHandler.canShowRewardedAd(context);
+        boolean canInterstitial = AdsHandler.canShowInterstitialAd(context);
+
+        rewardedBtn.setVisibility(canRewarded ? View.VISIBLE : View.GONE);
+        interstitialBtn.setVisibility(canInterstitial ? View.VISIBLE : View.GONE);
+
+        rewardedBtn.setOnClickListener(v -> {
             dialog.dismiss();
-            AdsHandler.showRewardedAds(activity, AdsHandler.mRewardedAd);
+            AdsHandler.showRewardedAds(context, activity, AdsHandler.mRewardedAd);
         });
-        dialogView.findViewById(R.id.interstitialAdsButton).setOnClickListener(v -> {
+        interstitialBtn.setOnClickListener(v -> {
             dialog.dismiss();
-            AdsHandler.showInterstitialAds(activity, AdsHandler.mInterstitialAd);
+            AdsHandler.showInterstitialAds(context, activity, AdsHandler.mInterstitialAd);
         });
         dialogView.findViewById(R.id.declineAdsButton).setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
+        if(!canRewarded && !canInterstitial)
+            dialog.dismiss();
     }
-
-
 
     public static class AdsThanksLetterPopup extends AlertDialog.Builder {
         public AdsThanksLetterPopup(Context context) {
             super(context);
 
-            // Inflate your custom layout
             LayoutInflater inflater = LayoutInflater.from(context);
             View dialogView = inflater.inflate(R.layout.popup_thanks_for_showing_ads, null);
             setView(dialogView);
 
+            setNegativeButton(context.getText(R.string.close), (dialog, which) -> dialog.dismiss());
 
-            setNegativeButton(context.getText(R.string.close), (dialog, which) -> {
-                dialog.dismiss();
-            });
-
-            // Create the AlertDialog
             AlertDialog dialog = this.create();
-
-            // Show the dialog
             dialog.show();
         }
     }
