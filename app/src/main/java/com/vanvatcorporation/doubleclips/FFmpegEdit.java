@@ -846,7 +846,7 @@ public class FFmpegEdit {
         // Find the furthest keyframe with the same value to optimize the expression by merging segments
         int nextIndex = startIndex + 1;
         while (nextIndex + 1 < keyframes.size() &&
-                keyframes.get(nextIndex + 1).value.getValue(valueType) == prevKeyframe.value.getValue(valueType)) {
+                keyframes.get(nextIndex).value.getValue(valueType) == prevKeyframe.value.getValue(valueType)) {
             nextIndex++;
         }
         EditingActivity.Keyframe nextKeyframe = keyframes.get(nextIndex);
