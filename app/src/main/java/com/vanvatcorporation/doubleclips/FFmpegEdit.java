@@ -1249,6 +1249,12 @@ public class FFmpegEdit {
             return keyframe.getGlobalTime(clip);
         }
 
+        if (Objects.equals(timebase, "n")) {
+            // scale, rotate, hue etc. are applied at the start of the first frame.
+            // n reflects the local frame count.
+            return keyframe.getLocalFrame();
+        }
+
         if (Objects.equals(timebase, "it")) {
             // it is input time (usually for zoompan), starts at 0 for the filter input.
             return keyframe.getLocalTime();
