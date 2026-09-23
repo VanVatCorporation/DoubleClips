@@ -1887,6 +1887,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                             Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
                             Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Volume)),
                             Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
                             Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
                             Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
@@ -1922,6 +1923,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                             Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
                                             Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Volume)),
                                             Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
                                             Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
                                             Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
@@ -1945,6 +1947,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                         Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
                                         Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Volume)),
                                         Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
                                         Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
                                         Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
@@ -1993,6 +1996,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
             clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
             clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
+            clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
 
             clipEditSpecificAreaScreen.opacitySeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Opacity));
             clipEditSpecificAreaScreen.speedSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Speed));
@@ -2046,6 +2050,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
                     clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
                     clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
+                    clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
 
                     clipEditSpecificAreaScreen.opacitySeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Opacity));
                     clipEditSpecificAreaScreen.speedSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Speed));
@@ -2699,6 +2704,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 clip.videoProperties.getValue(VideoProperties.ValueType.Rot),
                 clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Opacity), clip.videoProperties.getValue(VideoProperties.ValueType.Speed),
+                clip.videoProperties.getValue(VideoProperties.ValueType.Volume),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Hue), clip.videoProperties.getValue(VideoProperties.ValueType.Saturation),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Brightness), clip.videoProperties.getValue(VideoProperties.ValueType.Temperature)
         ), EasingType.NONE));
@@ -5114,6 +5120,8 @@ frameRate = 60;
         @Expose
         public float valueSpeed;
         @Expose
+        public float valueVolume;
+        @Expose
         public float valueHue;
         @Expose
         public float valueSaturation;
@@ -5131,6 +5139,7 @@ frameRate = 60;
             this.valueScaleY = 1;
             this.valueOpacity = 1;
             this.valueSpeed = 1;
+            this.valueVolume = 1;
             this.valueHue = 0;
             this.valueSaturation = 1;
             this.valueBrightness = 0;
@@ -5140,6 +5149,7 @@ frameRate = 60;
                                float valueRot,
                                float valueScaleX, float valueScaleY,
                                float valueOpacity, float valueSpeed,
+                               float valueVolume,
                                float valueHue, float valueSaturation,
                                float valueBrightness, float valueTemperature)
         {
@@ -5150,6 +5160,7 @@ frameRate = 60;
             this.valueScaleY = valueScaleY;
             this.valueOpacity = valueOpacity;
             this.valueSpeed = valueSpeed;
+            this.valueVolume = valueVolume;
             this.valueHue = valueHue;
             this.valueSaturation = valueSaturation;
             this.valueBrightness = valueBrightness;
@@ -5165,6 +5176,7 @@ frameRate = 60;
             this.valueScaleY = properties.valueScaleY;
             this.valueOpacity = properties.valueOpacity;
             this.valueSpeed = properties.valueSpeed;
+            this.valueVolume = properties.valueVolume;
             this.valueHue = properties.valueHue;
             this.valueSaturation = properties.valueSaturation;
             this.valueBrightness = properties.valueBrightness;
@@ -5191,6 +5203,8 @@ frameRate = 60;
                     return valueOpacity;
                 case Speed:
                     return valueSpeed;
+                case Volume:
+                    return valueVolume;
                 case Hue:
                     return valueHue;
                 case Saturation:
@@ -5230,6 +5244,9 @@ frameRate = 60;
                 case Speed:
                     valueSpeed = v;
                     break;
+                case Volume:
+                    valueVolume = v;
+                    break;
                 case Hue:
                     valueHue = v;
                     break;
@@ -5246,7 +5263,7 @@ frameRate = 60;
             }
         }
 
-        public void setAllValue(float valuePosX, float valuePosY, float valueRot, float valueScaleX, float valueScaleY, float valueHue, float valueOpacity, float valueSpeed, float valueSaturation, float valueBrightness, float valueTemperature) {
+        public void setAllValue(float valuePosX, float valuePosY, float valueRot, float valueScaleX, float valueScaleY, float valueHue, float valueOpacity, float valueSpeed, float valueVolume, float valueSaturation, float valueBrightness, float valueTemperature) {
             setValue(valuePosX, VideoProperties.ValueType.PosX);
             setValue(valuePosY, VideoProperties.ValueType.PosY);
             setValue(valueRot, VideoProperties.ValueType.Rot);
@@ -5256,13 +5273,14 @@ frameRate = 60;
 
             setValue(valueOpacity, VideoProperties.ValueType.Opacity);
             setValue(valueSpeed, VideoProperties.ValueType.Speed);
+            setValue(valueVolume, VideoProperties.ValueType.Volume);
             setValue(valueSaturation, VideoProperties.ValueType.Saturation);
             setValue(valueBrightness, VideoProperties.ValueType.Brightness);
             setValue(valueTemperature, VideoProperties.ValueType.Temperature);
         }
 
         public enum ValueType {
-            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, Opacity, Speed, Hue, Saturation, Brightness, Temperature
+            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
         }
     }
     public static class Keyframe implements Serializable {

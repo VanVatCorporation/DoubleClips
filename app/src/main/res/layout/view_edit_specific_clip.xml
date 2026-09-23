@@ -577,6 +577,44 @@
                     </LinearLayout>
                 </RelativeLayout>
 
+
+                <!-- Volume row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/volumeIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_volume_up_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/volumeText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_toEndOf="@id/volumeIcon"
+                        android:layout_marginStart="12dp"
+                        android:text="Volume"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+                    <EditText
+                        android:id="@+id/volumeField"
+                        android:layout_width="56dp"
+                        android:layout_height="wrap_content"
+                        android:background="@null"
+                        android:gravity="center"
+                        android:hint="1.0"
+                        android:inputType="numberSigned"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="14sp" />
+
+                </RelativeLayout>
+
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
             <!-- ── Animation ───────────────────────────────────────── -->

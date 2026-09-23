@@ -4,14 +4,14 @@ plugins {
 
 android {
     namespace 'com.vanvatcorporation.doubleclips'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.vanvatcorporation.doubleclips"
         minSdk 24
-        targetSdk 35
-        versionCode 30
-        versionName "1.3.9.1"
+        targetSdk 37
+        versionCode 32
+        versionName "31.08.2026-build-1-v1.4.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
