@@ -41,11 +41,37 @@
 
 
 
+        <RadioGroup
+            android:id="@+id/renderEngineRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/top_bar"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <RadioButton
+                android:id="@+id/renderEngineFfmpegRadio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="FFmpeg (CPU)" />
+
+            <RadioButton
+                android:id="@+id/renderEngineOpenGlRadio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="OpenGL (GPU) — Recommended" />
+
+        </RadioGroup>
+
+
         <com.vanvatcorporation.doubleclips.impl.SectionView
             android:id="@+id/clipsSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/top_bar"
+            android:layout_below="@id/renderEngineRadioGroup"
             app:sectionTitle="@string/clips">
 
             <androidx.recyclerview.widget.RecyclerView

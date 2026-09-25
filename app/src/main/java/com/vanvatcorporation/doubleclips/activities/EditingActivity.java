@@ -4961,6 +4961,11 @@ public class EditingActivity extends AppCompatActivityImpl {
         String tune;
         boolean isStretchToFull;
         boolean useHardwareAccel;
+        // "ffmpeg" or "opengl". Default ffmpeg: OpenGL export doesn't have feature
+        // parity yet (single-clip only, no compositing/transitions/effects — see
+        // OpenGLEditNative). Old saved project JSON won't have this field; Gson
+        // leaves it null, loadSettingsFromProject below falls back to "ffmpeg".
+        String renderEngine;
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune, boolean isStretchToFull)
         {
             this.videoWidth = videoWidth;
@@ -4973,6 +4978,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.tune = tune;
             this.isStretchToFull = isStretchToFull;
             this.useHardwareAccel = true;
+            this.renderEngine = "ffmpeg";
         }
 
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune)
@@ -4987,6 +4993,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.tune = tune;
             this.isStretchToFull = false;
             this.useHardwareAccel = true;
+            this.renderEngine = "ffmpeg";
         }
 
         public int getVideoWidth() {
@@ -5018,6 +5025,15 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         public boolean isUseHardwareAccel() {
             return useHardwareAccel;
+        }
+        public String getRenderEngine() {
+            return renderEngine != null ? renderEngine : "ffmpeg";
+        }
+        public void setRenderEngine(String renderEngine) {
+            this.renderEngine = renderEngine;
+        }
+        public boolean isOpenGlRenderEngine() {
+            return "opengl".equals(getRenderEngine());
         }
 
 
@@ -5055,6 +5071,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.tune = loadSettings.tune;
             this.isStretchToFull = loadSettings.isStretchToFull;
             this.useHardwareAccel = loadSettings.useHardwareAccel;
+            this.renderEngine = loadSettings.renderEngine != null ? loadSettings.renderEngine : "ffmpeg";
         }
         public static VideoSettings loadSettings(Context context, MainAreaScreen.ProjectData data) {
             return new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME)), VideoSettings.class);

@@ -193,6 +193,7 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
     ScrollView logScroll;
     CheckBox logCheckbox, truncateCheckbox, scrollLockCheckbox;
     Button exportButton;
+    android.widget.RadioGroup renderEngineRadioGroup;
 
     SectionView logSection, advancedSection;
 
@@ -253,7 +254,27 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
             generateCommand(data.getTemplateAdditionalResourcesName());
         });
         exportButton.setOnClickListener(v -> {
+            if (settings.isOpenGlRenderEngine()) {
+                // TemplateExportActivity's clip model (replacement clips via
+                // clipReplacementRecyclerView/data) isn't the same Timeline/Clip
+                // shape OpenGLEditNative's single-clip path was validated against
+                // in ExportActivity — wiring it here needs that data flow looked
+                // at directly rather than guessed. Falling back to FFmpeg
+                // explicitly rather than silently misrouting.
+                android.widget.Toast.makeText(this, "OpenGL export for templates isn't wired up yet — using FFmpeg", android.widget.Toast.LENGTH_SHORT).show();
+            }
             exportClip();
+        });
+
+        renderEngineRadioGroup = findViewById(R.id.renderEngineRadioGroup);
+        if (settings.isOpenGlRenderEngine()) {
+            renderEngineRadioGroup.check(R.id.renderEngineOpenGlRadio);
+        }
+        renderEngineRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            settings.setRenderEngine(checkedId == R.id.renderEngineOpenGlRadio ? "opengl" : "ffmpeg");
+            // Not persisted: settings here is constructed fresh in-memory each time
+            // (see line ~228) with no existing save/load-from-disk pattern in this
+            // activity, unlike ExportActivity's project-scoped settings file.
         });
 
         modifyZone = findViewById(R.id.modifyZone);

@@ -15,6 +15,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.RadioGroup;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -28,7 +29,7 @@ import com.arthenica.ffmpegkit.Log;
 import com.arthenica.ffmpegkit.Statistics;
 import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
-import com.vanvatcorporation.doubleclips.InternalEdit;
+import com.vanvatcorporation.doubleclips.OpenGLEditNative;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -81,6 +82,8 @@ public class ExportActivity extends AppCompatActivityImpl {
     ScrollView logScroll;
     CheckBox logCheckbox, truncateCheckbox, scrollLockCheckbox;
     Button exportButton, exportAsTemplateButton;
+
+    RadioGroup renderEngineRadioGroup;
 
     SectionView logSection, advancedSection;
 
@@ -161,11 +164,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         });
         exportButton = findViewById(R.id.exportButton);
         exportButton.setOnClickListener(v -> {
-            exportClip(false);
-        });
-        exportButton.setOnLongClickListener(v -> {
-            exportClipMediaCodec(false);
-            return true;
+            exportClipViaChosenEngine(false);
         });
 
         exportAsTemplateButton = findViewById(R.id.exportAsTemplateButton);
@@ -176,7 +175,16 @@ public class ExportActivity extends AppCompatActivityImpl {
                 return;
             }
 
-            exportClip(true);
+            exportClipViaChosenEngine(true);
+        });
+
+        renderEngineRadioGroup = findViewById(R.id.renderEngineRadioGroup);
+        if (settings.isOpenGlRenderEngine()) {
+            renderEngineRadioGroup.check(R.id.renderEngineOpenGlRadio);
+        }
+        renderEngineRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            settings.setRenderEngine(checkedId == R.id.renderEngineOpenGlRadio ? "opengl" : "ffmpeg");
+            settings.saveSettings(this, properties);
         });
 
         modifyZone = findViewById(R.id.modifyZone);
@@ -390,85 +398,109 @@ public class ExportActivity extends AppCompatActivityImpl {
     }
 
 
-    private void exportClipMediaCodec(boolean exportAsTemplate) {
-        preRender3DScenesThenExport(() -> exportClipMediaCodecImpl(exportAsTemplate));
-    }
-
-    private void exportClipMediaCodecImpl(boolean exportAsTemplate) {
-
-        startExportRendering();
-
-        logText.post(() -> logText.setTextIsSelectable(false));
-
-        AdsHandler.loadBothAds(this, this);
-
-        List<File> videoFiles = new ArrayList<>();
-        for (EditingActivity.Clip clip : timeline.getLockedForTemplateClip()) {
-            videoFiles.add(new File(clip.getAbsolutePath(properties)));
+    /**
+     * Routes export to whichever engine is selected. OpenGL isn't feature-complete
+     * yet (see PLAN.md / OpenGLEditNative — single video/image clip only, no
+     * multi-track compositing, transitions, or effects), so it's guarded: if the
+     * project is more complex than that, we tell the user and offer FFmpeg instead
+     * rather than silently producing an incomplete export.
+     */
+    private void exportClipViaChosenEngine(boolean exportAsTemplate) {
+        if (!settings.isOpenGlRenderEngine()) {
+            exportClip(exportAsTemplate);
+            return;
         }
 
-        List<File> previewFiles = Arrays.asList(new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.png")),
-                new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
-
-
-
-        // Detect when the child layout changes size
-        logScroll.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            if (bottom - top != oldBottom - oldTop) {
-                // Size changed — force ScrollView to re-measure and update
-
-                if (scrollLockCheckbox.isChecked())
-                    logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+        List<EditingActivity.Clip> allClips = new ArrayList<>();
+        if (timeline != null && timeline.tracks != null) {
+            for (EditingActivity.Track track : timeline.tracks) {
+                if (track == null || track.clips == null) continue;
+                allClips.addAll(track.clips);
             }
-        });
+        }
 
-        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(settings, timeline, new EditingActivity.Clip[0], properties, 0, false, exportAsTemplate, true);
+        boolean supported = allClips.size() == 1
+                && (allClips.get(0).type == EditingActivity.ClipType.VIDEO || allClips.get(0).type == EditingActivity.ClipType.IMAGE);
 
-        renderSettings.setClips(timeline.getStreamOfClip());
+        if (!supported) {
+            new AlertDialog.Builder(this)
+                    .setTitle("OpenGL export not ready for this project")
+                    .setMessage("OpenGL (GPU) export currently only supports a single video or image clip end to end. " +
+                            "Multi-clip timelines, transitions, and effects aren't wired up yet. Use FFmpeg for this project instead?")
+                    .setPositiveButton("Use FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
+                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                    .show();
+            return;
+        }
 
-        InternalEdit.runRender(this, renderSettings, "Exporting Video", "success", "fail",
-                () -> exportClipTo(exportAsTemplate, "", timeline.getAllReplacementClipCount(), videoFiles, previewFiles),
-                this::finishExportRendering
-                , new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        String log = (String) param;
-                        if (logCheckbox.isChecked()) {
-                            logText.post(() -> {
-                                String logStr = logText.getText() + "\n" + log;
-                                if (logStr.length() > Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS && truncateCheckbox.isChecked())
-                                    logStr = logStr.substring(logStr.length() - Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS);
-                                logText.setText(logStr);
-                                // Already handled above.
-                                if (scrollLockCheckbox.isChecked())
-                                    logScroll.fullScroll(View.FOCUS_DOWN);
-                            });
-                        }
-                    }
-                }, new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        //MediaInformationSession session = FFprobeKit.getMediaInformation(properties.getProjectPath());
-                        //double duration = Double.parseDouble(session.getMediaInformation().getDuration());
-                        double duration = properties.getProjectDuration();
+        preRender3DScenesThenExport(() -> exportClipOpenGLImpl(exportAsTemplate, allClips.get(0)));
+    }
 
-                        Float statistics = (Float) param;
-                        {
-                            if (statistics > 0) {
-                                int progress = (int) ((statistics * 100));
-                                statusBar.setMax(100);
-                                statusBar.setProgress(progress);
-                            }
-                        }
-                    }
-                });
+    /**
+     * Estimates a MediaCodec target bitrate from resolution/frame rate. NOTE:
+     * settings.getCRF() (constant-quality) is what the FFmpeg path uses, but
+     * MediaCodec's hardware encoder is rate-based, not CRF-based — CRF doesn't
+     * translate here. This is a standard-quality rule-of-thumb (~0.1 bits/pixel),
+     * not derived from the user's CRF setting. Revisit if output quality/size
+     * doesn't match user expectations relative to their FFmpeg exports.
+     */
+    private int estimateOpenGlBitrate(int width, int height, int frameRate) {
+        return (int) (width * height * frameRate * 0.1);
+    }
 
+    private void exportClipOpenGLImpl(boolean exportAsTemplate, EditingActivity.Clip clip) {
+        startExportRendering();
 
-        if (!isLogUpdateRunning)
-            runLogUpdate();
+        String projectPath = properties.getProjectPath();
+        String sourcePath = clip.getAbsolutePath(properties);
+        String videoOnlyPath = IOHelper.CombinePath(projectPath, "opengl_video_only_tmp.mp4");
+        String finalOutputPath = IOHelper.CombinePath(projectPath, Constants.DEFAULT_EXPORT_CLIP_FILENAME);
+
+        int width = settings.getVideoWidth();
+        int height = settings.getVideoHeight();
+        int frameRate = settings.getFrameRate();
+        int bitrate = estimateOpenGlBitrate(width, height, frameRate);
+        boolean hasAudio = clip.isClipHasAudio() && !clip.isMute();
+
+        List<File> previewFiles = Arrays.asList(new File(IOHelper.CombinePath(projectPath, "preview.png")),
+                new File(IOHelper.CombinePath(projectPath, "preview.mp4")));
+
+        new Thread(() -> {
+            OpenGLEditNative gl = new OpenGLEditNative();
+            try {
+                gl.start();
+                gl.exportSingleClipPassthrough(sourcePath, videoOnlyPath, width, height, bitrate, frameRate);
+                gl.shutdown();
+
+                if (hasAudio) {
+                    // OpenGLEditNative only produces video (audio stays on FFmpeg,
+                    // on both platforms — see PLAN.md decisions log). Mux the
+                    // clip's own audio track back in; -c:v copy so the
+                    // already-hardware-encoded video is never re-encoded.
+                    String muxCmd = "-y -i \"" + videoOnlyPath + "\" -i \"" + sourcePath + "\" " +
+                            "-map 0:v:0 -map 1:a:0? -c:v copy -c:a aac -shortest \"" + finalOutputPath + "\"";
+
+                    FFmpegEdit.runAnyCommand(this, muxCmd, "Muxing Audio (OpenGL export)",
+                            () -> {
+                                IOHelper.deleteFile(videoOnlyPath);
+                                runOnUiThread(() -> exportClipTo(exportAsTemplate, "", 1, new ArrayList<>(), previewFiles));
+                            },
+                            this::finishExportRendering,
+                            new RunnableImpl() { @Override public <T> void runWithParam(T param) { } },
+                            new RunnableImpl() { @Override public <T> void runWithParam(T param) { } });
+                } else {
+                    new File(videoOnlyPath).renameTo(new File(finalOutputPath));
+                    runOnUiThread(() -> exportClipTo(exportAsTemplate, "", 1, new ArrayList<>(), previewFiles));
+                }
+            } catch (Exception e) {
+                LoggingManager.LogToPersistentDataPath(this, "OpenGL export failed: " + e.getMessage());
+                runOnUiThread(this::finishExportRendering);
+            }
+        }).start();
     }
 
 
+    //TODO: Delete the exported clip inside project path. Detect in the beginning the export.mp4 if its exist then do the same with this method to extract it out.
     private void preRender3DScenesThenExport(Runnable onComplete) {
         startExportRendering();
         List<EditingActivity.Clip> scenes = new ArrayList<>();
