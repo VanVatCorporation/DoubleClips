@@ -466,7 +466,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                 new File(IOHelper.CombinePath(projectPath, "preview.mp4")));
 
         new Thread(() -> {
-            OpenGLEditNative gl = new OpenGLEditNative();
+            OpenGLEditNative gl = new OpenGLEditNative(this);
             try {
                 gl.start();
                 gl.exportSingleClipPassthrough(sourcePath, videoOnlyPath, width, height, bitrate, frameRate);
