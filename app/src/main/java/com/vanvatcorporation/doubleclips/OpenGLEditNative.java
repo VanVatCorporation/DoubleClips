@@ -17,7 +17,10 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Surface;
 
+import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
+
+import java.util.List;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -337,6 +340,18 @@ public class OpenGLEditNative {
             return textureId;
         }
 
+        /**
+         * SurfaceTexture frames aren't necessarily upright/uncropped in texture
+         * space — this matrix corrects that (a well-known MediaCodec/SurfaceTexture
+         * requirement; skipping it can silently flip or misalign the image).
+         * Valid only after a successful advanceToTime() call.
+         */
+        public float[] getTexTransformMatrix() {
+            float[] matrix = new float[16];
+            surfaceTexture.getTransformMatrix(matrix);
+            return matrix;
+        }
+
         /** Must be called on the GL thread. */
         public void release() {
             try {
@@ -404,7 +419,7 @@ public class OpenGLEditNative {
                     }
 
                     encoder.makeEncoderSurfaceCurrent();
-                    shader.draw(source.getTextureId(), width, height);
+                    shader.draw(source.getTextureId(), source.getTexTransformMatrix(), width, height);
                     // Source time == output time for this single-clip sanity test;
                     // once step 4 exists, presentation time is the OUTPUT timeline
                     // position, not the source clip's local time.
@@ -580,10 +595,11 @@ public class OpenGLEditNative {
         private static final String VERTEX_SHADER =
                 "attribute vec4 aPosition;\n" +
                 "attribute vec2 aTexCoord;\n" +
+                "uniform mat4 uTexMatrix;\n" +
                 "varying vec2 vTexCoord;\n" +
                 "void main() {\n" +
                 "    gl_Position = aPosition;\n" +
-                "    vTexCoord = aTexCoord;\n" +
+                "    vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n" +
                 "}\n";
 
         private static final String FRAGMENT_SHADER =
@@ -607,6 +623,7 @@ public class OpenGLEditNative {
         private int aPositionLoc;
         private int aTexCoordLoc;
         private int uTextureLoc;
+        private int uTexMatrixLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -615,6 +632,7 @@ public class OpenGLEditNative {
             aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
             aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
             uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
+            uTexMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -624,7 +642,7 @@ public class OpenGLEditNative {
         }
 
         /** Must be called on the GL thread, with the encoder surface already current. */
-        public void draw(int oesTextureId, int viewportWidth, int viewportHeight) {
+        public void draw(int oesTextureId, float[] texMatrix, int viewportWidth, int viewportHeight) {
             GLES20.glViewport(0, 0, viewportWidth, viewportHeight);
             GLES20.glClearColor(0f, 0f, 0f, 1f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -638,6 +656,8 @@ public class OpenGLEditNative {
             vertexBuffer.position(2);
             GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
             GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, texMatrix, 0);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
@@ -683,4 +703,235 @@ public class OpenGLEditNative {
             return shader;
         }
     }
+
+
+    // ---- Multi-clip compositing shader (step 4) --------------------------------
+    // Same texture-matrix handling as PassthroughShader, plus: an MVP matrix
+    // (position/scale/rotation, computed by OpenGLEdit.buildClipMvp) applied to
+    // vertex position instead of a fixed fullscreen quad, an opacity uniform,
+    // and GL_BLEND enabled so multiple clips composite correctly track-over-track.
+
+    public static class TransformShader {
+        private static final String VERTEX_SHADER =
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTexCoord;\n" +
+                "uniform mat4 uMvpMatrix;\n" +
+                "uniform mat4 uTexMatrix;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "void main() {\n" +
+                "    gl_Position = uMvpMatrix * aPosition;\n" +
+                "    vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n" +
+                "}\n";
+
+        private static final String FRAGMENT_SHADER =
+                "#extension GL_OES_EGL_image_external : require\n" +
+                "precision mediump float;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "uniform samplerExternalOES uTexture;\n" +
+                "uniform float uOpacity;\n" +
+                "void main() {\n" +
+                "    vec4 color = texture2D(uTexture, vTexCoord);\n" +
+                "    gl_FragColor = vec4(color.rgb, color.a * uOpacity);\n" +
+                "}\n";
+
+        // Unit quad (-1,-1)..(1,1); OpenGLEdit's model matrix scales/rotates/
+        // translates this into the clip's actual on-canvas position and size.
+        private static final float[] QUAD_VERTICES = {
+                // x, y,      u, v
+                -1f, -1f,     0f, 0f,
+                 1f, -1f,     1f, 0f,
+                -1f,  1f,     0f, 1f,
+                 1f,  1f,     1f, 1f,
+        };
+
+        private int program;
+        private int aPositionLoc;
+        private int aTexCoordLoc;
+        private int uTextureLoc;
+        private int uTexMatrixLoc;
+        private int uMvpMatrixLoc;
+        private int uOpacityLoc;
+        private java.nio.FloatBuffer vertexBuffer;
+
+        /** Must be called on the GL thread, once, after EGL context is current. */
+        public void init() {
+            program = buildProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
+            aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
+            uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
+            uTexMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix");
+            uMvpMatrixLoc = GLES20.glGetUniformLocation(program, "uMvpMatrix");
+            uOpacityLoc = GLES20.glGetUniformLocation(program, "uOpacity");
+
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
+            bb.order(java.nio.ByteOrder.nativeOrder());
+            vertexBuffer = bb.asFloatBuffer();
+            vertexBuffer.put(QUAD_VERTICES);
+            vertexBuffer.position(0);
+        }
+
+        /** Call once per output frame, before drawing any clips: sets viewport, clears, enables blending. */
+        public void beginFrame(int viewportWidth, int viewportHeight) {
+            GLES20.glViewport(0, 0, viewportWidth, viewportHeight);
+            GLES20.glClearColor(0f, 0f, 0f, 1f);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        /** Call once per active clip, in back-to-front (track index ascending) order. */
+        public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity) {
+            GLES20.glUseProgram(program);
+
+            vertexBuffer.position(0);
+            GLES20.glVertexAttribPointer(aPositionLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aPositionLoc);
+
+            vertexBuffer.position(2);
+            GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glUniformMatrix4fv(uMvpMatrixLoc, 1, false, mvpMatrix, 0);
+            GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, texMatrix, 0);
+            GLES20.glUniform1f(uOpacityLoc, opacity);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
+            GLES20.glUniform1i(uTextureLoc, 0);
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+            GLES20.glDisableVertexAttribArray(aPositionLoc);
+            GLES20.glDisableVertexAttribArray(aTexCoordLoc);
+        }
+
+        private int buildProgram(String vertexSrc, String fragmentSrc) {
+            int vertexShader = compileShader(GLES20.GL_VERTEX_SHADER, vertexSrc);
+            int fragmentShader = compileShader(GLES20.GL_FRAGMENT_SHADER, fragmentSrc);
+
+            int prog = GLES20.glCreateProgram();
+            GLES20.glAttachShader(prog, vertexShader);
+            GLES20.glAttachShader(prog, fragmentShader);
+            GLES20.glLinkProgram(prog);
+
+            int[] linkStatus = new int[1];
+            GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0);
+            if (linkStatus[0] == 0) {
+                String log = GLES20.glGetProgramInfoLog(prog);
+                GLES20.glDeleteProgram(prog);
+                throw new RuntimeException("Shader program link failed: " + log);
+            }
+            return prog;
+        }
+
+        private int compileShader(int type, String src) {
+            int shader = GLES20.glCreateShader(type);
+            GLES20.glShaderSource(shader, src);
+            GLES20.glCompileShader(shader);
+
+            int[] compileStatus = new int[1];
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0);
+            if (compileStatus[0] == 0) {
+                String log = GLES20.glGetShaderInfoLog(shader);
+                GLES20.glDeleteShader(shader);
+                throw new RuntimeException("Shader compile failed: " + log);
+            }
+            return shader;
+        }
+    }
+
+
+    // ---- Step 4: multi-clip/multi-track timeline export ------------------------
+
+    /**
+     * Full timeline export: walks every output frame via OpenGLEdit, opening/
+     * closing each clip's ClipFrameSource lazily (only while that clip is
+     * actually active — clips don't overlap within a track, so once a clip
+     * drops out of the active set it's done and its decoder is released
+     * immediately rather than held for the rest of the export).
+     *
+     * Still no effects/transitions (step 5) or color grading (step 7) — only
+     * position/scale/rotation/opacity, matching OpenGLEdit's current scope.
+     * Audio is not handled here (see PLAN.md: audio stays on FFmpeg).
+     */
+    public void exportTimeline(EditingActivity.Timeline timeline, OpenGLEdit edit, String projectPath,
+                                int width, int height, int bitrate, int frameRate, String outputPath) {
+        runOnGlThreadAndWait(() -> {
+            java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
+            TransformShader shader = new TransformShader();
+            ExportEncoder encoder = new ExportEncoder();
+
+            try {
+                shader.init();
+                encoder.open(width, height, bitrate, frameRate, /*iFrameIntervalSeconds*/ 1, outputPath);
+
+                long frameDurationUs = Math.round(1_000_000.0 / frameRate);
+                long timeoutUsPerStep = 100_000;
+
+                int frameIndex = 0;
+                float timelineDuration = timeline != null ? timeline.duration : 0f;
+
+                while (frameIndex * (frameDurationUs / 1_000_000.0) < timelineDuration) {
+                    float outputTimeSeconds = (float) (frameIndex * (frameDurationUs / 1_000_000.0));
+
+                    List<OpenGLEdit.DrawCommand> commands = edit.computeFrameForTimestamp(timeline, outputTimeSeconds, width, height);
+
+                    // Close sources for clips no longer active this frame — they
+                    // don't recur (clips don't loop/repeat within a track).
+                    java.util.Set<EditingActivity.Clip> stillActive = new java.util.HashSet<>();
+                    for (OpenGLEdit.DrawCommand cmd : commands) stillActive.add(cmd.clip);
+                    java.util.Iterator<java.util.Map.Entry<EditingActivity.Clip, ClipFrameSource>> it = activeSources.entrySet().iterator();
+                    while (it.hasNext()) {
+                        java.util.Map.Entry<EditingActivity.Clip, ClipFrameSource> entry = it.next();
+                        if (!stillActive.contains(entry.getKey())) {
+                            entry.getValue().release();
+                            it.remove();
+                        }
+                    }
+
+                    encoder.makeEncoderSurfaceCurrent();
+                    shader.beginFrame(width, height);
+
+                    for (OpenGLEdit.DrawCommand cmd : commands) {
+                        ClipFrameSource source = activeSources.get(cmd.clip);
+                        if (source == null) {
+                            source = new ClipFrameSource(cmd.clip.getAbsolutePath(projectPath));
+                            try {
+                                source.open();
+                            } catch (IOException e) {
+                                LoggingManager.LogToPersistentDataPath(context,
+                                        "OpenGLEditNative: failed to open clip for timeline export: " + e.getMessage());
+                                continue;
+                            }
+                            activeSources.put(cmd.clip, source);
+                        }
+
+                        long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
+                        boolean gotFrame = source.advanceToTime(localSourceTimeUs, timeoutUsPerStep);
+                        if (!gotFrame) {
+                            LoggingManager.LogToPersistentDataPath(context,
+                                    "OpenGLEditNative: clip stalled/EOS mid-timeline at output t=" + outputTimeSeconds);
+                            continue;
+                        }
+
+                        shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity);
+                    }
+
+                    encoder.swapAndPresent(Math.round(outputTimeSeconds * 1_000_000_000.0));
+                    frameIndex++;
+                }
+
+                LoggingManager.LogToPersistentDataPath(context,
+                        "OpenGLEditNative: timeline export finished, " + frameIndex + " frames -> " + outputPath);
+            } catch (IOException e) {
+                LoggingManager.LogExceptionToNoteOverlay(context, e);
+            } finally {
+                for (ClipFrameSource source : activeSources.values()) {
+                    source.release();
+                }
+                encoder.close();
+            }
+        });
+    }
 }
+

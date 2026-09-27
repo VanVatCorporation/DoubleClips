@@ -768,15 +768,26 @@ public class FFmpegEdit {
         // If it was template then insert the mark.
         String outputStr =
                 templateSettings.isTemplateCommand ? Constants.DEFAULT_TEMPLATE_CLIP_EXPORT_MARK :
-                        IOHelper.CombinePath(templateSettings.data.getProjectPath(), (templateSettings.isFinal ? "" : (templateSettings.renderingIndex + "_")) + Constants.DEFAULT_EXPORT_CLIP_FILENAME);
+                        IOHelper.CombinePath(templateSettings.data.getProjectPath(),
+                                templateSettings.audioOnly ? "opengl_audio_only_tmp.m4a" :
+                                        (templateSettings.isFinal ? "" : (templateSettings.renderingIndex + "_")) + Constants.DEFAULT_EXPORT_CLIP_FILENAME);
 
-        cmd.append("-filter_complex \"").append(filterComplex).append("\" ")
-                .append("-map \"").append( (mapTag != null ? mapTag.tag : "[base]") ).append("\" ")
-                .append(audioMaps);
+        cmd.append("-filter_complex \"").append(filterComplex).append("\" ");
+
+        if (templateSettings.audioOnly) {
+            // No video map at all -- mapTag/video filter nodes exist in the
+            // graph text above but are never referenced by an output, so
+            // FFmpeg's filtergraph optimizer skips running them.
+            cmd.append(audioMaps).append("-vn ");
+        } else {
+            cmd.append("-map \"").append((mapTag != null ? mapTag.tag : "[base]")).append("\" ")
+                    .append(audioMaps);
+        }
         cmd.append(" -threads 0");
 
-        // Encoder selection: hardware (MediaCodec) or software (libopenh264)
-        if (templateSettings.settings.isUseHardwareAccel()) {
+        if (templateSettings.audioOnly) {
+            cmd.append(" -c:a aac");
+        } else if (templateSettings.settings.isUseHardwareAccel()) {
             cmd.append(" -c:v h264_" + hardwareAcceleratedName)
                .append(" -b:v ").append(templateSettings.settings.getBitrate()).append("M");
         } else {
@@ -1569,6 +1580,17 @@ public class FFmpegEdit {
         boolean isFinal;
         boolean isTemplateCommand;
         boolean isTrimAllowed;
+        // When true, generateExportCmdPartially outputs ONLY the mixed audio
+        // stream (-map "[aout]" -vn, no video map/codec) instead of the full
+        // video+audio command. The video filter graph nodes are still built but
+        // never mapped to an output, so FFmpeg's graph optimizer skips executing
+        // them entirely — this is not a slower "encode video then throw it away"
+        // path, video-side work genuinely doesn't run. Added for the OpenGL
+        // export path: it composites video itself (see OpenGLEditNative), but
+        // still needs FFmpeg's existing multi-track amix/volume/trim logic for
+        // audio rather than reimplementing it (see PLAN.md decisions log).
+        // Default false: every existing call site is completely unaffected.
+        boolean audioOnly;
 
         public RenderSettings(EditingActivity.VideoSettings settings, EditingActivity.Timeline timeline, EditingActivity.Clip[] clips, MainAreaScreen.ProjectData data, int renderingIndex, boolean isFinal, boolean isTemplateCommand, boolean isTrimAllowed) {
             this.settings = settings;
@@ -1579,12 +1601,17 @@ public class FFmpegEdit {
             this.isFinal = isFinal;
             this.isTemplateCommand = isTemplateCommand;
             this.isTrimAllowed = isTrimAllowed;
+            this.audioOnly = false;
         }
 
         public RenderSettings() {}
 
         public void setClips(EditingActivity.Clip[] clips) {
             this.clips = clips;
+        }
+
+        public void setAudioOnly(boolean audioOnly) {
+            this.audioOnly = audioOnly;
         }
     }
 
