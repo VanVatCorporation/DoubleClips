@@ -19,11 +19,64 @@ import java.util.List;
  * across multiple tracks/clips, matched pixel-for-pixel against FFmpegEdit's
  * scale->rotate->overlay filter chain (see FFmpegEdit.java:412-426). Color
  * grading (hue/saturation/brightness/temperature), effects (FXCommandEmitter),
- * and transitions are NOT here yet — steps 5 and 7. Only ClipType.VIDEO and
- * ClipType.IMAGE are composited; other clip types are skipped (logged by the
+ * and transitions are NOT here yet — steps 5 and 7. Only ClipType.VIDEO is
+ * composited for now; other clip types are skipped (logged by the
  * caller, not here, since this class has no logging dependency either).
  */
 public class OpenGLEdit {
+
+    // ---- Capability flags -------------------------------------------------------
+    // The single source of truth for what this renderer can't do yet. The export
+    // screen asks getUnsupportedFeatures() and warns from that list, so when a
+    // feature is implemented, flip its flag to true and the warning (and the
+    // "use OpenGL anyway" choice) stops applying to it automatically - no UI
+    // change needed. Anything unsupported is currently skipped/ignored by the
+    // compositor rather than approximated.
+    public static final boolean SUPPORTS_TRANSITIONS = false;
+    public static final boolean SUPPORTS_REVERSE = false;
+    public static final boolean SUPPORTS_KEYFRAMES = false;
+    public static final boolean SUPPORTS_IMAGES = false;
+
+    /**
+     * Human-readable list of timeline features this renderer will NOT reproduce
+     * yet (empty = the OpenGL export will match the FFmpeg one for this project,
+     * as far as this class covers). AUDIO clips are fine: audio is always mixed
+     * by FFmpeg, see PLAN.md.
+     */
+    public static List<String> getUnsupportedFeatures(EditingActivity.Timeline timeline) {
+        java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
+        if (timeline == null || timeline.tracks == null) return new ArrayList<>(found);
+
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip == null) continue;
+                switch (clip.type) {
+                    case IMAGE:
+                        if (!SUPPORTS_IMAGES) found.add("Image clips");
+                        break;
+                    case TEXT:
+                        found.add("Text clips");
+                        break;
+                    case EFFECT:
+                        found.add("Effect clips");
+                        break;
+                    case SCENE_3D:
+                        found.add("3D scene clips");
+                        break;
+                    case TRANSITION:
+                        found.add("Transition clips");
+                        break;
+                    default: // VIDEO, AUDIO
+                        break;
+                }
+                if (!SUPPORTS_TRANSITIONS && clip.endTransitionEnabled) found.add("Transitions between clips");
+                if (!SUPPORTS_REVERSE && clip.isReverse()) found.add("Reversed clips");
+                if (!SUPPORTS_KEYFRAMES && clip.hasAnimatedProperties()) found.add("Keyframe animations");
+            }
+        }
+        return new ArrayList<>(found);
+    }
 
     /** One clip's contribution to a single output frame. */
     public static class DrawCommand {
@@ -70,8 +123,8 @@ public class OpenGLEdit {
 
             EditingActivity.Clip activeClip = findActiveClip(track, outputTimeSeconds);
             if (activeClip == null) continue;
-            if (activeClip.type != EditingActivity.ClipType.VIDEO && activeClip.type != EditingActivity.ClipType.IMAGE) {
-                continue; // effects/text/transitions/3D scenes: not this step
+            if (activeClip.type != EditingActivity.ClipType.VIDEO) {
+                continue; // audio has no picture; image/text/effects/3D: see getUnsupportedFeatures
             }
 
             float localSourceTime = (outputTimeSeconds - activeClip.startTime) + activeClip.startClipTrim;

@@ -398,14 +398,17 @@ public class ExportActivity extends AppCompatActivityImpl {
     }
 
 
+    // Kept so leaving the screen can stop a running GPU export (the FFmpeg queue's
+    // cancelAllTask() only knows about FFmpeg sessions).
+    private volatile OpenGLEditNative activeOpenGlExport;
+
     /**
-     * Routes export to whichever engine is selected. OpenGL now supports full
-     * multi-clip/multi-track timelines (position/scale/rotation/opacity —
-     * OpenGLEdit.computeFrameForTimestamp), but NOT yet: transitions between
-     * clips (adjacent clips just hard-cut instead), effects (FXCommandEmitter
-     * equivalents), color grading, or non-VIDEO/IMAGE clip types (text, 3D
-     * scenes). Guarded so those projects get an honest message + FFmpeg
-     * fallback instead of a silently incomplete export.
+     * Routes export to whichever engine is selected. What the OpenGL renderer
+     * can't reproduce yet is defined in ONE place - OpenGLEdit's capability
+     * flags / getUnsupportedFeatures() - so when a feature (e.g. transitions)
+     * is implemented there, this screen stops warning about it with no change
+     * here. If something is unsupported the user chooses: FFmpeg (everything
+     * works), OpenGL anyway (unsupported parts are skipped), or cancel.
      */
     private void exportClipViaChosenEngine(boolean exportAsTemplate) {
         if (!settings.isOpenGlRenderEngine()) {
@@ -413,45 +416,30 @@ public class ExportActivity extends AppCompatActivityImpl {
             return;
         }
 
-        List<EditingActivity.Clip> allClips = new ArrayList<>();
-        boolean hasTransition = false;
-        if (timeline != null && timeline.tracks != null) {
-            for (EditingActivity.Track track : timeline.tracks) {
-                if (track == null || track.clips == null) continue;
-                allClips.addAll(track.clips);
-                for (EditingActivity.Clip clip : track.clips) {
-                    if (clip != null && clip.endTransitionEnabled) hasTransition = true;
-                }
-            }
-        }
-
-        boolean allSupportedType = !allClips.isEmpty();
-        for (EditingActivity.Clip clip : allClips) {
-            if (clip.type != EditingActivity.ClipType.VIDEO && clip.type != EditingActivity.ClipType.IMAGE) {
-                allSupportedType = false;
-                break;
-            }
-        }
-
-        if (!allSupportedType || hasTransition) {
-            String reason = hasTransition ? "It uses transitions between clips, which aren't supported yet."
-                    : "It uses clip types (text, 3D scenes, etc.) that aren't supported yet.";
-            new AlertDialog.Builder(this)
-                    .setTitle("OpenGL export not ready for this project")
-                    .setMessage(reason + " Use FFmpeg for this project instead?")
-                    .setPositiveButton("Use FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
-                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                    .show();
+        List<String> unsupported = OpenGLEdit.getUnsupportedFeatures(timeline);
+        if (unsupported.isEmpty()) {
+            preRender3DScenesThenExport(() -> exportClipOpenGLImpl(exportAsTemplate));
             return;
         }
 
-        preRender3DScenesThenExport(() -> exportClipOpenGLImpl(exportAsTemplate));
+        StringBuilder message = new StringBuilder("OpenGL export can't reproduce these yet:\n");
+        for (String feature : unsupported) message.append("\n  \u2022 ").append(feature);
+        message.append("\n\nUse FFmpeg to get them all, or continue with OpenGL and they will be left out of this export.");
+
+        new AlertDialog.Builder(this)
+                .setTitle("OpenGL export not complete yet")
+                .setMessage(message.toString())
+                .setPositiveButton("Use FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
+                .setNeutralButton("Use OpenGL anyway", (dialog, which) ->
+                        preRender3DScenesThenExport(() -> exportClipOpenGLImpl(exportAsTemplate)))
+                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                .show();
     }
 
     /**
      * Estimates a MediaCodec target bitrate from resolution/frame rate. NOTE:
      * settings.getCRF() (constant-quality) is what the FFmpeg path uses, but
-     * MediaCodec's hardware encoder is rate-based, not CRF-based — CRF doesn't
+     * MediaCodec's hardware encoder is rate-based, not CRF-based - CRF doesn't
      * translate here. This is a standard-quality rule-of-thumb (~0.1 bits/pixel),
      * not derived from the user's CRF setting. Revisit if output quality/size
      * doesn't match user expectations relative to their FFmpeg exports.
@@ -460,11 +448,88 @@ public class ExportActivity extends AppCompatActivityImpl {
         return (int) (width * height * frameRate * 0.1);
     }
 
+    /** Mirrors FFmpegEdit's own rule for which clips contribute audio. */
+    private boolean timelineHasAudio() {
+        if (timeline == null || timeline.tracks == null) return false;
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip == null) continue;
+                if (clip.type == EditingActivity.ClipType.AUDIO) return true;
+                if (clip.type == EditingActivity.ClipType.VIDEO && clip.isClipHasAudio() && !clip.isMute()) return true;
+            }
+        }
+        return false;
+    }
+
+    // ---- On-screen log/progress (same views the FFmpeg callbacks drive) ----------
+
+    private void appendToLogWindow(String message) {
+        if (!logCheckbox.isChecked()) return;
+        logText.post(() -> {
+            String logStr = logText.getText() + "\n" + message;
+            if (logStr.length() > Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS && truncateCheckbox.isChecked())
+                logStr = logStr.substring(logStr.length() - Constants.DEFAULT_LOGGING_LIMIT_CHARACTERS);
+            logText.setText(logStr);
+            if (scrollLockCheckbox.isChecked())
+                logScroll.fullScroll(View.FOCUS_DOWN);
+        });
+    }
+
+    private void setTaskProgress(int percent) {
+        statusBar.post(() -> {
+            statusBar.setMax(100);
+            statusBar.setProgress(percent);
+        });
+    }
+
+    private RunnableImpl ffmpegLogCallback() {
+        return new RunnableImpl() {
+            @Override
+            public <T> void runWithParam(T param) {
+                appendToLogWindow(((Log) param).getMessage());
+            }
+        };
+    }
+
+    private RunnableImpl ffmpegStatsCallback() {
+        return new RunnableImpl() {
+            @Override
+            public <T> void runWithParam(T param) {
+                double duration = properties.getProjectDuration();
+                Statistics statistics = (Statistics) param;
+                if (statistics.getTime() > 0 && (int) duration > 0) {
+                    setTaskProgress((int) ((statistics.getTime() * 100) / (int) duration));
+                }
+            }
+        };
+    }
+
+    /**
+     * OpenGL export as three queued tasks, so the log window's "Running tasks
+     * (i/n)" works exactly like the FFmpeg path:
+     *   1. Compositing Video (OpenGL)  - GPU, video-only mp4
+     *   2. Mixing Audio                - FFmpeg, audio-only (skipped if no audio)
+     *   3. Finalizing Export           - FFmpeg, -c copy mux of the two
+     * Audio stays on FFmpeg on purpose (see PLAN.md).
+     */
     private void exportClipOpenGLImpl(boolean exportAsTemplate) {
         startExportRendering();
 
+        logText.post(() -> logText.setTextIsSelectable(false));
+        AdsHandler.loadBothAds(this, this);
+
+        // Same auto-scroll behaviour as the FFmpeg path.
+        logScroll.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (bottom - top != oldBottom - oldTop) {
+                if (scrollLockCheckbox.isChecked())
+                    logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+            }
+        });
+
         String projectPath = properties.getProjectPath();
         String videoOnlyPath = IOHelper.CombinePath(projectPath, "opengl_video_only_tmp.mp4");
+        String audioOnlyPath = IOHelper.CombinePath(projectPath, "opengl_audio_only_tmp.m4a");
         String finalOutputPath = IOHelper.CombinePath(projectPath, Constants.DEFAULT_EXPORT_CLIP_FILENAME);
 
         int width = settings.getVideoWidth();
@@ -472,56 +537,113 @@ public class ExportActivity extends AppCompatActivityImpl {
         int frameRate = settings.getFrameRate();
         int bitrate = estimateOpenGlBitrate(width, height, frameRate);
 
+        // Exactly what the FFmpeg path hands to exportClipTo - "export as template"
+        // needs the locked clips' files to bundle with the template.
+        List<File> videoFiles = new ArrayList<>();
+        for (EditingActivity.Clip clip : timeline.getLockedForTemplateClip()) {
+            videoFiles.add(new File(clip.getAbsolutePath(properties)));
+        }
         List<File> previewFiles = Arrays.asList(new File(IOHelper.CombinePath(projectPath, "preview.png")),
                 new File(IOHelper.CombinePath(projectPath, "preview.mp4")));
+        Runnable onExportDone = () -> runOnUiThread(() ->
+                exportClipTo(exportAsTemplate, "", timeline.getAllReplacementClipCount(), videoFiles, previewFiles));
 
-        new Thread(() -> {
-            OpenGLEditNative gl = new OpenGLEditNative(this);
-            try {
-                gl.start();
-                gl.exportTimeline(timeline, new OpenGLEdit(), projectPath, width, height, bitrate, frameRate, videoOnlyPath);
-                gl.shutdown();
+        boolean hasAudio = timelineHasAudio();
 
-                // Audio still goes through FFmpeg's existing multi-track amix/
-                // volume/trim logic (see PLAN.md: audio stays on FFmpeg) via the
-                // audioOnly RenderSettings flag added for this — it reuses the
-                // SAME filter_complex/audio graph the FFmpeg export path builds,
-                // just without mapping/encoding video.
-                FFmpegEdit.RenderSettings audioRenderSettings = new FFmpegEdit.RenderSettings(
-                        settings, timeline, new EditingActivity.Clip[0], properties, 0, true, false, true);
-                audioRenderSettings.setClips(timeline.getStreamOfClip());
-                audioRenderSettings.setAudioOnly(true);
-                String audioOnlyPath = IOHelper.CombinePath(projectPath, "opengl_audio_only_tmp.m4a");
-                String audioCmd = FFmpegEdit.generateExportCmdPartially(this, audioRenderSettings);
+        // Commands are built up front so all tasks are queued before anything runs
+        // and the window can show "(1/3)" from the start.
+        String audioCmd = null;
+        String muxCmd = null;
+        if (hasAudio) {
+            // Same flags as the FFmpeg path's real render (isTemplateCommand=false,
+            // isTrimAllowed=false): trim=true would emit template placeholders.
+            FFmpegEdit.RenderSettings audioRenderSettings = new FFmpegEdit.RenderSettings(
+                    settings, timeline, new EditingActivity.Clip[0], properties, 0, false, false, false);
+            audioRenderSettings.setClips(timeline.getStreamOfClip());
+            audioRenderSettings.setAudioOnly(true);
+            audioCmd = FFmpegEdit.generateExportCmdPartially(this, audioRenderSettings);
 
-                FFmpegEdit.runAnyCommand(this, audioCmd, "Mixing Audio (OpenGL export)",
-                        () -> {
-                            // Final mux: our GL video + FFmpeg's mixed audio, both already
-                            // encoded — pure container mux, -c copy on both sides.
-                            String muxCmd = "-y -i \"" + videoOnlyPath + "\" -i \"" + audioOnlyPath + "\" " +
-                                    "-map 0:v:0 -map 1:a:0? -c:v copy -c:a copy -shortest \"" + finalOutputPath + "\"";
-                            FFmpegEdit.runAnyCommand(this, muxCmd, "Finalizing Export (OpenGL)",
-                                    () -> {
-                                        IOHelper.deleteFile(videoOnlyPath);
-                                        IOHelper.deleteFile(audioOnlyPath);
-                                        runOnUiThread(() -> exportClipTo(exportAsTemplate, "", timeline.getAllReplacementClipCount(), new ArrayList<>(), previewFiles));
-                                    },
-                                    this::finishExportRendering,
-                                    new RunnableImpl() { @Override public <T> void runWithParam(T param) { } },
-                                    new RunnableImpl() { @Override public <T> void runWithParam(T param) { } });
-                        },
-                        this::finishExportRendering,
-                        new RunnableImpl() { @Override public <T> void runWithParam(T param) { } },
-                        new RunnableImpl() { @Override public <T> void runWithParam(T param) { } });
-            } catch (Exception e) {
-                LoggingManager.LogToPersistentDataPath(this, "OpenGL export failed: " + e.getMessage());
-                runOnUiThread(this::finishExportRendering);
-            }
-        }).start();
+            muxCmd = "-y -i \"" + videoOnlyPath + "\" -i \"" + audioOnlyPath + "\" " +
+                    "-map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -shortest \"" + finalOutputPath + "\"";
+        }
+
+        // FfmpegRenderQueue isn't thread-safe: the GPU task starts running the moment
+        // it is enqueued, so it waits here until the UI thread has queued the rest.
+        java.util.concurrent.CountDownLatch tasksQueued = new java.util.concurrent.CountDownLatch(1);
+
+        FFmpegEdit.queue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compositing Video (OpenGL)", () ->
+                new Thread(() -> {
+                    OpenGLEditNative gl = new OpenGLEditNative(this);
+                    activeOpenGlExport = gl;
+                    boolean ok = false;
+                    try {
+                        tasksQueued.await();
+                        gl.start();
+                        gl.exportTimeline(timeline, new OpenGLEdit(), projectPath, width, height, bitrate, frameRate, videoOnlyPath,
+                                new OpenGLEditNative.ExportListener() {
+                                    @Override
+                                    public void onLog(String message) {
+                                        appendToLogWindow(message);
+                                    }
+
+                                    @Override
+                                    public void onProgress(int frameIndex, int totalFrames) {
+                                        setTaskProgress(totalFrames > 0 ? (int) (frameIndex * 100L / totalFrames) : 0);
+                                    }
+                                });
+                        ok = !gl.isCancelled();
+                    } catch (Exception e) {
+                        LoggingManager.LogToPersistentDataPath(this, "OpenGL export failed: " + LoggingManager.getStackTraceFromException(e));
+                        appendToLogWindow("OpenGL export failed: " + e.getMessage());
+                    } finally {
+                        try {
+                            gl.shutdown();
+                        } catch (Exception ignored) {
+                        }
+                        activeOpenGlExport = null;
+                    }
+
+                    if (!ok) {
+                        FFmpegEdit.queue.cancelAllTask();
+                        finishExportRendering();
+                    } else if (!hasAudio) {
+                        new File(videoOnlyPath).renameTo(new File(finalOutputPath));
+                        FFmpegEdit.queue.taskCompleted(); // queue is empty: resets itself
+                        onExportDone.run();
+                    } else {
+                        FFmpegEdit.queue.taskCompleted(); // -> audio task
+                    }
+                }).start()));
+
+        if (hasAudio) {
+            FFmpegEdit.runAnyCommand(this, audioCmd, "Mixing Audio (OpenGL export)",
+                    () -> { },
+                    () -> {
+                        // Stop the chain: without the audio file the mux step can't work.
+                        FFmpegEdit.queue.cancelAllTask();
+                        finishExportRendering();
+                    },
+                    ffmpegLogCallback(), ffmpegStatsCallback());
+
+            FFmpegEdit.runAnyCommand(this, muxCmd, "Finalizing Export (OpenGL)",
+                    () -> {
+                        IOHelper.deleteFile(videoOnlyPath);
+                        IOHelper.deleteFile(audioOnlyPath);
+                        onExportDone.run();
+                    },
+                    this::finishExportRendering,
+                    ffmpegLogCallback(), ffmpegStatsCallback());
+        }
+
+        tasksQueued.countDown();
+
+        // This poller drives "Running tasks (i/n)" - the FFmpeg path starts it
+        // too; without it the window never updates for an OpenGL export.
+        if (!isLogUpdateRunning)
+            runLogUpdate();
     }
 
 
-    //TODO: Delete the exported clip inside project path. Detect in the beginning the export.mp4 if its exist then do the same with this method to extract it out.
     private void preRender3DScenesThenExport(Runnable onComplete) {
         startExportRendering();
         List<EditingActivity.Clip> scenes = new ArrayList<>();
@@ -679,13 +801,20 @@ public class ExportActivity extends AppCompatActivityImpl {
     @Override
     public void finish() {
         super.finish();
+        cancelOpenGlExport();
         FFmpegEdit.queue.cancelAllTask();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        cancelOpenGlExport();
         FFmpegEdit.queue.cancelAllTask();
+    }
+
+    private void cancelOpenGlExport() {
+        OpenGLEditNative gl = activeOpenGlExport;
+        if (gl != null) gl.cancel();
     }
 
     @Override

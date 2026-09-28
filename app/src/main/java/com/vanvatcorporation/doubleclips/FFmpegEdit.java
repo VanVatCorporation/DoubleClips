@@ -772,7 +772,23 @@ public class FFmpegEdit {
                                 templateSettings.audioOnly ? "opengl_audio_only_tmp.m4a" :
                                         (templateSettings.isFinal ? "" : (templateSettings.renderingIndex + "_")) + Constants.DEFAULT_EXPORT_CLIP_FILENAME);
 
-        cmd.append("-filter_complex \"").append(filterComplex).append("\" ");
+        // audioOnly: keep ONLY the audio statements ("[N:a]...[audio-X];" per clip
+        // plus the final amix -> [aout]). Every audio statement is self-contained,
+        // so dropping the video statements leaves a valid graph with no dangling
+        // video outputs and no video decoding at all. (Caller must not request
+        // audioOnly for a timeline with no audio clips - the graph would be empty.)
+        String graphText = filterComplex.toString();
+        if (templateSettings.audioOnly) {
+            StringBuilder audioGraph = new StringBuilder();
+            for (String statement : graphText.split(";\n")) {
+                String trimmed = statement.trim();
+                if (trimmed.matches("(?s)^\\[\\d+:a\\].*") || trimmed.contains("[aout]")) {
+                    audioGraph.append(trimmed).append(";\n");
+                }
+            }
+            graphText = audioGraph.toString();
+        }
+        cmd.append("-filter_complex \"").append(graphText).append("\" ");
 
         if (templateSettings.audioOnly) {
             // No video map at all -- mapTag/video filter nodes exist in the
@@ -1581,14 +1597,11 @@ public class FFmpegEdit {
         boolean isTemplateCommand;
         boolean isTrimAllowed;
         // When true, generateExportCmdPartially outputs ONLY the mixed audio
-        // stream (-map "[aout]" -vn, no video map/codec) instead of the full
-        // video+audio command. The video filter graph nodes are still built but
-        // never mapped to an output, so FFmpeg's graph optimizer skips executing
-        // them entirely — this is not a slower "encode video then throw it away"
-        // path, video-side work genuinely doesn't run. Added for the OpenGL
-        // export path: it composites video itself (see OpenGLEditNative), but
-        // still needs FFmpeg's existing multi-track amix/volume/trim logic for
-        // audio rather than reimplementing it (see PLAN.md decisions log).
+        // stream: the filter graph is reduced to the audio statements (see the
+        // audioOnly block near the end of generateExportCmdPartially) and there
+        // is no video map/codec. Added for the OpenGL export path, which
+        // composites video itself (see OpenGLEditNative) but reuses FFmpeg's
+        // existing multi-track amix/volume/trim logic for audio.
         // Default false: every existing call site is completely unaffected.
         boolean audioOnly;
 
