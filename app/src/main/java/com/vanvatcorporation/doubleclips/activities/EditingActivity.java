@@ -90,6 +90,7 @@ import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
+import com.vanvatcorporation.doubleclips.helper.FrameHelper;
 import com.vanvatcorporation.doubleclips.helper.GsonHelper;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
 import com.vanvatcorporation.doubleclips.helper.IOImageHelper;
@@ -1223,6 +1224,12 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             timeline = Timeline.loadTimeline(this, this, properties);
+
+
+            for (Clip clip : timeline.getAllClips())
+            {
+                clip.keyframes.reassignKeyframes(settings.frameRate);
+            }
 
             // Regenerate timeline renderer when timeline finishes loading.
             regeneratingTimelineRenderer();
@@ -2366,6 +2373,9 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         // TODO: Tested for dragging back and forth clips. They're doing fine with the extractor SYNC_EXACT
         //  Limit the time of refreshing entire timeline like this.
+
+        timeline.reassignClips(settings.frameRate);
+
         timelineRenderer.buildTimeline(timeline, properties, settings, this, previewViewGroup, textCanvasControllerInfo);
 
         pausedCanvasAlertPanel.setVisibility(View.GONE);
@@ -2731,6 +2741,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         clip.keyframes.keyframes.add(keyframe);
 
         clip.keyframes.sortKeyframe();
+        clip.keyframes.reassignKeyframes(settings.frameRate);
     }
     public void addKeyframeUi(Clip clip, Keyframe keyframe)
     {
@@ -3061,12 +3072,14 @@ public class EditingActivity extends AppCompatActivityImpl {
 //                                dragContext.currentTrack.viewRef.addView(dragContext.clip.rightHandle);
                                 dragContext.clip.forceAddHandlesToTrack(dragContext.currentTrack.viewRef);
 
-                                v.setX(finalX1);
+                                float newStartTime = (finalX1 - centerOffset) / pixelsPerSecond;
+                                float newSnappedStartTime = FrameHelper.calculateToNearestFrame(newStartTime, settings.frameRate);
+                                float finalX2 = (newSnappedStartTime * pixelsPerSecond) + centerOffset;
+                                v.setX(finalX2);
                                 v.setVisibility(View.VISIBLE);
 
                                 // Update metadata
-                                float newStartTime = (finalX1 - centerOffset) / pixelsPerSecond;
-                                dragContext.clip.startTime = Math.max(0, newStartTime); // Clamp to 0
+                                dragContext.clip.setStartTime(Math.max(0, newStartTime), settings.frameRate); // Clamp to 0
                                 timeline.tracks.get(dragContext.clip.trackIndex).removeClip(dragContext.clip);
                                 dragContext.clip.trackIndex = dragContext.currentTrack.timelineIndex;
                                 timeline.tracks.get(dragContext.clip.trackIndex).addClip((dragContext.clip));
@@ -3779,6 +3792,13 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             return clipCount;
         }
+        public List<Clip> getAllClips() {
+            List<Clip> all = new ArrayList<>();
+            for (Track track : tracks) {
+                all.addAll(track.clips);
+            }
+            return all;
+        }
         public Clip[] getStreamOfClip() {
             Clip[] clips = new Clip[getAllClipCount()];
             int i = 0;
@@ -3851,17 +3871,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (framePerSecond <= 0) return;
 
             for (Clip clip : clips) {
-                double currentTime = clip.getStartTime();
-
-                // 1. Find which frame index we are closest to
-                // Example: 3.14 * 30 = 94.2. Round(94.2) = 94.
-                long closestFrameIndex = Math.round(currentTime * framePerSecond);
-
-                // 2. Convert that frame index back into seconds
-                // Example: 94 / 30.0 = 3.1333...
-                double snappedTime = (double) closestFrameIndex / framePerSecond;
-
-                clip.setStartTime((float) snappedTime);
+                clip.setStartTime(clip.getStartTime(), framePerSecond);
             }
         }
         public List<Clip> getClipsAtCurrentTime(float playheadTime) {
@@ -4816,6 +4826,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void setStartTime(float startTime) {
             this.startTime = startTime;
         }
+        public void setStartTime(float startTime, int frameRate) {
+            this.startTime = FrameHelper.calculateToNearestFrame(startTime, frameRate);
+        }
         public float getDuration()
         {
             return duration;
@@ -5576,11 +5589,7 @@ frameRate = 60;
                 // Example: 3.14 * 30 = 94.2. Round(94.2) = 94.
                 long closestFrameIndex = Math.round(currentTime * framePerSecond);
 
-                // 2. Convert that frame index back into seconds
-                // Example: 94 / 30.0 = 3.1333...
-                double snappedTime = (double) closestFrameIndex / framePerSecond;
-
-                k.setLocalTime((float) snappedTime);
+                k.setLocalTime(FrameHelper.calculateToNearestFrame(k.getLocalTime(), framePerSecond));
                 k.setLocalFrame(closestFrameIndex);
             }
         }
