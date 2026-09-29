@@ -30,6 +30,7 @@ import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.OpenGLEdit;
 import com.vanvatcorporation.doubleclips.OpenGLEditNative;
+import com.vanvatcorporation.doubleclips.FFmpegEditNative;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -550,6 +551,56 @@ public class ExportActivity extends AppCompatActivityImpl {
 
         boolean hasAudio = timelineHasAudio();
 
+        // Reversed-clip pre-pass: MediaCodec can't decode backward, so any
+        // isReverse() VIDEO clip has its used range (startClipTrim..
+        // originalDuration-endClipTrim) extracted and reversed by FFmpeg into a
+        // temp file BEFORE OpenGL ever opens it (see PLAN.md decisions log).
+        // Video only - audio reversal already happens separately, against the
+        // ORIGINAL file, inside FFmpegEdit's own areverse in the audio-only pass
+        // below, so it isn't affected by any of this.
+        List<EditingActivity.Clip> reversedClips = new ArrayList<>();
+        if (timeline != null && timeline.tracks != null) {
+            for (EditingActivity.Track track : timeline.tracks) {
+                if (track == null || track.clips == null) continue;
+                for (EditingActivity.Clip clip : track.clips) {
+                    if (clip != null && clip.type == EditingActivity.ClipType.VIDEO && clip.isReverse()) {
+                        reversedClips.add(clip);
+                    }
+                }
+            }
+        }
+        // synchronizedMap: written on FFmpegKit's callback thread (once per clip,
+        // one at a time - the queue serializes these), read later on the GL
+        // export thread. IdentityHashMap because Clip doesn't override equals().
+        java.util.Map<EditingActivity.Clip, String> reversedClipPaths =
+                java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
+
+        for (int i = 0; i < reversedClips.size(); i++) {
+            EditingActivity.Clip clip = reversedClips.get(i);
+            String reversedPath = IOHelper.CombinePath(projectPath, "opengl_reversed_" + i + "_tmp.mp4");
+            float trimEnd = clip.originalDuration - clip.endClipTrim;
+
+            String codecArgs = settings.isUseHardwareAccel()
+                    ? "-c:v h264_" + FFmpegEditNative.hardwareAcceleratedName + " -b:v " + settings.getBitrate() + "M"
+                    : "-c:v libopenh264 -preset " + settings.getPreset() + " -tune " + settings.getTune() + " -crf " + settings.getCRF();
+
+            // trim+setpts resets the segment to local time 0 before reverse -
+            // reverse needs a PTS-STARTPTS-clean input to buffer and flip
+            // correctly; it must not see the rest of the source either side.
+            String reverseCmd = "-y -i \"" + clip.getAbsolutePath(properties) + "\" -vf \"trim=start=" + clip.startClipTrim +
+                    ":end=" + trimEnd + ",setpts=PTS-STARTPTS,reverse\" -an " + codecArgs + " -threads 0 \"" + reversedPath + "\"";
+
+            FFmpegEdit.runAnyCommand(this, reverseCmd, "Reversing Clip (" + (i + 1) + "/" + reversedClips.size() + ")",
+                    () -> reversedClipPaths.put(clip, reversedPath),
+                    () -> {
+                        // Stop the chain: OpenGL would otherwise decode the
+                        // original (forward) file for this clip with no warning.
+                        FFmpegEdit.queue.cancelAllTask();
+                        finishExportRendering();
+                    },
+                    ffmpegLogCallback(), ffmpegStatsCallback());
+        }
+
         // Commands are built up front so all tasks are queued before anything runs
         // and the window can show "(1/3)" from the start.
         String audioCmd = null;
@@ -580,6 +631,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                         tasksQueued.await();
                         gl.start();
                         gl.exportTimeline(timeline, new OpenGLEdit(), projectPath, width, height, bitrate, frameRate, videoOnlyPath,
+                                reversedClipPaths, settings.isStretchToFull(),
                                 new OpenGLEditNative.ExportListener() {
                                     @Override
                                     public void onLog(String message) {
@@ -608,6 +660,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                         finishExportRendering();
                     } else if (!hasAudio) {
                         new File(videoOnlyPath).renameTo(new File(finalOutputPath));
+                        for (String reversedPath : reversedClipPaths.values()) IOHelper.deleteFile(reversedPath);
                         FFmpegEdit.queue.taskCompleted(); // queue is empty: resets itself
                         onExportDone.run();
                     } else {
@@ -629,6 +682,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                     () -> {
                         IOHelper.deleteFile(videoOnlyPath);
                         IOHelper.deleteFile(audioOnlyPath);
+                        for (String reversedPath : reversedClipPaths.values()) IOHelper.deleteFile(reversedPath);
                         onExportDone.run();
                     },
                     this::finishExportRendering,

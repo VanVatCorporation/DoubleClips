@@ -33,7 +33,7 @@ public class OpenGLEdit {
     // change needed. Anything unsupported is currently skipped/ignored by the
     // compositor rather than approximated.
     public static final boolean SUPPORTS_TRANSITIONS = false;
-    public static final boolean SUPPORTS_REVERSE = false;
+    public static final boolean SUPPORTS_REVERSE = true;
     public static final boolean SUPPORTS_KEYFRAMES = true;
     public static final boolean SUPPORTS_IMAGES = true;
 
@@ -122,7 +122,7 @@ public class OpenGLEdit {
      * are skipped.
      */
     public List<DrawCommand> computeFrameForTimestamp(EditingActivity.Timeline timeline, float outputTimeSeconds,
-                                                        int canvasWidth, int canvasHeight) {
+                                                        int canvasWidth, int canvasHeight, boolean stretchToFull) {
         List<DrawCommand> commands = new ArrayList<>();
         if (timeline == null || timeline.tracks == null) return commands;
 
@@ -151,9 +151,16 @@ public class OpenGLEdit {
             float speed = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Speed);
             if (speed <= 0f) speed = 1f; // guard against a bad/zero value stalling the decoder forever
             float elapsedOutput = outputTimeSeconds - activeClip.startTime;
-            float localSourceTime = activeClip.startClipTrim + elapsedOutput * speed;
+            // Reversed clips are decoded from a pre-rendered, already-reversed
+            // intermediate that OpenGLEditNative builds for just the used trim
+            // range (see PLAN.md decisions log) - that file starts at local time
+            // 0 with the trim-in point, so no startClipTrim offset applies here,
+            // unlike the normal (forward, original-file) case.
+            float localSourceTime = activeClip.isReverse()
+                    ? elapsedOutput * speed
+                    : activeClip.startClipTrim + elapsedOutput * speed;
 
-            float[] mvp = buildClipMvp(activeClip, outputTimeSeconds, projection);
+            float[] mvp = buildClipMvp(activeClip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull);
             float opacity = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity);
             float hue = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue);
             float saturation = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Saturation);
@@ -204,15 +211,22 @@ public class OpenGLEdit {
      *   the transparent margins for free), but the CENTER position must still
      *   be computed from the expanded bbox to land in the same place FFmpeg would.
      */
-    private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection) {
+    private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection,
+                                  int canvasWidth, int canvasHeight, boolean stretchToFull) {
         float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX);
         float scaleY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleY);
         float posX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosX);
         float posY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosY);
         float rotRadians = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.RotInRadians);
 
-        float scaledW = clip.width * scaleX;
-        float scaledH = clip.height * scaleY;
+        // Stretch-to-fit: matches FFmpegEdit's scale=w=(stretchToFull ? renderWidth
+        // : iw)*ScaleX:h=(stretchToFull ? renderHeight : ih)*ScaleY (FFmpegEdit.java,
+        // scaleXStretchExpr/scaleYStretchExpr) - the OUTPUT canvas size replaces the
+        // clip's own intrinsic size as the base ScaleX/ScaleY multiplies against.
+        float baseW = stretchToFull ? canvasWidth : clip.width;
+        float baseH = stretchToFull ? canvasHeight : clip.height;
+        float scaledW = baseW * scaleX;
+        float scaledH = baseH * scaleY;
 
         float cos = (float) Math.cos(rotRadians);
         float sin = (float) Math.sin(rotRadians);

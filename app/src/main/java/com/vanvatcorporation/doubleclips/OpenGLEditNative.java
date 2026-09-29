@@ -1040,8 +1040,21 @@ public class OpenGLEditNative {
      *
      * @param listener optional; receives log lines and frame progress
      */
+    /**
+     * @param reversedClipPaths maps a reversed clip to the pre-rendered,
+     *        already-reversed intermediate file OpenGLEditNative should decode
+     *        for it instead of its original source (see PLAN.md - MediaCodec
+     *        can't decode backward, so this is built by an FFmpeg pre-pass
+     *        before this method runs). Clips not in the map use their normal
+     *        source path regardless of isReverse() - pass an empty map, never
+     *        null, if there are none.
+     * @param stretchToFull matches VideoSettings.isStretchToFull(): use the
+     *        output canvas size instead of each clip's own size as the base
+     *        for its Scale - see OpenGLEdit.buildClipMvp.
+     */
     public void exportTimeline(EditingActivity.Timeline timeline, OpenGLEdit edit, String projectPath,
                                 int width, int height, int bitrate, int frameRate, String outputPath,
+                                java.util.Map<EditingActivity.Clip, String> reversedClipPaths, boolean stretchToFull,
                                 ExportListener listener) {
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
@@ -1075,7 +1088,7 @@ public class OpenGLEditNative {
                     long outputTimeUs = Math.round(frameIndex * 1_000_000.0 / frameRate);
                     float outputTimeSeconds = (float) (outputTimeUs / 1_000_000.0);
 
-                    List<OpenGLEdit.DrawCommand> commands = edit.computeFrameForTimestamp(timeline, outputTimeSeconds, width, height);
+                    List<OpenGLEdit.DrawCommand> commands = edit.computeFrameForTimestamp(timeline, outputTimeSeconds, width, height, stretchToFull);
 
                     // Close sources for clips no longer active this frame - they
                     // don't recur (clips don't loop/repeat within a track).
@@ -1110,7 +1123,9 @@ public class OpenGLEditNative {
 
                         ClipFrameSource source = activeSources.get(cmd.clip);
                         if (source == null) {
-                            source = new ClipFrameSource(cmd.clip.getAbsolutePath(projectPath));
+                            String overridePath = reversedClipPaths != null ? reversedClipPaths.get(cmd.clip) : null;
+                            String sourcePath = overridePath != null ? overridePath : cmd.clip.getAbsolutePath(projectPath);
+                            source = new ClipFrameSource(sourcePath);
                             try {
                                 source.open();
                             } catch (IOException | RuntimeException e) {
