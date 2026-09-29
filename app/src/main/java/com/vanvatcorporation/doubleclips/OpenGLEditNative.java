@@ -460,6 +460,64 @@ public class OpenGLEditNative {
     }
 
 
+    // ---- Image clips: single-decode-then-hold GL_TEXTURE_2D source -------------
+    // Deliberately NOT a GL_TEXTURE_EXTERNAL_OES texture (that type expects its
+    // content to come from a SurfaceTexture/EGLImage — uploading arbitrary pixel
+    // data into one via glTexImage2D is undefined behavior on real drivers, even
+    // though it happens to compile). A plain 2D texture needs its own shader
+    // (ImageTransformShader, sampler2D) since GLSL's samplerExternalOES and
+    // sampler2D are different types — see TransformShader for the video path.
+
+    /**
+     * Owns one image clip's texture. Unlike ClipFrameSource there is no decode
+     * loop: the bitmap is decoded and uploaded once in open(), and the same
+     * texture is reused for every frame the clip is active — matching how an
+     * image clip has no source timeline to advance through.
+     */
+    public class ImageFrameSource {
+
+        private final String imagePath;
+        private int textureId = -1;
+
+        public ImageFrameSource(String imagePath) {
+            this.imagePath = imagePath;
+        }
+
+        /** Must be called on the GL thread. */
+        public void open() throws IOException {
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(imagePath);
+            if (bitmap == null) {
+                throw new IOException("Could not decode image: " + imagePath);
+            }
+            try {
+                int[] textures = new int[1];
+                GLES20.glGenTextures(1, textures, 0);
+                textureId = textures[0];
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+                android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0);
+            } finally {
+                bitmap.recycle();
+            }
+        }
+
+        public int getTextureId() {
+            return textureId;
+        }
+
+        /** Must be called on the GL thread. */
+        public void release() {
+            if (textureId != -1) {
+                GLES20.glDeleteTextures(1, new int[]{textureId}, 0);
+                textureId = -1;
+            }
+        }
+    }
+
+
     // ---- Frame-out: composited GL frame -> MediaCodec encoder Surface ---------
 
     /**
@@ -628,9 +686,49 @@ public class OpenGLEditNative {
                 "varying vec2 vTexCoord;\n" +
                 "uniform samplerExternalOES uTexture;\n" +
                 "uniform float uOpacity;\n" +
+                // Same YUV-based model FFmpeg's hue filter uses: hue rotates the
+                // chroma (U,V) plane by uHueDegrees, uSaturation scales chroma
+                // magnitude, uBrightness offsets luma (Y) - matches
+                // FFmpegEdit.java's hue=h=..:s=..:b=.. filter in intent, though
+                // exact pixel values can differ slightly (rounding, color-space
+                // assumptions) between this shader and FFmpeg's software filter.
+                "uniform float uHueDegrees;\n" +
+                "uniform float uSaturation;\n" +
+                // uBrightness arrives in the app's own -10..10 range (same range
+                // fed straight into FFmpeg's hue filter's b= parameter) and is
+                // scaled by 0.1 before being added to normalized (0..1) luma -
+                // matching FFmpeg's own internal *25.5 scaling of that parameter
+                // in 8-bit (0..255) terms (25.5/255 = 0.1). This is based on my
+                // knowledge of vf_hue.c's behavior, not something re-verified
+                // against FFmpeg's source in this session - if brightness looks
+                // off versus the FFmpeg export, this factor is the first thing to check.
+                "uniform float uBrightness;\n" +
+                // Color temperature: a linear warm/cool RGB tint around 6500K
+                // (neutral), NOT FFmpeg's Planckian-locus colortemperature filter.
+                // Visually similar direction (warmer above 6500K, cooler below),
+                // not a pixel match - flagging so this isn't mistaken for parity.
+                "uniform float uTemperatureKelvin;\n" +
                 "void main() {\n" +
                 "    vec4 color = texture2D(uTexture, vTexCoord);\n" +
-                "    gl_FragColor = vec4(color.rgb, color.a * uOpacity);\n" +
+                "    vec3 rgb = color.rgb;\n" +
+                "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
+                "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
+                "    float v = dot(rgb, vec3(0.61500, -0.51499, -0.10001));\n" +
+                "    float hueRad = radians(uHueDegrees);\n" +
+                "    float cosH = cos(hueRad);\n" +
+                "    float sinH = sin(hueRad);\n" +
+                "    float u2 = (u * cosH - v * sinH) * uSaturation;\n" +
+                "    float v2 = (u * sinH + v * cosH) * uSaturation;\n" +
+                "    float y2 = clamp(y + uBrightness * 0.1, 0.0, 1.0);\n" +
+                "    rgb = vec3(\n" +
+                "        y2 + 1.13983 * v2,\n" +
+                "        y2 - 0.39465 * u2 - 0.58060 * v2,\n" +
+                "        y2 + 2.03211 * u2\n" +
+                "    );\n" +
+                "    float tempNorm = clamp((uTemperatureKelvin - 6500.0) / 6500.0, -1.0, 1.0);\n" +
+                "    rgb.r *= (1.0 + tempNorm * 0.3);\n" +
+                "    rgb.b *= (1.0 - tempNorm * 0.3);\n" +
+                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity);\n" +
                 "}\n";
 
         // Unit quad (-1,-1)..(1,1); OpenGLEdit's model matrix scales/rotates/
@@ -655,6 +753,10 @@ public class OpenGLEditNative {
         private int uTexMatrixLoc;
         private int uMvpMatrixLoc;
         private int uOpacityLoc;
+        private int uHueLoc;
+        private int uSaturationLoc;
+        private int uBrightnessLoc;
+        private int uTemperatureLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -666,6 +768,10 @@ public class OpenGLEditNative {
             uTexMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix");
             uMvpMatrixLoc = GLES20.glGetUniformLocation(program, "uMvpMatrix");
             uOpacityLoc = GLES20.glGetUniformLocation(program, "uOpacity");
+            uHueLoc = GLES20.glGetUniformLocation(program, "uHueDegrees");
+            uSaturationLoc = GLES20.glGetUniformLocation(program, "uSaturation");
+            uBrightnessLoc = GLES20.glGetUniformLocation(program, "uBrightness");
+            uTemperatureLoc = GLES20.glGetUniformLocation(program, "uTemperatureKelvin");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -684,7 +790,8 @@ public class OpenGLEditNative {
         }
 
         /** Call once per active clip, in back-to-front (track index ascending) order. */
-        public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity) {
+        public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
+                              float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -698,9 +805,183 @@ public class OpenGLEditNative {
             GLES20.glUniformMatrix4fv(uMvpMatrixLoc, 1, false, mvpMatrix, 0);
             GLES20.glUniformMatrix4fv(uTexMatrixLoc, 1, false, texMatrix, 0);
             GLES20.glUniform1f(uOpacityLoc, opacity);
+            GLES20.glUniform1f(uHueLoc, hueDegrees);
+            GLES20.glUniform1f(uSaturationLoc, saturation);
+            GLES20.glUniform1f(uBrightnessLoc, brightness);
+            GLES20.glUniform1f(uTemperatureLoc, temperatureKelvin);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
+            GLES20.glUniform1i(uTextureLoc, 0);
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+            GLES20.glDisableVertexAttribArray(aPositionLoc);
+            GLES20.glDisableVertexAttribArray(aTexCoordLoc);
+        }
+
+        private int buildProgram(String vertexSrc, String fragmentSrc) {
+            int vertexShader = compileShader(GLES20.GL_VERTEX_SHADER, vertexSrc);
+            int fragmentShader = compileShader(GLES20.GL_FRAGMENT_SHADER, fragmentSrc);
+
+            int prog = GLES20.glCreateProgram();
+            GLES20.glAttachShader(prog, vertexShader);
+            GLES20.glAttachShader(prog, fragmentShader);
+            GLES20.glLinkProgram(prog);
+
+            int[] linkStatus = new int[1];
+            GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0);
+            if (linkStatus[0] == 0) {
+                String log = GLES20.glGetProgramInfoLog(prog);
+                GLES20.glDeleteProgram(prog);
+                throw new RuntimeException("Shader program link failed: " + log);
+            }
+            return prog;
+        }
+
+        private int compileShader(int type, String src) {
+            int shader = GLES20.glCreateShader(type);
+            GLES20.glShaderSource(shader, src);
+            GLES20.glCompileShader(shader);
+
+            int[] compileStatus = new int[1];
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0);
+            if (compileStatus[0] == 0) {
+                String log = GLES20.glGetShaderInfoLog(shader);
+                GLES20.glDeleteShader(shader);
+                throw new RuntimeException("Shader compile failed: " + log);
+            }
+            return shader;
+        }
+    }
+
+
+    // ---- Image compositing shader -----------------------------------------------
+    // Same MVP/opacity/color-grading math as TransformShader, kept as a SEPARATE
+    // class rather than sharing code with it: the sampler type differs
+    // (sampler2D vs samplerExternalOES are different GLSL types, so the fragment
+    // shader source itself must differ), and duplicating this small amount of
+    // code is a safer choice than restructuring the already-tested video path
+    // while adding a new feature. Revisit if this drifts out of sync with
+    // TransformShader after future color-grading changes.
+    //
+    // No texture-matrix uniform: that exists only to correct SurfaceTexture's
+    // hardware-dependent crop/orientation quirks (MediaCodec/camera output),
+    // which don't apply to a plain decoded bitmap.
+
+    public static class ImageTransformShader {
+        private static final String VERTEX_SHADER =
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTexCoord;\n" +
+                "uniform mat4 uMvpMatrix;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "void main() {\n" +
+                "    gl_Position = uMvpMatrix * aPosition;\n" +
+                "    vTexCoord = aTexCoord;\n" +
+                "}\n";
+
+        private static final String FRAGMENT_SHADER =
+                "precision mediump float;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "uniform sampler2D uTexture;\n" +
+                "uniform float uOpacity;\n" +
+                "uniform float uHueDegrees;\n" +
+                "uniform float uSaturation;\n" +
+                "uniform float uBrightness;\n" +
+                "uniform float uTemperatureKelvin;\n" +
+                "void main() {\n" +
+                "    vec4 color = texture2D(uTexture, vTexCoord);\n" +
+                "    vec3 rgb = color.rgb;\n" +
+                "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
+                "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
+                "    float v = dot(rgb, vec3(0.61500, -0.51499, -0.10001));\n" +
+                "    float hueRad = radians(uHueDegrees);\n" +
+                "    float cosH = cos(hueRad);\n" +
+                "    float sinH = sin(hueRad);\n" +
+                "    float u2 = (u * cosH - v * sinH) * uSaturation;\n" +
+                "    float v2 = (u * sinH + v * cosH) * uSaturation;\n" +
+                "    float y2 = clamp(y + uBrightness * 0.1, 0.0, 1.0);\n" +
+                "    rgb = vec3(\n" +
+                "        y2 + 1.13983 * v2,\n" +
+                "        y2 - 0.39465 * u2 - 0.58060 * v2,\n" +
+                "        y2 + 2.03211 * u2\n" +
+                "    );\n" +
+                "    float tempNorm = clamp((uTemperatureKelvin - 6500.0) / 6500.0, -1.0, 1.0);\n" +
+                "    rgb.r *= (1.0 + tempNorm * 0.3);\n" +
+                "    rgb.b *= (1.0 - tempNorm * 0.3);\n" +
+                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity);\n" +
+                "}\n";
+
+        // NOT flipped, unlike TransformShader's quad: GLUtils.texImage2D uploads
+        // the Android Bitmap's rows in order (row 0 = top of the image) directly
+        // into texture memory, and GL samples v=0 as the first row supplied — so
+        // v=0 already lands on the TOP of the image here, matching our Y-down
+        // pixel-space model where (-1,-1) is the top-left. This is based on the
+        // standard/documented behavior of GLUtils.texImage2D, not confirmed by
+        // an on-device render in this session — if an image clip comes out
+        // upside-down, swap this quad for TransformShader's flipped one.
+        private static final float[] QUAD_VERTICES = {
+                // x, y,      u, v
+                -1f, -1f,     0f, 0f,
+                 1f, -1f,     1f, 0f,
+                -1f,  1f,     0f, 1f,
+                 1f,  1f,     1f, 1f,
+        };
+
+        private int program;
+        private int aPositionLoc;
+        private int aTexCoordLoc;
+        private int uTextureLoc;
+        private int uMvpMatrixLoc;
+        private int uOpacityLoc;
+        private int uHueLoc;
+        private int uSaturationLoc;
+        private int uBrightnessLoc;
+        private int uTemperatureLoc;
+        private java.nio.FloatBuffer vertexBuffer;
+
+        /** Must be called on the GL thread, once, after EGL context is current. */
+        public void init() {
+            program = buildProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
+            aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
+            uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
+            uMvpMatrixLoc = GLES20.glGetUniformLocation(program, "uMvpMatrix");
+            uOpacityLoc = GLES20.glGetUniformLocation(program, "uOpacity");
+            uHueLoc = GLES20.glGetUniformLocation(program, "uHueDegrees");
+            uSaturationLoc = GLES20.glGetUniformLocation(program, "uSaturation");
+            uBrightnessLoc = GLES20.glGetUniformLocation(program, "uBrightness");
+            uTemperatureLoc = GLES20.glGetUniformLocation(program, "uTemperatureKelvin");
+
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
+            bb.order(java.nio.ByteOrder.nativeOrder());
+            vertexBuffer = bb.asFloatBuffer();
+            vertexBuffer.put(QUAD_VERTICES);
+            vertexBuffer.position(0);
+        }
+
+        /** Call once per active image clip. Caller is responsible for beginFrame() (viewport/clear/blend) once per output frame. */
+        public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
+                              float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
+            GLES20.glUseProgram(program);
+
+            vertexBuffer.position(0);
+            GLES20.glVertexAttribPointer(aPositionLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aPositionLoc);
+
+            vertexBuffer.position(2);
+            GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glUniformMatrix4fv(uMvpMatrixLoc, 1, false, mvpMatrix, 0);
+            GLES20.glUniform1f(uOpacityLoc, opacity);
+            GLES20.glUniform1f(uHueLoc, hueDegrees);
+            GLES20.glUniform1f(uSaturationLoc, saturation);
+            GLES20.glUniform1f(uBrightnessLoc, brightness);
+            GLES20.glUniform1f(uTemperatureLoc, temperatureKelvin);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture2DId);
             GLES20.glUniform1i(uTextureLoc, 0);
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
@@ -764,13 +1045,16 @@ public class OpenGLEditNative {
                                 ExportListener listener) {
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
+            java.util.Map<EditingActivity.Clip, ImageFrameSource> activeImageSources = new java.util.IdentityHashMap<>();
             java.util.Set<EditingActivity.Clip> reportedNoFrame =
                     java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
             TransformShader shader = new TransformShader();
+            ImageTransformShader imageShader = new ImageTransformShader();
             ExportEncoder encoder = new ExportEncoder();
 
             try {
                 shader.init();
+                imageShader.init();
                 encoder.open(width, height, bitrate, frameRate, /*iFrameIntervalSeconds*/ 1, outputPath);
 
                 long timeoutUsPerStep = 100_000;
@@ -798,19 +1082,32 @@ public class OpenGLEditNative {
                     java.util.Set<EditingActivity.Clip> stillActive =
                             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
                     for (OpenGLEdit.DrawCommand cmd : commands) stillActive.add(cmd.clip);
-                    java.util.Iterator<java.util.Map.Entry<EditingActivity.Clip, ClipFrameSource>> it = activeSources.entrySet().iterator();
-                    while (it.hasNext()) {
-                        java.util.Map.Entry<EditingActivity.Clip, ClipFrameSource> entry = it.next();
-                        if (!stillActive.contains(entry.getKey())) {
-                            entry.getValue().release();
-                            it.remove();
-                        }
-                    }
+                    releaseInactive(activeSources, stillActive);
+                    releaseInactive(activeImageSources, stillActive);
 
                     encoder.makeEncoderSurfaceCurrent();
-                    shader.beginFrame(width, height);
+                    shader.beginFrame(width, height); // also clears + enables blending for this frame; imageShader draws into the same state
 
                     for (OpenGLEdit.DrawCommand cmd : commands) {
+                        if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
+                            ImageFrameSource imageSource = activeImageSources.get(cmd.clip);
+                            if (imageSource == null) {
+                                imageSource = new ImageFrameSource(cmd.clip.getAbsolutePath(projectPath));
+                                try {
+                                    imageSource.open();
+                                } catch (IOException | RuntimeException e) {
+                                    if (reportedNoFrame.add(cmd.clip)) {
+                                        report(listener, "OpenGL: could not open an image clip, it will be missing from the export: " + e.getMessage());
+                                    }
+                                    continue;
+                                }
+                                activeImageSources.put(cmd.clip, imageSource);
+                            }
+                            imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
+                                    cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin);
+                            continue;
+                        }
+
                         ClipFrameSource source = activeSources.get(cmd.clip);
                         if (source == null) {
                             source = new ClipFrameSource(cmd.clip.getAbsolutePath(projectPath));
@@ -835,7 +1132,8 @@ public class OpenGLEditNative {
                             continue;
                         }
 
-                        shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity);
+                        shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
+                                cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin);
                     }
 
                     encoder.swapAndPresent(outputTimeUs * 1000L);
@@ -856,9 +1154,26 @@ public class OpenGLEditNative {
                 for (ClipFrameSource source : activeSources.values()) {
                     source.release();
                 }
+                for (ImageFrameSource source : activeImageSources.values()) {
+                    source.release();
+                }
                 encoder.close();
             }
         });
+    }
+
+    /** Releases and removes every entry whose clip is not in stillActive. Shared by the video and image source maps. */
+    private <T> void releaseInactive(java.util.Map<EditingActivity.Clip, T> sources, java.util.Set<EditingActivity.Clip> stillActive) {
+        java.util.Iterator<java.util.Map.Entry<EditingActivity.Clip, T>> it = sources.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<EditingActivity.Clip, T> entry = it.next();
+            if (!stillActive.contains(entry.getKey())) {
+                Object value = entry.getValue();
+                if (value instanceof ClipFrameSource) ((ClipFrameSource) value).release();
+                else if (value instanceof ImageFrameSource) ((ImageFrameSource) value).release();
+                it.remove();
+            }
+        }
     }
 
     /** Persistent log always; on-screen log too when a listener is attached. */

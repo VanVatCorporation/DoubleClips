@@ -34,8 +34,8 @@ public class OpenGLEdit {
     // compositor rather than approximated.
     public static final boolean SUPPORTS_TRANSITIONS = false;
     public static final boolean SUPPORTS_REVERSE = false;
-    public static final boolean SUPPORTS_KEYFRAMES = false;
-    public static final boolean SUPPORTS_IMAGES = false;
+    public static final boolean SUPPORTS_KEYFRAMES = true;
+    public static final boolean SUPPORTS_IMAGES = true;
 
     /**
      * Human-readable list of timeline features this renderer will NOT reproduce
@@ -86,12 +86,26 @@ public class OpenGLEdit {
         /** Column-major 4x4, ready for glUniformMatrix4fv(..., false, mvpMatrix, ...). */
         public final float[] mvpMatrix;
         public final float opacity;
+        // Color grading, matching FFmpegEdit's hue=h=..:s=..:b=.. and
+        // colortemperature=temperature=.. filters (FFmpegEdit.java:421-424).
+        // Units match FFmpeg's own: hueDegrees is degrees, saturation/brightness
+        // are the same multiplier/offset the hue filter takes, temperatureKelvin
+        // is Kelvin (6500 = neutral/no change).
+        public final float hueDegrees;
+        public final float saturation;
+        public final float brightness;
+        public final float temperatureKelvin;
 
-        public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity) {
+        public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity,
+                            float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
             this.clip = clip;
             this.localSourceTimeSeconds = localSourceTimeSeconds;
             this.mvpMatrix = mvpMatrix;
             this.opacity = opacity;
+            this.hueDegrees = hueDegrees;
+            this.saturation = saturation;
+            this.brightness = brightness;
+            this.temperatureKelvin = temperatureKelvin;
         }
     }
 
@@ -123,21 +137,45 @@ public class OpenGLEdit {
 
             EditingActivity.Clip activeClip = findActiveClip(track, outputTimeSeconds);
             if (activeClip == null) continue;
-            if (activeClip.type != EditingActivity.ClipType.VIDEO) {
-                continue; // audio has no picture; image/text/effects/3D: see getUnsupportedFeatures
+            if (activeClip.type != EditingActivity.ClipType.VIDEO && activeClip.type != EditingActivity.ClipType.IMAGE) {
+                continue; // audio has no picture; text/effects/3D: see getUnsupportedFeatures
             }
 
-            float localSourceTime = (outputTimeSeconds - activeClip.startTime) + activeClip.startClipTrim;
+            // Speed: FFmpeg remaps clip-local time via
+            // setpts='(PTS-STARTPTS)/Speed+...' (FFmpegEdit.java:426), i.e. the
+            // clip plays Speed times faster than the output timeline. Elapsed
+            // OUTPUT time must be scaled by Speed to get elapsed SOURCE time -
+            // this was missing before (localSourceTime just used elapsed output
+            // time directly), which made any clip with Speed != 1.0 drift out
+            // of sync with FFmpeg's export and eventually its own audio.
+            float speed = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Speed);
+            if (speed <= 0f) speed = 1f; // guard against a bad/zero value stalling the decoder forever
+            float elapsedOutput = outputTimeSeconds - activeClip.startTime;
+            float localSourceTime = activeClip.startClipTrim + elapsedOutput * speed;
 
-            float[] mvp = buildClipMvp(activeClip, projection);
-            float opacity = activeClip.videoProperties != null
-                    ? activeClip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Opacity)
-                    : 1f;
+            float[] mvp = buildClipMvp(activeClip, outputTimeSeconds, projection);
+            float opacity = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity);
+            float hue = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue);
+            float saturation = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Saturation);
+            float brightness = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Brightness);
+            float temperature = readAtTime(activeClip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Temperature);
 
-            commands.add(new DrawCommand(activeClip, localSourceTime, mvp, opacity));
+            commands.add(new DrawCommand(activeClip, localSourceTime, mvp, opacity, hue, saturation, brightness, temperature));
         }
 
         return commands;
+    }
+
+    /**
+     * Reads a property at outputTimeSeconds (the ABSOLUTE output-timeline time -
+     * AnimatedProperty.getValueAtTime subtracts clip.startTime itself). Works
+     * for both keyframed and static clips: getValueAtTime already falls back to
+     * clip.videoProperties.getValue(valueType) when there are no keyframes, so
+     * no branching is needed here - this always matches whichever the clip has.
+     */
+    private float readAtTime(EditingActivity.Clip clip, float outputTimeSeconds, EditingActivity.VideoProperties.ValueType valueType) {
+        if (clip.keyframes != null) return clip.keyframes.getValueAtTime(clip, outputTimeSeconds, valueType);
+        return clip.videoProperties != null ? clip.videoProperties.getValue(valueType) : 0f;
     }
 
     private EditingActivity.Clip findActiveClip(EditingActivity.Track track, float t) {
@@ -166,13 +204,12 @@ public class OpenGLEdit {
      *   the transparent margins for free), but the CENTER position must still
      *   be computed from the expanded bbox to land in the same place FFmpeg would.
      */
-    private float[] buildClipMvp(EditingActivity.Clip clip, float[] projection) {
-        EditingActivity.VideoProperties vp = clip.videoProperties;
-        float scaleX = vp != null ? vp.getValue(EditingActivity.VideoProperties.ValueType.ScaleX) : 1f;
-        float scaleY = vp != null ? vp.getValue(EditingActivity.VideoProperties.ValueType.ScaleY) : 1f;
-        float posX = vp != null ? vp.getValue(EditingActivity.VideoProperties.ValueType.PosX) : 0f;
-        float posY = vp != null ? vp.getValue(EditingActivity.VideoProperties.ValueType.PosY) : 0f;
-        float rotRadians = vp != null ? vp.getValue(EditingActivity.VideoProperties.ValueType.RotInRadians) : 0f;
+    private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection) {
+        float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX);
+        float scaleY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleY);
+        float posX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosX);
+        float posY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosY);
+        float rotRadians = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.RotInRadians);
 
         float scaledW = clip.width * scaleX;
         float scaledH = clip.height * scaleY;
