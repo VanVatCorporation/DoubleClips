@@ -196,20 +196,17 @@ public class OpenGLEdit {
     }
 
     /**
-     * Builds the MVP matrix for one clip, matching FFmpegEdit's
-     * scale(iw*ScaleX, ih*ScaleY) -> rotate(auto-expand bbox) -> overlay(PosX,PosY)
-     * chain (FFmpegEdit.java:412-426, 557) exactly, so OpenGL and FFmpeg output
-     * land the clip in the same place:
+     * Builds the MVP matrix for one clip. FFmpegEdit's scale -> rotate(auto-expand bbox)
+     * -> overlay chain compensates for the pivot with the same math, so OpenGL and FFmpeg
+     * output land the clip in the same place:
      *
-     * - scaledW/H: the clip's own intrinsic size times ScaleX/ScaleY (matches
-     *   FFmpeg's "iw*ScaleX"/"ih*ScaleY" — NOT the timeline canvas size).
-     * - rotation is around the clip's own center, by valueRot degrees.
-     * - FFmpeg's rotate filter auto-expands its output canvas to the rotated
-     *   bounding box (rotw/roth) BEFORE overlay positions it — so PosX/PosY is
-     *   the top-left corner of that EXPANDED box, not the unrotated one. We
-     *   don't need to actually expand a canvas in GL (alpha blending handles
-     *   the transparent margins for free), but the CENTER position must still
-     *   be computed from the expanded bbox to land in the same place FFmpeg would.
+     * - baseW/H: the clip's own size (or the canvas size when stretch-to-full);
+     *   scaledW/H = baseW/H times ScaleX/ScaleY.
+     * - PosX/PosY is the clip's UNSCALED, unrotated top-left corner, independent of pivot.
+     * - Scale and rotation both happen around the pivot (normalized 0..1 of the clip).
+     *   FFmpeg's rotate filter expands to the rotated bounding box, so FFmpegEdit overlays
+     *   that box by its center: pivotPoint + R * (center - pivot), minus overlay_w/2, h/2.
+     *   GL needs no expanded canvas; alpha blending handles the transparent margins.
      */
     private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection,
                                   int canvasWidth, int canvasHeight, boolean stretchToFull) {

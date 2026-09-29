@@ -409,12 +409,12 @@ public class FFmpegEdit {
                         // And then add to filterComplex no matter
                         // the clip has merge or there are no keyframe to combine
 
-                        String scaleXCmd = templateSettings.settings.isStretchToFull() ?
+                        String scaleXCmd = (templateSettings.settings.isStretchToFull() ?
                                 String.valueOf(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)) :
-                                "iw*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
-                        String scaleYCmd = templateSettings.settings.isStretchToFull() ?
+                                "iw") + "*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX);
+                        String scaleYCmd = (templateSettings.settings.isStretchToFull() ?
                                 String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
-                                "ih*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
+                                "ih") + "*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
                         filterComplex.append("scale=").append(scaleXCmd).append(":").append(scaleYCmd).append(",")                                //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
                                 .append("rotate=").append(radiansRotation).append(":ow=rotw(").append(radiansRotation).append("):oh=roth(").append(radiansRotation).append(")")
                                 .append(":fillcolor=0x00000000").append(",")
@@ -542,21 +542,48 @@ public class FFmpegEdit {
                     // Transition extension: because overlay are just like transparent layer so we add the raw fillingTransitionDuration
                     filterComplex.append(transparentLabel).append(clipLabel);
 
-                    // In this second if expr: We process posX, posY
-                    if (clip.hasAnimatedProperties()) {
-
-                        String posXExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.PosX);
-                        String posYExpr = getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, EditingActivity.VideoProperties.ValueType.PosY);
-
-                        filterComplex.append("overlay='").append(posXExpr).append("':'").append(posYExpr).append("'");
-                    } else {
-                        // Because we already merged from the first if expr, we don't have to do it here
-                        //clip.mergingVideoPropertiesFromSingleKeyframe();
-
-
-                        filterComplex.append("overlay=").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.PosX)).append(":").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.PosY));
-
+                    // In this second if expr: We process posX, posY (+ pivot compensation)
+                    // PosX/PosY is the clip's UNSCALED, unrotated top-left corner. Scale and rotation
+                    // happen around the pivot (same math as OpenGLEdit.buildClipMvp), so we place the
+                    // rotated bounding box by its center: center - overlay_w/2, center - overlay_h/2.
+                    boolean animated = clip.hasAnimatedProperties();
+                    EditingActivity.VideoProperties.ValueType[] pivotTypes = {
+                            EditingActivity.VideoProperties.ValueType.PosX,
+                            EditingActivity.VideoProperties.ValueType.PosY,
+                            EditingActivity.VideoProperties.ValueType.PivotX,
+                            EditingActivity.VideoProperties.ValueType.PivotY,
+                            EditingActivity.VideoProperties.ValueType.ScaleX,
+                            EditingActivity.VideoProperties.ValueType.ScaleY,
+                            EditingActivity.VideoProperties.ValueType.RotInRadians
+                    };
+                    String[] v = new String[pivotTypes.length];
+                    for (int i = 0; i < pivotTypes.length; i++) {
+                        // Wrapped in parentheses: keyframe exprs are sums/ifs, not atoms.
+                        v[i] = "(" + (animated ?
+                                getKeyframeFFmpegExpr(clip.keyframes.keyframes, clip, 0, pivotTypes[i]) :
+                                String.valueOf(clip.videoProperties.getValue(pivotTypes[i]))) + ")";
                     }
+                    String posXExpr = v[0], posYExpr = v[1], pivotXExpr = v[2], pivotYExpr = v[3];
+                    String scaleXOverlayExpr = v[4], scaleYOverlayExpr = v[5], rotOverlayExpr = v[6];
+
+                    // Base size that ScaleX/ScaleY multiplies against (same as the scale filter above).
+                    String baseWExpr = templateSettings.settings.isStretchToFull() ?
+                            String.valueOf(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand)) :
+                            String.valueOf(clip.width);
+                    String baseHExpr = templateSettings.settings.isStretchToFull() ?
+                            String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
+                            String.valueOf(clip.height);
+
+                    // Vector from the pivot to the center of the scaled clip, rotated about the pivot.
+                    String toCenterX = "((0.5-" + pivotXExpr + ")*" + baseWExpr + "*" + scaleXOverlayExpr + ")";
+                    String toCenterY = "((0.5-" + pivotYExpr + ")*" + baseHExpr + "*" + scaleYOverlayExpr + ")";
+                    String centerXExpr = "(" + posXExpr + "+" + pivotXExpr + "*" + baseWExpr
+                            + "+" + toCenterX + "*cos" + rotOverlayExpr + "-" + toCenterY + "*sin" + rotOverlayExpr + ")";
+                    String centerYExpr = "(" + posYExpr + "+" + pivotYExpr + "*" + baseHExpr
+                            + "+" + toCenterX + "*sin" + rotOverlayExpr + "+" + toCenterY + "*cos" + rotOverlayExpr + ")";
+
+                    filterComplex.append("overlay='").append(centerXExpr).append("-overlay_w/2'")
+                            .append(":'").append(centerYExpr).append("-overlay_h/2'");
 
 
 
