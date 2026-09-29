@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/editMultipleArea"
     android:layout_width="match_parent"
@@ -170,8 +169,11 @@
                     </LinearLayout>
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Start trim row -->
                 <RelativeLayout
@@ -213,8 +215,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- End trim row -->
                 <RelativeLayout
@@ -314,8 +319,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Keyframe actions row -->
                 <RelativeLayout
@@ -358,8 +366,11 @@
                     </LinearLayout>
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Clear keyframes -->
                 <com.google.android.material.button.MaterialButton
@@ -456,8 +467,11 @@
                     </LinearLayout>
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Rotation row -->
                 <RelativeLayout
@@ -499,8 +513,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Scale row -->
                 <RelativeLayout
@@ -577,6 +594,92 @@
                     </LinearLayout>
                 </RelativeLayout>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
+
+                <!-- Pivot row -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:id="@+id/pivotIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_fit_screen_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:id="@+id/pivotText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="12dp"
+                        android:layout_toEndOf="@id/pivotIcon"
+                        android:text="Pivot"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/pivotXText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="X "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
+
+                        <EditText
+                            android:id="@+id/pivotXField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="0.0"
+                            android:inputType="numberDecimal|numberSigned"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/pivotYText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:text="Y "
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp" />
+
+                        <EditText
+                            android:id="@+id/pivotYField"
+                            android:layout_width="56dp"
+                            android:layout_height="wrap_content"
+                            android:background="@null"
+                            android:gravity="center"
+                            android:hint="0.0"
+                            android:inputType="numberDecimal|numberSigned"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="14sp" />
+
+                    </LinearLayout>
+                </RelativeLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Volume row -->
                 <RelativeLayout
@@ -604,16 +707,19 @@
                         android:textSize="15sp" />
                     <EditText
                         android:id="@+id/volumeField"
-                        android:layout_width="56dp"
+                        android:layout_width="80dp"
                         android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
                         android:background="@null"
-                        android:gravity="center"
+                        android:gravity="end"
                         android:hint="1.0"
                         android:inputType="numberSigned"
                         android:textColor="?android:attr/textColorSecondary"
-                        android:textSize="14sp" />
+                        android:textSize="15sp" />
 
                 </RelativeLayout>
+
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
@@ -658,8 +764,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- In Animation Duration Row -->
                 <RelativeLayout
@@ -762,16 +871,38 @@
                     app:isb_indicator_color="@android:color/white" />
 
                 <!-- Range labels -->
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-                    <TextView android:id="@+id/opacityMinText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="0" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
-                    <TextView android:id="@+id/opacityMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:gravity="end" android:text="1" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/opacityMinText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="0"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/opacityMaxText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="1"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Speed -->
                 <RelativeLayout
@@ -825,16 +956,38 @@
                     app:isb_indicator_text_color="@android:color/black"
                     app:isb_indicator_color="@android:color/white" />
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-                    <TextView android:id="@+id/speedMinText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="0.01×" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
-                    <TextView android:id="@+id/speedMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:gravity="end" android:text="10×" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/speedMinText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="0.01×"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/speedMaxText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="10×"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Hue -->
                 <RelativeLayout
@@ -874,8 +1027,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Saturation -->
                 <RelativeLayout
@@ -929,16 +1085,38 @@
                     app:isb_indicator_text_color="@android:color/black"
                     app:isb_indicator_color="@android:color/white" />
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-                    <TextView android:id="@+id/saturationMinText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="-10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
-                    <TextView android:id="@+id/saturationMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:gravity="end" android:text="+10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/saturationMinText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="-10"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/saturationMaxText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="+10"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Brightness -->
                 <RelativeLayout
@@ -992,16 +1170,38 @@
                     app:isb_indicator_text_color="@android:color/black"
                     app:isb_indicator_color="@android:color/white" />
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-                    <TextView android:id="@+id/brightnessMinText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="-10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
-                    <TextView android:id="@+id/brightnessMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:gravity="end" android:text="+10" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/brightnessMinText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="-10"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/brightnessMaxText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="+10"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Temperature -->
                 <RelativeLayout
@@ -1055,12 +1255,31 @@
                     app:isb_indicator_text_color="@android:color/black"
                     app:isb_indicator_color="@android:color/white" />
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:orientation="horizontal" android:paddingHorizontal="16dp" android:layout_marginBottom="8dp">
-                    <TextView android:id="@+id/temperatureMinText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:text="1000K" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
-                    <TextView android:id="@+id/temperatureMaxText" android:layout_width="0dp" android:layout_height="wrap_content"
-                        android:layout_weight="1" android:gravity="end" android:text="40000K" android:textSize="12sp" android:textColor="?android:attr/textColorSecondary"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp">
+
+                    <TextView
+                        android:id="@+id/temperatureMinText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="1000K"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/temperatureMaxText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="end"
+                        android:text="40000K"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
@@ -1145,9 +1364,11 @@
 
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
-
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
 
                 <!-- Mute audio toggle -->
@@ -1182,8 +1403,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Lock for template toggle -->
                 <RelativeLayout
@@ -1217,8 +1441,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- Reverse toggle -->
                 <RelativeLayout
@@ -1292,8 +1519,11 @@
 
                 </RelativeLayout>
 
-                <View android:layout_width="match_parent" android:layout_height="0.5dp"
-                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp"
+                    android:background="?attr/colorOutlineVariant" />
 
                 <!-- tmix weight row -->
                 <RelativeLayout

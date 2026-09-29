@@ -217,6 +217,8 @@ public class OpenGLEdit {
         float scaleY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleY);
         float posX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosX);
         float posY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosY);
+        float pivotX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PivotX);
+        float pivotY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PivotY);
         float rotRadians = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.RotInRadians);
 
         // Stretch-to-fit: matches FFmpegEdit's scale=w=(stretchToFull ? renderWidth
@@ -231,19 +233,31 @@ public class OpenGLEdit {
         float cos = (float) Math.cos(rotRadians);
         float sin = (float) Math.sin(rotRadians);
 
-        // FFmpeg's rotw()/roth(): the axis-aligned bounding box of a
-        // scaledW x scaledH rectangle rotated by rotRadians.
-        float bboxW = Math.abs(scaledW * cos) + Math.abs(scaledH * sin);
-        float bboxH = Math.abs(scaledW * sin) + Math.abs(scaledH * cos);
+        // Pivot is ONLY the transform origin for scale and rotation (like CSS
+        // transform-origin / Android View.setPivotX). It must NOT move the clip:
+        // PosX/PosY is always the canvas position of the clip's UNSCALED, unrotated
+        // top-left corner, regardless of pivot. Normalized pivot: [0, 1],
+        // 0 = left/top, 1 = right/bottom.
+        float halfW = scaledW / 2f;
+        float halfH = scaledH / 2f;
 
-        float centerX = posX + bboxW / 2f;
-        float centerY = posY + bboxH / 2f;
+        // Pivot point in canvas pixel space. It is located on the UNSCALED clip, so it
+        // stays fixed while scale and rotation are applied around it.
+        float pivotCanvasX = posX + pivotX * baseW;
+        float pivotCanvasY = posY + pivotY * baseH;
+
+        // Vector from pivot to quad center after scaling about the pivot, then rotated
+        // about the pivot by rotRadians to get the final center.
+        float toCenterX = (0.5f - pivotX) * scaledW;
+        float toCenterY = (0.5f - pivotY) * scaledH;
+        float rotatedOffsetX = toCenterX * cos - toCenterY * sin;
+        float rotatedOffsetY = toCenterX * sin + toCenterY * cos;
+        float centerX = pivotCanvasX + rotatedOffsetX;
+        float centerY = pivotCanvasY + rotatedOffsetY;
 
         // Model matrix for a unit quad spanning (-1,-1)..(1,1): rotate + scale
         // by the clip's own half-extents, then translate to its center.
         // Column-major (index = column*4 + row), same layout glUniformMatrix4fv expects.
-        float halfW = scaledW / 2f;
-        float halfH = scaledH / 2f;
         float[] model = new float[16];
         model[0] = halfW * cos;   model[1] = halfW * sin;   model[2] = 0; model[3] = 0;
         model[4] = -halfH * sin;  model[5] = halfH * cos;   model[6] = 0; model[7] = 0;

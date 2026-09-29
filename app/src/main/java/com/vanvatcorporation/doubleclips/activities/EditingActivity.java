@@ -1883,6 +1883,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PivotX)),
+                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PivotY)),
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
 
                             Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
@@ -1919,6 +1921,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                                             ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
                                             ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
                                             ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PivotX)),
+                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PivotY)),
                                             ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
 
                                             Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
@@ -1943,6 +1947,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                                         ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Rot)),
                                         ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleX)),
                                         ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleY)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PivotX)),
+                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PivotY)),
                                         ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Hue)),
 
                                         Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
@@ -1995,6 +2001,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.rotationField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Rot)));
             clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
             clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
+            clipEditSpecificAreaScreen.pivotXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotX)));
+            clipEditSpecificAreaScreen.pivotYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotY)));
             clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
             clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
 
@@ -2049,6 +2057,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                     clipEditSpecificAreaScreen.rotationField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Rot)));
                     clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
                     clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
+                    clipEditSpecificAreaScreen.pivotXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotX)));
+                    clipEditSpecificAreaScreen.pivotYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotY)));
                     clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
                     clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
 
@@ -2703,6 +2713,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 clip.videoProperties.getValue(VideoProperties.ValueType.PosX), clip.videoProperties.getValue(VideoProperties.ValueType.PosY),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Rot),
                 clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY),
+                clip.videoProperties.getValue(VideoProperties.ValueType.PivotX), clip.videoProperties.getValue(VideoProperties.ValueType.PivotY),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Opacity), clip.videoProperties.getValue(VideoProperties.ValueType.Speed),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Volume),
                 clip.videoProperties.getValue(VideoProperties.ValueType.Hue), clip.videoProperties.getValue(VideoProperties.ValueType.Saturation),
@@ -5146,6 +5157,15 @@ frameRate = 60;
         public float valueBrightness;
         @Expose
         public float valueTemperature;
+        /** Normalized pivot X within the scaled clip [0.0 = left … 1.0 = right].
+         *  PosX/PosY represent the canvas position of this pivot point.
+         *  Default 0.0 (top-left) — Gson leaves the field at this value when loading
+         *  old project JSON that doesn't contain the field, preserving backwards
+         *  compatibility for unrotated clips. */
+        @Expose
+        public float valuePivotX;
+        @Expose
+        public float valuePivotY;
 
         public VideoProperties()
         {
@@ -5161,10 +5181,13 @@ frameRate = 60;
             this.valueSaturation = 1;
             this.valueBrightness = 0;
             this.valueTemperature = 6500;
+            this.valuePivotX = 0;
+            this.valuePivotY = 0;
         }
         public VideoProperties(float valuePosX, float valuePosY,
                                float valueRot,
                                float valueScaleX, float valueScaleY,
+                               float valuePivotX, float valuePivotY,
                                float valueOpacity, float valueSpeed,
                                float valueVolume,
                                float valueHue, float valueSaturation,
@@ -5175,6 +5198,8 @@ frameRate = 60;
             this.valueRot = valueRot;
             this.valueScaleX = valueScaleX;
             this.valueScaleY = valueScaleY;
+            this.valuePivotX = valuePivotX;
+            this.valuePivotY = valuePivotY;
             this.valueOpacity = valueOpacity;
             this.valueSpeed = valueSpeed;
             this.valueVolume = valueVolume;
@@ -5191,6 +5216,8 @@ frameRate = 60;
             this.valueRot = properties.valueRot;
             this.valueScaleX = properties.valueScaleX;
             this.valueScaleY = properties.valueScaleY;
+            this.valuePivotX = properties.valuePivotX;
+            this.valuePivotY = properties.valuePivotY;
             this.valueOpacity = properties.valueOpacity;
             this.valueSpeed = properties.valueSpeed;
             this.valueVolume = properties.valueVolume;
@@ -5216,6 +5243,10 @@ frameRate = 60;
                     return valueScaleX;
                 case ScaleY:
                     return valueScaleY;
+                case PivotX:
+                    return valuePivotX;
+                case PivotY:
+                    return valuePivotY;
                 case Opacity:
                     return valueOpacity;
                 case Speed:
@@ -5255,6 +5286,12 @@ frameRate = 60;
                 case ScaleY:
                     valueScaleY = v;
                     break;
+                case PivotX:
+                    valuePivotX = v;
+                    break;
+                case PivotY:
+                    valuePivotY = v;
+                    break;
                 case Opacity:
                     valueOpacity = v;
                     break;
@@ -5280,12 +5317,14 @@ frameRate = 60;
             }
         }
 
-        public void setAllValue(float valuePosX, float valuePosY, float valueRot, float valueScaleX, float valueScaleY, float valueHue, float valueOpacity, float valueSpeed, float valueVolume, float valueSaturation, float valueBrightness, float valueTemperature) {
+        public void setAllValue(float valuePosX, float valuePosY, float valueRot, float valueScaleX, float valueScaleY, float valuePivotX, float valuePivotY, float valueHue, float valueOpacity, float valueSpeed, float valueVolume, float valueSaturation, float valueBrightness, float valueTemperature) {
             setValue(valuePosX, VideoProperties.ValueType.PosX);
             setValue(valuePosY, VideoProperties.ValueType.PosY);
             setValue(valueRot, VideoProperties.ValueType.Rot);
             setValue(valueScaleX, VideoProperties.ValueType.ScaleX);
             setValue(valueScaleY, VideoProperties.ValueType.ScaleY);
+            setValue(valuePivotX, VideoProperties.ValueType.PivotX);
+            setValue(valuePivotY, VideoProperties.ValueType.PivotY);
             setValue(valueHue, VideoProperties.ValueType.Hue);
 
             setValue(valueOpacity, VideoProperties.ValueType.Opacity);
@@ -5297,7 +5336,7 @@ frameRate = 60;
         }
 
         public enum ValueType {
-            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
+            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
         }
     }
     public static class Keyframe implements Serializable {
@@ -5650,6 +5689,7 @@ frameRate = 60;
         private float scaleX = 1, scaleY = 1;
         private float rot = 0;
         private float posX = 0, posY = 0;
+        private float pivotX = 0, pivotY = 0;
         private float opacity = 1;
         private float hue = 0;
         private float saturation = 1;
@@ -5716,6 +5756,8 @@ frameRate = 60;
                                     scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
                                     scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
                                     rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
+                                    pivotX = clip.videoProperties.getValue(VideoProperties.ValueType.PivotX);
+                                    pivotY = clip.videoProperties.getValue(VideoProperties.ValueType.PivotY);
                                     opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
 
 
@@ -5827,6 +5869,8 @@ frameRate = 60;
                                 scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
                                 scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
                                 rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
+                                pivotX = clip.videoProperties.getValue(VideoProperties.ValueType.PivotX);
+                                pivotY = clip.videoProperties.getValue(VideoProperties.ValueType.PivotY);
                                 opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
 
                                 applyTransformation();
@@ -5870,6 +5914,8 @@ frameRate = 60;
                         scaleX = (EditingActivity.renderToPreviewConversionScalingX(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), settings.videoWidth));
                         scaleY = (EditingActivity.renderToPreviewConversionScalingY(clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY), settings.videoHeight));
                         rot = (clip.videoProperties.getValue(VideoProperties.ValueType.Rot));
+                        pivotX = clip.videoProperties.getValue(VideoProperties.ValueType.PivotX);
+                        pivotY = clip.videoProperties.getValue(VideoProperties.ValueType.PivotY);
                         opacity = clip.videoProperties.getValue(VideoProperties.ValueType.Opacity);
 
                         applyPostTransformation();
@@ -6093,6 +6139,8 @@ frameRate = 60;
                     float rotation = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Rot);
                     float sx = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.ScaleX);
                     float sy = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.ScaleY);
+                    float px = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.PivotX);
+                    float py = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.PivotY);
                     float op = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Opacity);
 
                     hue = clip.keyframes.getValueAtTime(clip, playheadTime, VideoProperties.ValueType.Hue);
@@ -6105,6 +6153,8 @@ frameRate = 60;
                     rot = rotation;
                     scaleX = sx == -1 ? scaleX : sx;
                     scaleY = sy == -1 ? scaleY : sy;
+                    pivotX = px;
+                    pivotY = py;
                     opacity = op < 0 ? opacity : op;
 
 
@@ -6198,13 +6248,8 @@ frameRate = 60;
 
         private void setPivot() {
             textureView.post(() -> {
-                // Not affecting the translation pos when scaling
-                textureView.setPivotX(0);
-                textureView.setPivotY(0);
-                // TODO: Research later. Can be useful (#1)
-                // But lets try if we apply the pivot to matrix
-//                textureView.setPivotX(textureView.getWidth() / 2f);
-//                textureView.setPivotY(textureView.getHeight() / 2f);
+                textureView.setPivotX(pivotX * textureView.getWidth());
+                textureView.setPivotY(pivotY * textureView.getHeight());
             });
 
         }
@@ -6383,6 +6428,8 @@ frameRate = 60;
                     textureView.invalidate();
                 }
 
+                targetView.setPivotX(pivotX * clip.width);
+                targetView.setPivotY(pivotY * clip.height);
                 targetView.setTranslationX(posX);
                 targetView.setTranslationY(posY);
                 targetView.setScaleX(scaleX);

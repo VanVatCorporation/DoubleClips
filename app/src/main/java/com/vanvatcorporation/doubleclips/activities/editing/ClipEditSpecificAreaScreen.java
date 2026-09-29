@@ -30,7 +30,7 @@ import com.warkiz.widget.IndicatorSeekBar;
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
     public TextView durationText, totalDurationText;
-    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, hueField, volumeField, additionFFmpegCommandField, inAnimationDurationField;
+    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, pivotXField, pivotYField, hueField, volumeField, additionFFmpegCommandField, inAnimationDurationField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
     public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox, removeBackgroundCheckbox;
     public android.widget.ProgressBar removeBackgroundProgress;
@@ -74,6 +74,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         rotationField = findViewById(R.id.rotationField);
         scaleXField = findViewById(R.id.scaleXField);
         scaleYField = findViewById(R.id.scaleYField);
+        pivotXField = findViewById(R.id.pivotXField);
+        pivotYField = findViewById(R.id.pivotYField);
         volumeField = findViewById(R.id.volumeField);
         opacitySeekbar = findViewById(R.id.opacitySeekbar);
         speedSeekbar = findViewById(R.id.speedSeekbar);
@@ -130,6 +132,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             rotationField.clearFocus();
             scaleXField.clearFocus();
             scaleYField.clearFocus();
+            if (pivotXField != null) pivotXField.clearFocus();
+            if (pivotYField != null) pivotYField.clearFocus();
             hueField.clearFocus();
             volumeField.clearFocus();
             additionFFmpegCommandField.clearFocus();
