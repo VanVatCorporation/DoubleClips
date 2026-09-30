@@ -356,7 +356,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         String[] cmdAfterSplit = cmd.split(Constants.DEFAULT_MULTI_FFMPEG_COMMAND_REGEX);
         for (int i = 0; i < cmdAfterSplit.length; i++) {
             String cmdEach = cmdAfterSplit[i];
-            FFmpegEdit.runAnyCommand(this, cmdEach, "Exporting Video", (i == cmdAfterSplit.length - 1 ? () -> exportClipTo(exportAsTemplate, cmd, timeline.getAllReplacementClipCount(), videoFiles, previewFiles) : () -> {
+            FFmpegEdit.runAnyCommand(this, cmdEach, "Exporting Video (FFmpeg)", (i == cmdAfterSplit.length - 1 ? () -> exportClipTo(exportAsTemplate, cmd, timeline.getAllReplacementClipCount(), videoFiles, previewFiles) : () -> {
                     }), this::finishExportRendering
                     , new RunnableImpl() {
                         @Override
@@ -384,9 +384,31 @@ public class ExportActivity extends AppCompatActivityImpl {
                             Statistics statistics = (Statistics) param;
                             {
                                 if (statistics.getTime() > 0) {
-                                    int progress = (int) ((statistics.getTime() * 100) / (int) duration);
+                                    float progress = (float) ((statistics.getTime() * 100) / (float) duration);
                                     statusBar.setMax(100);
-                                    statusBar.setProgress(progress);
+                                    statusBar.setProgress((int)progress);
+
+                                    int totalFrames = (int) (duration / 1000.0 * settings.getFrameRate());
+                                    float fps = statistics.getVideoFps();
+                                    String fpsStr = String.format(java.util.Locale.US, "%.2f", fps);
+                                    final String percentStr = String.format(java.util.Locale.US, "%.1f", progress);
+                                    statusText.setText(
+                                            new StringBuilder()
+                                                    .append(FFmpegEdit.queue.currentRenderQueue.taskName)
+                                                    .append("...")
+                                                    .append(" (")
+                                                    .append(statistics.getVideoFrameNumber())
+                                                    .append("/")
+                                                    .append(totalFrames)
+                                                    .append(" frames - ")
+                                                    .append(fpsStr)
+                                                    .append(" frames per second)")
+                                                    .append(" (")
+                                                    .append(percentStr)
+                                                    .append("%)")
+
+                                                    .toString());
+
                                 }
                             }
                         }
@@ -633,6 +655,10 @@ public class ExportActivity extends AppCompatActivityImpl {
                         gl.exportTimeline(timeline, new OpenGLEdit(), projectPath, width, height, bitrate, frameRate, videoOnlyPath,
                                 reversedClipPaths, settings.isStretchToFull(),
                                 new OpenGLEditNative.ExportListener() {
+                                    // FPS tracking state for onProgress
+                                    private final long[] lastProgressTimeMs = {System.currentTimeMillis()};
+                                    private final int[] lastFrameIndex = {0};
+
                                     @Override
                                     public void onLog(String message) {
                                         appendToLogWindow(message);
@@ -640,7 +666,38 @@ public class ExportActivity extends AppCompatActivityImpl {
 
                                     @Override
                                     public void onProgress(int frameIndex, int totalFrames) {
-                                        setTaskProgress(totalFrames > 0 ? (int) (frameIndex * 100L / totalFrames) : 0);
+                                        float percent = ((float) (frameIndex * 100L) / totalFrames);
+                                        setTaskProgress(totalFrames > 0 ? (int) percent : 0);
+
+                                        long now = System.currentTimeMillis();
+                                        long elapsedMs = now - lastProgressTimeMs[0];
+                                        float fps = 0f;
+                                        if (elapsedMs > 0) {
+                                            fps = (frameIndex - lastFrameIndex[0]) * 1000f / elapsedMs;
+                                        }
+                                        lastProgressTimeMs[0] = now;
+                                        lastFrameIndex[0] = frameIndex;
+
+                                        final String fpsStr = String.format(java.util.Locale.US, "%.2f", fps);
+                                        final String percentStr = String.format(java.util.Locale.US, "%.1f", percent);
+                                        statusText.post(() -> statusText.setText(
+                                                new StringBuilder()
+                                                        .append(FFmpegEdit.queue.currentRenderQueue.taskName)
+                                                        .append("...")
+                                                        .append(" (")
+                                                        .append(frameIndex)
+                                                        .append("/")
+                                                        .append(totalFrames)
+                                                        .append(" frames - ")
+                                                        .append(fpsStr)
+                                                        .append(" frames per second)")
+                                                        .append(" (")
+                                                        .append(percentStr)
+                                                        .append("%)")
+
+
+                                                        .toString())
+                                        );
                                     }
                                 });
                         ok = !gl.isCancelled();

@@ -10,8 +10,8 @@ android {
         applicationId "com.vanvatcorporation.doubleclips"
         minSdk 24
         targetSdk 37
-        versionCode 32
-        versionName "31.08.2026-build-1-v1.4.2"
+        versionCode 33
+        versionName "29.09.2026-build-1-v1.4.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
