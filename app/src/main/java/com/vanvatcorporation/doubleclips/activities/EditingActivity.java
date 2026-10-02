@@ -1984,8 +1984,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.removeBackground = clipEditSpecificAreaScreen.removeBackgroundCheckbox.isChecked();
 
                 if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
-                selectedClip.inAnimation.type = (String) clipEditSpecificAreaScreen.inAnimationTypeSpinner.getSelectedItem();
-                selectedClip.inAnimation.duration = ParserHelper.TryParse(clipEditSpecificAreaScreen.inAnimationDurationField.getText().toString(), selectedClip.inAnimation.duration);
+                clipEditSpecificAreaScreen.inAnimationPicker.applyTo(selectedClip.inAnimation);
+                if (selectedClip.outAnimation == null) selectedClip.outAnimation = new AnimationClip("none", 0.5f);
+                clipEditSpecificAreaScreen.outAnimationPicker.applyTo(selectedClip.outAnimation);
 
                 updateClipLayouts();
                 updateCurrentClipEnd();
@@ -2026,10 +2027,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setChecked(selectedClip.removeBackground);
             clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
 
-            List<String> animTypes = Arrays.asList("none", "unfold");
             if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
-            clipEditSpecificAreaScreen.inAnimationTypeSpinner.setSelection(animTypes.indexOf(selectedClip.inAnimation.type));
-            clipEditSpecificAreaScreen.inAnimationDurationField.setText(String.valueOf(selectedClip.inAnimation.duration));
+            clipEditSpecificAreaScreen.inAnimationPicker.show(selectedClip.inAnimation);
+            if (selectedClip.outAnimation == null) selectedClip.outAnimation = new AnimationClip("none", 0.5f);
+            clipEditSpecificAreaScreen.outAnimationPicker.show(selectedClip.outAnimation);
 
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (selectedClip != null) {

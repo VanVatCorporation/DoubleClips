@@ -274,9 +274,9 @@ public class OpenGLEdit {
         return null;
     }
 
-    // ---- clip in-animation ---------------------------------------------------------
-    // Animations are data, not code: clip.inAnimation.type is an id looked up in
-    // ClipAnimationLoader (bundled assets/animations/*.json, see ClipAnimationAssets),
+    // ---- clip in / out animations ---------------------------------------------------
+    // Animations are data, not code: clip.inAnimation / clip.outAnimation .type is an id looked
+    // up in ClipAnimationLoader (bundled assets/animations/*.json, see ClipAnimationAssets),
     // which gives back a ClipAnimation whose evaluate(p) returns every channel for this
     // frame. Plain Java, shared with the desktop port. This class only decides WHICH
     // progress p applies and how each channel combines with the clip's own properties
@@ -284,17 +284,42 @@ public class OpenGLEdit {
     // The top-centre squish is applied in the fragment shader (OpenGLEditNative.UNFOLD_WARP_*)
     // as an inverse mapping with edge clamping, so the area the shrunken picture no
     // longer covers is filled with edge pixels rather than showing a gap.
-    // An unknown type, or one whose direction isn't "in", animates nothing (the export
-    // reports unknown types up front - see OpenGLEditNative.exportTimeline).
+    // An unknown type, or one of the wrong direction, animates nothing (the export reports
+    // those up front - see OpenGLEditNative.prepareClipAnimations).
 
-    /** The in-animation's channel values for this clip at this output time (NEUTRAL when none is active). */
-    private ClipAnimationFrame inAnimationFrame(EditingActivity.Clip clip, float outputTimeSeconds) {
-        EditingActivity.AnimationClip anim = clip.inAnimation;
-        if (anim == null) return ClipAnimationFrame.NEUTRAL;
-        ClipAnimation def = ClipAnimationLoader.get(anim.type);
-        if (def == null || def.getDirection() != ClipAnimation.Direction.IN) return ClipAnimationFrame.NEUTRAL;
-        // 0 at clip start -> 1 at animation end, -1 outside the window
-        return def.evaluate(ClipAnimation.progress(outputTimeSeconds - clip.startTime, anim.duration));
+    /** The installed animation for one of a clip's two animation slots, or null (none / unknown / wrong direction). */
+    private static ClipAnimation animationFor(EditingActivity.AnimationClip slot, ClipAnimation.Direction direction) {
+        if (slot == null) return null;
+        ClipAnimation def = ClipAnimationLoader.get(slot.type);
+        return (def != null && def.getDirection() == direction) ? def : null;
+    }
+
+    /**
+     * The clip's animation channel values at this output time (NEUTRAL when none is active).
+     * The in window starts at the clip's first frame, the out window ends at its last; if the two
+     * don't fit in the clip together both shrink proportionally, so they never overlap and at
+     * most one is active at any time. The out animation is held at its end state past the clip's
+     * nominal end (the outgoing clip of a transition keeps drawing there).
+     */
+    private ClipAnimationFrame animationFrame(EditingActivity.Clip clip, float outputTimeSeconds) {
+        ClipAnimation inDef = animationFor(clip.inAnimation, ClipAnimation.Direction.IN);
+        ClipAnimation outDef = animationFor(clip.outAnimation, ClipAnimation.Direction.OUT);
+        if (inDef == null && outDef == null) return ClipAnimationFrame.NEUTRAL;
+
+        float inRaw = inDef != null ? clip.inAnimation.duration : 0f;
+        float outRaw = outDef != null ? clip.outAnimation.duration : 0f;
+        if (inDef != null) {
+            float inDur = ClipAnimation.fitDuration(inRaw, outRaw, clip.duration);
+            // 0 at clip start -> 1 at animation end, -1 outside the window
+            float p = ClipAnimation.progress(outputTimeSeconds - clip.startTime, inDur);
+            if (p >= 0f) return inDef.evaluate(p);
+        }
+        if (outDef != null) {
+            float outDur = ClipAnimation.fitDuration(outRaw, inRaw, clip.duration);
+            float p = ClipAnimation.progressOut(clip.startTime + clip.duration, outputTimeSeconds, outDur);
+            if (p >= 0f) return outDef.evaluate(p);
+        }
+        return ClipAnimationFrame.NEUTRAL;
     }
 
     /** Builds one clip's complete draw info at outputTimeSeconds, or null if its type isn't drawable (audio/text/effect/3D — see getUnsupportedFeatures). */
@@ -330,7 +355,7 @@ public class OpenGLEdit {
 
         // Every channel is neutral outside the animation window (the shared NEUTRAL frame, no
         // allocation), so the overwhelming majority of frames pay nothing for this.
-        ClipAnimationFrame anim = inAnimationFrame(clip, outputTimeSeconds);
+        ClipAnimationFrame anim = animationFrame(clip, outputTimeSeconds);
 
         float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim);
         float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity)

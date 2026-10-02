@@ -222,13 +222,31 @@ public final class ClipAnimation {
     }
 
     /**
-     * Progress of an OUT animation: 0 at (clipEnd - duration), approaching 1 at the clip's
-     * last frame; -1 before the window starts or at/after the clip's end.
+     * Progress of an OUT animation: -1 before the window opens at (clipEnd - duration), then
+     * rising from 0 to 1 at the clip's last frame, and HELD at 1 from the clip's end on.
+     * The hold matters for transitions: the outgoing clip keeps being drawn past its nominal
+     * end while the transition blends it away, and snapping back to neutral there would
+     * make e.g. a faded-out clip pop back to full opacity.
      */
     public static float progressOut(float clipEndSeconds, float tSeconds, float durationSeconds) {
         if (durationSeconds <= 0f) return -1f;
         float elapsed = tSeconds - (clipEndSeconds - durationSeconds);
-        if (elapsed < 0f || elapsed >= durationSeconds) return -1f;
-        return elapsed / durationSeconds;
+        if (elapsed < 0f) return -1f;
+        return elapsed >= durationSeconds ? 1f : elapsed / durationSeconds;
+    }
+
+    /**
+     * Shrinks {@code duration} so that it and the clip's other animation fit inside the clip
+     * together: when duration + otherDuration exceeds clipDuration both are scaled by the same
+     * factor (so an in and an out never overlap and a short clip still plays each one whole,
+     * just faster). Returns duration unchanged when it already fits, 0 for no animation.
+     * Pass otherDuration = 0 when the clip has no (usable) other animation.
+     */
+    public static float fitDuration(float duration, float otherDuration, float clipDuration) {
+        if (!(duration > 0f)) return 0f;
+        float other = otherDuration > 0f ? otherDuration : 0f;
+        float total = duration + other;
+        if (!(clipDuration > 0f) || total <= clipDuration) return duration;
+        return duration * clipDuration / total;
     }
 }

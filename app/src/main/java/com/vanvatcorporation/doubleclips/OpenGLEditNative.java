@@ -1831,10 +1831,10 @@ public class OpenGLEditNative {
 
     /** Persistent log always; on-screen log too when a listener is attached. */
     /**
-     * Loads the bundled clip animations (idempotent) and warns once per unusable animation id
-     * used by this timeline: a clip whose in-animation isn't installed, or isn't an "in"
-     * animation, exports WITHOUT it (OpenGLEdit.inAnimationFrame) - this makes that visible
-     * instead of silent.
+     * Loads the bundled clip animations (idempotent) and warns once per unusable animation used by
+     * this timeline: an id that isn't installed, or one of the wrong direction (an "out" animation in
+     * the in slot or the reverse). Such a clip exports WITHOUT that animation (OpenGLEdit.animationFor) -
+     * this makes that visible instead of silent.
      */
     private void prepareClipAnimations(EditingActivity.Timeline timeline, ExportListener listener) {
         for (String problem : ClipAnimationAssets.loadBuiltIns(context)) {
@@ -1845,16 +1845,23 @@ public class OpenGLEditNative {
         for (EditingActivity.Track track : timeline.tracks) {
             if (track == null || track.clips == null) continue;
             for (EditingActivity.Clip clip : track.clips) {
-                if (clip == null || clip.inAnimation == null) continue;
-                String type = clip.inAnimation.type;
-                if (type == null || type.isEmpty() || "none".equals(type) || !warned.add(type)) continue;
-                ClipAnimation def = ClipAnimationLoader.get(type);
-                if (def == null) {
-                    report(listener, "OpenGL: in-animation '" + type + "' is not installed - clips using it export without it");
-                } else if (def.getDirection() != ClipAnimation.Direction.IN) {
-                    report(listener, "OpenGL: animation '" + type + "' is an out animation - it can't be used as an in-animation");
-                }
+                if (clip == null) continue;
+                warnIfUnusable(clip.inAnimation, ClipAnimation.Direction.IN, warned, listener);
+                warnIfUnusable(clip.outAnimation, ClipAnimation.Direction.OUT, warned, listener);
             }
+        }
+    }
+
+    private void warnIfUnusable(EditingActivity.AnimationClip slot, ClipAnimation.Direction wanted,
+                                java.util.Set<String> warned, ExportListener listener) {
+        if (slot == null || slot.type == null || slot.type.isEmpty() || "none".equals(slot.type)) return;
+        if (!warned.add(wanted.json + ":" + slot.type)) return;
+        ClipAnimation def = ClipAnimationLoader.get(slot.type);
+        if (def == null) {
+            report(listener, "OpenGL: " + wanted.json + "-animation '" + slot.type + "' is not installed - clips using it export without it");
+        } else if (def.getDirection() != wanted) {
+            report(listener, "OpenGL: animation '" + slot.type + "' is an " + def.getDirection().json + " animation - it can't be used as an "
+                    + wanted.json + "-animation");
         }
     }
 

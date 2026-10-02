@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "fold",
+  "name": "Fold",
+  "description": "Unfold played backwards: the picture flashes bright and blurry while it squishes toward its top centre as the clip ends.",
+  "direction": "out",
+  "defaultDuration": 1.5,
+  "mirrorOf": "unfold"
+}

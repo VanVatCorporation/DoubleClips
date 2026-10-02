@@ -64,6 +64,20 @@ public final class ClipAnimationChecks {
         if (!out.isReversed() || out.getName().equals("") || !out.getName().equals("unfold_out")) fails.add("mirror metadata wrong");
         if (ClipAnimationLoader.list(ClipAnimation.Direction.OUT).size() != 1 || ClipAnimationLoader.get("unfold_out") != out) fails.add("registry lookup wrong");
 
+        // 3b. the bundled fold.json (out) mirrors unfold, loaded after it exactly like ClipAnimationAssets would
+        String foldJson = new String(Files.readAllBytes(new File("src/main/assets/animations/fold.json").toPath()), StandardCharsets.UTF_8);
+        ClipAnimation fold = ClipAnimationLoader.register(foldJson, "fold.json", true);
+        if (fold.getDirection() != ClipAnimation.Direction.OUT || !fold.isReversed() || fold.getDefaultDuration() != 1.5f
+                || !fold.getName().equals("Fold")) fails.add("fold.json metadata wrong");
+        for (float p : new float[]{0f, 0.2f, 0.5f, 1f}) {
+            if (Math.abs(fold.evaluate(p).warpBottomWidth() - unfold.evaluate(1f - p).warpBottomWidth()) > 1e-6
+                    || Math.abs(fold.evaluate(p).blurWidthFraction() - unfold.evaluate(1f - p).blurWidthFraction()) > 1e-9) fails.add("fold != unfold reversed at p=" + p);
+        }
+        if (fold.evaluate(0f).brightness() > 1e-5f || fold.evaluate(1f).brightness() < 3.9f) fails.add("fold should start clean and end at unfold's peak flash");
+        if (ClipAnimationLoader.list(ClipAnimation.Direction.OUT).size() != 2 || ClipAnimationLoader.list(ClipAnimation.Direction.IN).size() != 1) fails.add("picker lists wrong (fold + unfold_out out, unfold in)");
+        // a built-in out animation can't be shadowed by a user file either
+        expectReject(fails, "shadowing built-in fold", foldJson.replace("\"mirrorOf\": \"unfold\"", "\"mirrorOf\": \"unfold\""), false);
+
         // 4. every channel kind + smooth interpolation + defaults
         String all = "{\"schema\":1,\"id\":\"t-all\",\"direction\":\"in\",\"channels\":{"
                 + "\"opacity\":{\"kind\":\"knots\",\"points\":[[0,0],[1,1]]},"
@@ -84,7 +98,18 @@ public final class ClipAnimationChecks {
         if (ClipAnimation.progress(0.25f, 1f) != 0.25f || ClipAnimation.progress(-0.01f, 1f) != -1f
                 || ClipAnimation.progress(1f, 1f) != -1f || ClipAnimation.progress(0.5f, 0f) != -1f) fails.add("progress() wrong");
         if (ClipAnimation.progressOut(10f, 9.5f, 1f) != 0.5f || ClipAnimation.progressOut(10f, 8.9f, 1f) != -1f
-                || ClipAnimation.progressOut(10f, 10f, 1f) != -1f) fails.add("progressOut() wrong");
+                || ClipAnimation.progressOut(10f, 9f, 1f) != 0f || ClipAnimation.progressOut(10f, 5f, 0f) != -1f) fails.add("progressOut() wrong");
+        // past the clip's end (outgoing clip of a transition) the out animation is HELD at its end state
+        if (ClipAnimation.progressOut(10f, 10f, 1f) != 1f || ClipAnimation.progressOut(10f, 10.4f, 1f) != 1f) fails.add("progressOut() must hold 1 past the clip end");
+        // fitDuration: in + out share a short clip proportionally, never overlap
+        if (ClipAnimation.fitDuration(1f, 1f, 5f) != 1f) fails.add("fitDuration should leave fitting durations alone");
+        if (Math.abs(ClipAnimation.fitDuration(1.5f, 1.5f, 2f) - 1f) > 1e-6) fails.add("fitDuration should halve two 1.5s animations in a 2s clip... got " + ClipAnimation.fitDuration(1.5f, 1.5f, 2f));
+        if (Math.abs(ClipAnimation.fitDuration(3f, 1f, 2f) - 1.5f) > 1e-6 || Math.abs(ClipAnimation.fitDuration(1f, 3f, 2f) - 0.5f) > 1e-6) fails.add("fitDuration proportions wrong");
+        if (ClipAnimation.fitDuration(3f, 0f, 2f) != 2f) fails.add("a lone animation longer than the clip should shrink to the clip");
+        if (ClipAnimation.fitDuration(0f, 1f, 2f) != 0f || ClipAnimation.fitDuration(-1f, 0f, 2f) != 0f) fails.add("no animation must stay 0");
+        if (ClipAnimation.fitDuration(1f, 1f, 0f) != 1f) fails.add("unknown clip duration must not change anything");
+        float inD = ClipAnimation.fitDuration(1.5f, 1.5f, 2f), outD = ClipAnimation.fitDuration(1.5f, 1.5f, 2f);
+        if (inD + outD > 2f + 1e-5f) fails.add("in + out must fit in the clip");
 
         // 6. built-ins can't be shadowed; later user files may replace user files
         String shadow = "{\"schema\":1,\"id\":\"unfold\",\"direction\":\"in\",\"channels\":{\"opacity\":{\"kind\":\"constant\",\"value\":0.5}}}";

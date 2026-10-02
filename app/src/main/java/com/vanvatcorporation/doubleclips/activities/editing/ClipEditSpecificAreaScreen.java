@@ -22,6 +22,7 @@ import android.widget.TextView;
 
 import androidx.appcompat.widget.TooltipCompat;
 
+import com.vanvatcorporation.doubleclips.ClipAnimation;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
@@ -30,14 +31,15 @@ import com.warkiz.widget.IndicatorSeekBar;
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
     public TextView durationText, totalDurationText;
-    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, pivotXField, pivotYField, hueField, volumeField, additionFFmpegCommandField, inAnimationDurationField;
+    public EditText clipNameField, startTrimField, endTrimField, positionXField, positionYField, rotationField, scaleXField, scaleYField, pivotXField, pivotYField, hueField, volumeField, additionFFmpegCommandField, inAnimationDurationField, outAnimationDurationField;
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
     public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox, removeBackgroundCheckbox;
     public android.widget.ProgressBar removeBackgroundProgress;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
-    public Spinner easingSpinner, inAnimationTypeSpinner;
+    public Spinner easingSpinner, inAnimationTypeSpinner, outAnimationTypeSpinner;
+    public AnimationPicker inAnimationPicker, outAnimationPicker;
     public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
 
 
@@ -93,8 +95,12 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         inAnimationTypeSpinner = findViewById(R.id.inAnimationTypeContent);
         inAnimationDurationField = findViewById(R.id.inAnimationDurationContent);
 
-        ArrayAdapter<String> animationTypeAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, new String[]{"none", "unfold"});
-        inAnimationTypeSpinner.setAdapter(animationTypeAdapter);
+        outAnimationTypeSpinner = findViewById(R.id.outAnimationTypeContent);
+        outAnimationDurationField = findViewById(R.id.outAnimationDurationContent);
+
+        // Choices come from the animation registry (none + installed animations of that direction)
+        inAnimationPicker = new AnimationPicker(getContext(), inAnimationTypeSpinner, inAnimationDurationField, ClipAnimation.Direction.IN);
+        outAnimationPicker = new AnimationPicker(getContext(), outAnimationTypeSpinner, outAnimationDurationField, ClipAnimation.Direction.OUT);
 
         opacitySeekbar.setDecimalScale(2);
         speedSeekbar.setDecimalScale(2);
@@ -138,6 +144,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             volumeField.clearFocus();
             additionFFmpegCommandField.clearFocus();
             inAnimationDurationField.clearFocus();
+            outAnimationDurationField.clearFocus();
         });
     }
 
