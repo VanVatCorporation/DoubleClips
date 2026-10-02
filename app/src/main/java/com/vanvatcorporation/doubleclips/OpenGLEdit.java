@@ -116,12 +116,12 @@ public class OpenGLEdit {
         public final float brightness;
         public final float temperatureKelvin;
         /**
-         * Peak-to-zero Gaussian blur radius in pixels for this frame, from an
-         * active "unfold" in-animation (see UNFOLD_* constants / buildDrawCommand).
+         * Gaussian blur SIGMA in output pixels for this frame, from an active
+         * "unfold" in-animation (see UnfoldAnimation / buildDrawCommand).
          * 0 means no blur — the caller should skip the extra blur passes
-         * entirely rather than run a Gaussian blur shader with radius 0.
+         * entirely rather than run a Gaussian blur shader with sigma 0.
          */
-        public final float blurRadiusPixels;
+        public final float blurSigmaPixels;
         /**
          * "unfold" in-animation frame warp, relative to the clip's own box: top
          * edge width, bottom edge width, and overall height (anchored at the top
@@ -131,10 +131,12 @@ public class OpenGLEdit {
         public final float unfoldTopWidth;
         public final float unfoldBottomWidth;
         public final float unfoldHeight;
+        /** Contrast multiplier about mid-grey from "unfold" (1 = none). Applied in the colour stage of the shader. */
+        public final float contrast;
 
         public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity,
-                            float hueDegrees, float saturation, float brightness, float temperatureKelvin, float blurRadiusPixels,
-                            float unfoldTopWidth, float unfoldBottomWidth, float unfoldHeight) {
+                            float hueDegrees, float saturation, float brightness, float temperatureKelvin, float blurSigmaPixels,
+                            float unfoldTopWidth, float unfoldBottomWidth, float unfoldHeight, float contrast) {
             this.clip = clip;
             this.localSourceTimeSeconds = localSourceTimeSeconds;
             this.mvpMatrix = mvpMatrix;
@@ -143,10 +145,11 @@ public class OpenGLEdit {
             this.saturation = saturation;
             this.brightness = brightness;
             this.temperatureKelvin = temperatureKelvin;
-            this.blurRadiusPixels = blurRadiusPixels;
+            this.blurSigmaPixels = blurSigmaPixels;
             this.unfoldTopWidth = unfoldTopWidth;
             this.unfoldBottomWidth = unfoldBottomWidth;
             this.unfoldHeight = unfoldHeight;
+            this.contrast = contrast;
         }
     }
 
@@ -271,89 +274,19 @@ public class OpenGLEdit {
         return null;
     }
 
-    // ---- "unfold" in-animation (OpenGL) ------------------------------------------
-    // Rebuilt from measurements of the CapCut reference frames (Unfold-Frames,
-    // frames 25-70; frame 24 = clean, frame 25 = hard cut into the effect).
-    // It is NOT a zoom. Every reference frame was fitted against the settled
-    // frame (grid search + refinement on top/bottom width and height, scored by
-    // correlation), and what happens is a warp anchored at the TOP-CENTER:
-    //   * frame 25: the whole picture is squished toward the top-center - bottom
-    //     edge ~90% of normal width, height ~96%, top edge essentially unchanged
-    //     - plus heavy blur and a big brightness lift;
-    //   * it then expands outward and downward: bottom width is back to ~100%
-    //     by ~frame 33, height overshoots to ~+4% around frames 32-34 (the frame
-    //     briefly over-stretches downward), then settles by ~frame 42;
-    //   * blur drops fast in the first ~6 frames, has a soft tail, and is gone
-    //     by ~frame 37; brightness holds near peak for ~5 frames, then eases
-    //     out until ~frame 70.
-    // The curves below are sampled straight from those measurements (frame ->
-    // value) instead of a closed-form decay, so the motion follows the
-    // reference. inAnimation.duration is stretched across UNFOLD_REF_START_FRAME
-    // .. UNFOLD_REF_END_FRAME, i.e. a longer duration slows the whole thing down.
-    // The squish is applied in the fragment shader by inverse-mapping each pixel
-    // with edge clamping (see OpenGLEditNative.UNFOLD_WARP_*), so the area the
-    // shrunken picture no longer covers is filled by edge pixels, like the
-    // reference, rather than showing a gap.
-    //
-    // Both engines support "unfold"; FFmpeg keeps its own implementation.
-
-    // Peak values. Previous pass: blur 18 px / brightness 3.5; now +50% / +25%.
-    private static final float UNFOLD_PEAK_BLUR_PX = 27f;
-    // Additive, same -10..10 scale as VideoProperties.Brightness (see
-    // TransformShader's uBrightness*0.1 scaling - this rides on that same path).
-    private static final float UNFOLD_PEAK_BRIGHTNESS_BOOST = 4.375f;
-    // 0 = no squish at all, 1 = measured squish, >1 = exaggerated. Tuning knob.
-    private static final float UNFOLD_SQUISH_GAIN = 1f;
-
-    private static final float UNFOLD_REF_START_FRAME = 25f;
-    private static final float UNFOLD_REF_END_FRAME = 70f;
-
-    // {reference frame, value}. Blur / light are 0..1 strengths (x the peaks above).
-    private static final float[][] UNFOLD_CURVE_BLUR = {
-            {25f, 1.00f}, {26f, 0.85f}, {27f, 0.72f}, {28f, 0.58f}, {29f, 0.46f}, {30f, 0.38f},
-            {31f, 0.33f}, {33f, 0.27f}, {34f, 0.22f}, {35f, 0.10f}, {36f, 0.10f}, {37f, 0.00f}, {70f, 0.00f}
-    };
-    private static final float[][] UNFOLD_CURVE_LIGHT = {
-            {25f, 1.00f}, {28f, 1.00f}, {29f, 0.99f}, {31f, 0.95f}, {33f, 0.90f}, {35f, 0.79f},
-            {37f, 0.72f}, {40f, 0.61f}, {45f, 0.43f}, {50f, 0.26f}, {55f, 0.12f}, {60f, 0.06f},
-            {65f, 0.01f}, {70f, 0.00f}
-    };
-    // Width of the top / bottom edge relative to normal (1 = full width).
-    private static final float[][] UNFOLD_CURVE_TOP_WIDTH = {
-            {25f, 0.985f}, {27f, 0.990f}, {33f, 0.990f}, {37f, 1.000f}, {70f, 1.000f}
-    };
-    private static final float[][] UNFOLD_CURVE_BOTTOM_WIDTH = {
-            {25f, 0.895f}, {26f, 0.910f}, {27f, 0.930f}, {28f, 0.955f}, {29f, 0.965f}, {30f, 0.970f},
-            {31f, 0.985f}, {32f, 0.990f}, {33f, 0.995f}, {40f, 0.997f}, {42f, 1.000f}, {70f, 1.000f}
-    };
-    // Overall height relative to normal, anchored at the top edge.
-    private static final float[][] UNFOLD_CURVE_HEIGHT = {
-            {25f, 0.960f}, {26f, 0.970f}, {27f, 0.980f}, {28f, 0.990f}, {29f, 1.015f}, {30f, 1.025f},
-            {31f, 1.035f}, {32f, 1.040f}, {34f, 1.040f}, {35f, 1.035f}, {36f, 1.035f}, {37f, 1.025f},
-            {38f, 1.020f}, {39f, 1.015f}, {40f, 1.010f}, {42f, 1.003f}, {44f, 1.000f}, {70f, 1.000f}
-    };
-
-    /** Linear lookup in a {frame, value} table, clamped at both ends. */
-    private static float sampleUnfoldCurve(float[][] curve, float frame) {
-        if (frame <= curve[0][0]) return curve[0][1];
-        for (int i = 1; i < curve.length; i++) {
-            if (frame <= curve[i][0]) {
-                float f0 = curve[i - 1][0];
-                float f1 = curve[i][0];
-                float t = (frame - f0) / (f1 - f0);
-                return curve[i - 1][1] + (curve[i][1] - curve[i - 1][1]) * t;
-            }
-        }
-        return curve[curve.length - 1][1];
-    }
+    // ---- "unfold" in-animation ----------------------------------------------------
+    // All of the curves (top-centre squish, colour flash, blur) live in UnfoldAnimation,
+    // which is plain Java and shared with FFmpegEdit and the desktop port. This class
+    // only turns them into per-frame DrawCommand values. The squish itself is applied in
+    // the fragment shader (OpenGLEditNative.UNFOLD_WARP_*) as an inverse mapping with
+    // edge clamping, so the area the shrunken picture no longer covers is filled with
+    // edge pixels, like the reference, rather than showing a gap.
 
     /** Shared window/progress check. Returns -1 if there's no active "unfold" in-animation right now. */
     private float unfoldProgress(EditingActivity.Clip clip, float outputTimeSeconds) {
         EditingActivity.AnimationClip anim = clip.inAnimation;
-        if (anim == null || !"unfold".equals(anim.type) || anim.duration <= 0f) return -1f;
-        float elapsed = outputTimeSeconds - clip.startTime;
-        if (elapsed < 0f || elapsed >= anim.duration) return -1f;
-        return elapsed / anim.duration; // 0 at clip start -> 1 at animation end
+        if (anim == null || !UnfoldAnimation.TYPE.equals(anim.type)) return -1f;
+        return UnfoldAnimation.progress(outputTimeSeconds - clip.startTime, anim.duration); // 0 at clip start -> 1 at animation end
     }
 
     /** Builds one clip's complete draw info at outputTimeSeconds, or null if its type isn't drawable (audio/text/effect/3D — see getUnsupportedFeatures). */
@@ -387,35 +320,23 @@ public class OpenGLEdit {
                 ? elapsedOutput * speed
                 : clip.startClipTrim + elapsedOutput * speed;
 
-        // "unfold": sample every curve at the matching reference frame. All stay at
-        // their neutral value (0 / 1) outside the animation window, so the
+        // "unfold": every value stays neutral (0 / 1) outside the animation window, so the
         // overwhelming majority of frames pay nothing for this.
-        float unfoldBlurStrength = 0f;
-        float unfoldLightStrength = 0f;
-        float unfoldTopWidth = 1f;
-        float unfoldBottomWidth = 1f;
-        float unfoldHeight = 1f;
         float unfoldProgress = unfoldProgress(clip, outputTimeSeconds);
-        if (unfoldProgress >= 0f) {
-            float refFrame = UNFOLD_REF_START_FRAME + unfoldProgress * (UNFOLD_REF_END_FRAME - UNFOLD_REF_START_FRAME);
-            unfoldBlurStrength = sampleUnfoldCurve(UNFOLD_CURVE_BLUR, refFrame);
-            unfoldLightStrength = sampleUnfoldCurve(UNFOLD_CURVE_LIGHT, refFrame);
-            unfoldTopWidth = 1f + (sampleUnfoldCurve(UNFOLD_CURVE_TOP_WIDTH, refFrame) - 1f) * UNFOLD_SQUISH_GAIN;
-            unfoldBottomWidth = 1f + (sampleUnfoldCurve(UNFOLD_CURVE_BOTTOM_WIDTH, refFrame) - 1f) * UNFOLD_SQUISH_GAIN;
-            unfoldHeight = 1f + (sampleUnfoldCurve(UNFOLD_CURVE_HEIGHT, refFrame) - 1f) * UNFOLD_SQUISH_GAIN;
-        }
 
         float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull);
         float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity);
         float hue = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue);
-        float saturation = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Saturation);
+        float saturation = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Saturation)
+                * UnfoldAnimation.saturationMultiplier(unfoldProgress);
         float brightness = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Brightness)
-                + unfoldLightStrength * UNFOLD_PEAK_BRIGHTNESS_BOOST;
+                + UnfoldAnimation.brightness(unfoldProgress);
         float temperature = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Temperature);
-        float blurRadiusPixels = unfoldBlurStrength * UNFOLD_PEAK_BLUR_PX;
+        float blurSigmaPixels = UnfoldAnimation.blurSigmaFraction(unfoldProgress) * canvasWidth;
 
-        return new DrawCommand(clip, localSourceTime, mvp, opacity, hue, saturation, brightness, temperature, blurRadiusPixels,
-                unfoldTopWidth, unfoldBottomWidth, unfoldHeight);
+        return new DrawCommand(clip, localSourceTime, mvp, opacity, hue, saturation, brightness, temperature, blurSigmaPixels,
+                UnfoldAnimation.topWidth(unfoldProgress), UnfoldAnimation.bottomWidth(unfoldProgress),
+                UnfoldAnimation.heightScale(unfoldProgress), UnfoldAnimation.contrastMultiplier(unfoldProgress));
     }
 
     /**

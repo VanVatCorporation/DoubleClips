@@ -46,6 +46,7 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
+import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -437,93 +438,20 @@ public class FFmpegEdit {
                     //  For now it's hardcoded.
                     // 🎬 Handle "In" Animations
                     if (clip.inAnimation != null && !"none".equals(clip.inAnimation.type)) {
-                        if ("unfold".equals(clip.inAnimation.type)) {
-                            float dur = clip.inAnimation.duration;
+                        if (UnfoldAnimation.TYPE.equals(clip.inAnimation.type)) {
+                            // CapCut-style "unfold", shared with the OpenGL export (UnfoldAnimation): a squish
+                            // anchored at the top-centre, a decaying exposure/colour flash and a blur that
+                            // eases out over the first ~12 reference frames. See UnfoldAnimation for the
+                            // measurements it is built from.
                             float fps = templateSettings.settings.getFrameRate();
-                            float durFrames = dur * fps;
-                            String durFramesStr = String.valueOf(durFrames);
-                            String cond = getConditionTwo("in", "<=", durFramesStr);
-
-                            // progress p = in / durFrames
-                            String p = "(in/" + durFramesStr + ")";
-
-                            // Center expansion logic:
-                            // x0: W/2*(1-p) -> 0
-                            // y0: H/2*(1-p) -> 0
-                            // x1: W/2 + W/2*p -> W
-                            // y1: H/2*(1-p) -> 0
-                            // x2: W/2*(1-p) -> 0
-                            // y2: H/2 + H/2*p -> H
-                            // x3: W/2 + W/2*p -> W
-                            // y3: H/2 + H/2*p -> H
-//
-//                            String x0Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
-//                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-//                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-//                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-//                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
-//                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
-//                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-//                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
-
-
-//                            String x0Expr = getIfExpr(cond, "W/8-W/8*(1-" + p + ")", "0");
-//                            String y0Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-//                            String x1Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-//                            String y1Expr = getIfExpr(cond, "H/2*(1-" + p + ")", "0");
-//                            String x2Expr = getIfExpr(cond, "W/2*(1-" + p + ")", "0");
-//                            String y2Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
-//                            String x3Expr = getIfExpr(cond, "W/2+W/2*" + p, "W");
-//                            String y3Expr = getIfExpr(cond, "H/2+H/2*" + p, "H");
-
-
-//                            String x0Expr = getIfExpr(cond, "W/8 - W/8*" + p, "0");
-//                            String y0Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-//                            String x1Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
-//                            String y1Expr = getIfExpr(cond, "(H/8)*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-//                            String x2Expr = getIfExpr(cond, "(W/2)*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
-//                            String y2Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
-//                            String x3Expr = getIfExpr(cond, "W/2 + W/2*" + p, "W");
-//                            String y3Expr = getIfExpr(cond, "H/2 + H/2*" + p, "H");
-
-
-
-                            String dx = "W/12";   // corner offset W/8
-                            String dy = "H/12";   // corner offset H/8
-//                            String hx = "W/2";    // softened half width
-//                            String hy = "H/2";    // softened half height
-                            String leftRatio = "W/6";   // tweakable
-                            String rightRatio = "5*W/6"; // tweakable
-                            String topRatio = "H/6";    // tweakable
-                            String bottomRatio = "5*H/6"; // tweakable
-
-
-                            String x0Expr = getIfExpr(cond, dx + " - " + dx + "*" + p, "0");
-                            String y0Expr = getIfExpr(cond, "(" + dy + ")*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-
-                            String x1Expr = getIfExpr(cond, rightRatio + " + " + leftRatio + "*" + p, "W");
-                            String y1Expr = getIfExpr(cond, "(" + dy + ")*(1 - 4*" + p + " + 3*" + p + "*" + p + ")", "0");
-
-                            String x2Expr = getIfExpr(cond, "(" + leftRatio + ")*(1 - 2*" + p + " + " + p + "*" + p + ")", "0");
-                            String y2Expr = getIfExpr(cond, bottomRatio + " + " + topRatio + "*" + p, "H");
-
-                            String x3Expr = getIfExpr(cond, rightRatio + " + " + topRatio + "*" + p, "W");
-                            String y3Expr = getIfExpr(cond, bottomRatio + " + " + leftRatio + "*" + p, "H");
-
-
-
-                            filterComplex.append(",perspective=eval=frame:")
-                                    .append("x0='").append(x0Expr).append("':")
-                                    .append("y0='").append(y0Expr).append("':")
-                                    .append("x1='").append(x1Expr).append("':")
-                                    .append("y1='").append(y1Expr).append("':")
-                                    .append("x2='").append(x2Expr).append("':")
-                                    .append("y2='").append(y2Expr).append("':")
-                                    .append("x3='").append(x3Expr).append("':")
-                                    .append("y3='").append(y3Expr).append("'");
-
-                            // Fade from white
-                            filterComplex.append(",fade=in:st=").append(clip.startTime).append(":d=").append(dur).append(":color=white");
+                            // Blur sigma is a fraction of the width of the picture being blurred (same as
+                            // the OpenGL path, which blurs a canvas-sized layer): the clip's own width here.
+                            int blurWidth = templateSettings.settings.isStretchToFull()
+                                    ? ParserHelper.TryParse(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand), 1920)
+                                    : Math.max(1, Math.round(clip.width
+                                    * clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX)));
+                            filterComplex.append(UnfoldAnimation.ffmpegPerspective(clip.inAnimation.duration, fps))
+                                    .append(UnfoldAnimation.ffmpegFilters(clip.startTime, clip.inAnimation.duration, blurWidth));
                         }
                     }
 

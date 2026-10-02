@@ -695,9 +695,12 @@ public class OpenGLEditNative {
             "uniform float uUnfoldTopX;\n" +
             "uniform float uUnfoldBottomX;\n" +
             "uniform float uUnfoldHeight;\n" +
+            "uniform float uContrast;\n" +
             "vec2 unfoldSourceQuadPos(vec2 q) {\n" +
             "    float srcY = clamp((q.y + 1.0) / uUnfoldHeight - 1.0, -1.0, 1.0);\n" +
-            "    float edgeW = mix(uUnfoldTopX, uUnfoldBottomX, (srcY + 1.0) * 0.5);\n" +
+            // Edge width follows the OUTPUT row (q.y), not the source row - that is how the
+            // squish was measured against the reference (top edge -> bottom edge, linear).
+            "    float edgeW = mix(uUnfoldTopX, uUnfoldBottomX, (q.y + 1.0) * 0.5);\n" +
             "    float srcX = clamp(q.x / edgeW, -1.0, 1.0);\n" +
             "    return vec2(srcX, srcY);\n" +
             "}\n";
@@ -766,7 +769,7 @@ public class OpenGLEditNative {
                 "    float sinH = sin(hueRad);\n" +
                 "    float u2 = (u * cosH - v * sinH) * uSaturation;\n" +
                 "    float v2 = (u * sinH + v * cosH) * uSaturation;\n" +
-                "    float y2 = clamp(y + uBrightness * 0.1, 0.0, 1.0);\n" +
+                "    float y2 = clamp((y - 0.5) * uContrast + 0.5 + uBrightness * 0.1, 0.0, 1.0);\n" +
                 "    rgb = vec3(\n" +
                 "        y2 + 1.13983 * v2,\n" +
                 "        y2 - 0.39465 * u2 - 0.58060 * v2,\n" +
@@ -809,6 +812,7 @@ public class OpenGLEditNative {
         private int uUnfoldTopXLoc;
         private int uUnfoldBottomXLoc;
         private int uUnfoldHeightLoc;
+        private int uContrastLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -829,6 +833,7 @@ public class OpenGLEditNative {
             uUnfoldTopXLoc = GLES20.glGetUniformLocation(program, "uUnfoldTopX");
             uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
             uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
+            uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -849,13 +854,13 @@ public class OpenGLEditNative {
         /** Call once per active clip, in back-to-front (track index ascending) order. */
         public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
-            drawClip(oesTextureId, texMatrix, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f);
+            drawClip(oesTextureId, texMatrix, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f, 1f);
         }
 
-        /** Same as above plus the "unfold" frame warp (1,1,1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        /** Same as above plus the "unfold" frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
         public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin,
-                              float unfoldTopX, float unfoldBottomX, float unfoldHeight) {
+                              float unfoldTopX, float unfoldBottomX, float unfoldHeight, float contrast) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -879,6 +884,7 @@ public class OpenGLEditNative {
             GLES20.glUniform1f(uUnfoldTopXLoc, unfoldTopX);
             GLES20.glUniform1f(uUnfoldBottomXLoc, unfoldBottomX);
             GLES20.glUniform1f(uUnfoldHeightLoc, unfoldHeight);
+            GLES20.glUniform1f(uContrastLoc, contrast);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
@@ -979,7 +985,7 @@ public class OpenGLEditNative {
                 "    float sinH = sin(hueRad);\n" +
                 "    float u2 = (u * cosH - v * sinH) * uSaturation;\n" +
                 "    float v2 = (u * sinH + v * cosH) * uSaturation;\n" +
-                "    float y2 = clamp(y + uBrightness * 0.1, 0.0, 1.0);\n" +
+                "    float y2 = clamp((y - 0.5) * uContrast + 0.5 + uBrightness * 0.1, 0.0, 1.0);\n" +
                 "    rgb = vec3(\n" +
                 "        y2 + 1.13983 * v2,\n" +
                 "        y2 - 0.39465 * u2 - 0.58060 * v2,\n" +
@@ -1021,6 +1027,7 @@ public class OpenGLEditNative {
         private int uUnfoldTopXLoc;
         private int uUnfoldBottomXLoc;
         private int uUnfoldHeightLoc;
+        private int uContrastLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -1039,6 +1046,7 @@ public class OpenGLEditNative {
             uUnfoldTopXLoc = GLES20.glGetUniformLocation(program, "uUnfoldTopX");
             uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
             uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
+            uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -1050,13 +1058,13 @@ public class OpenGLEditNative {
         /** Call once per active image clip. Caller is responsible for beginFrame() (viewport/clear/blend) once per output frame. */
         public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
-            drawClip(texture2DId, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f);
+            drawClip(texture2DId, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f, 1f);
         }
 
-        /** Same as above plus the "unfold" frame warp (1,1,1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        /** Same as above plus the "unfold" frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
         public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin,
-                              float unfoldTopX, float unfoldBottomX, float unfoldHeight) {
+                              float unfoldTopX, float unfoldBottomX, float unfoldHeight, float contrast) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -1078,6 +1086,7 @@ public class OpenGLEditNative {
             GLES20.glUniform1f(uUnfoldTopXLoc, unfoldTopX);
             GLES20.glUniform1f(uUnfoldBottomXLoc, unfoldBottomX);
             GLES20.glUniform1f(uUnfoldHeightLoc, unfoldHeight);
+            GLES20.glUniform1f(uContrastLoc, contrast);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture2DId);
@@ -1366,14 +1375,15 @@ public class OpenGLEditNative {
 
 
     // ---- "unfold" in-animation blur -------------------------------------------
-    // Two-pass separable Gaussian blur, reusing the same offscreen-FBO idea as
+    // Two-pass separable Gaussian blur (sigma in output pixels), reusing the same offscreen-FBO idea as
     // transitions: render the clip once into a full-canvas texture, then a
     // horizontal blur pass, then a vertical blur pass composited onto the real
-    // target. Fixed 9-tap kernel per pass (compile-time bounded — no unbounded
+    // target. Fixed 17-tap kernel per pass (compile-time bounded — no unbounded
     // shader loops, matching the safety stance from the community-shader
-    // discussion) with TAP SPACING scaled by uRadiusPixels, so one compiled
+    // discussion) with TAP SPACING scaled by uSigmaPixels, so one compiled
     // shader covers the whole 0..peak blur range instead of needing a shader
-    // per radius.
+    // per sigma. Measured against an ideal Gaussian at 1080p-class sizes (sigma 27..48 px)
+    // the single pass is within ~1.5/255 RMS in the interior, so no multi-pass is needed.
 
     public static class GaussianBlurShader {
         private static final String VERTEX_SHADER =
@@ -1385,28 +1395,29 @@ public class OpenGLEditNative {
                 "    vTexCoord = aTexCoord;\n" +
                 "}\n";
 
-        // Weights are a standard discrete 9-tap Gaussian (sigma ~= 2), applied
-        // along uDirection only — call this once with direction=(1,0), then
-        // again on its output with direction=(0,1), for a full 2D blur at
-        // roughly half the cost of a 2D kernel.
+        // Separable Gaussian, applied along uDirection only - call once with direction=(1,0),
+        // then again on its output with direction=(0,1). 17 taps (centre + 8 per side) spaced
+        // sigma/3 apart, so the kernel spans +-8 taps = +-2.67 sigma: the weights below are
+        // exp(-i^2/18) normalised (9 distinct values, sum of all 17 taps = 1) and give a true
+        // Gaussian of standard deviation uSigmaPixels for ANY sigma, from one compiled shader.
         private static final String FRAGMENT_SHADER =
                 "precision mediump float;\n" +
                 "varying vec2 vTexCoord;\n" +
                 "uniform sampler2D uTexture;\n" +
                 "uniform vec2 uDirection;\n" + // (1,0) horizontal pass, (0,1) vertical pass
                 "uniform vec2 uTexelSize;\n" + // 1/width, 1/height
-                "uniform float uRadiusPixels;\n" +
+                "uniform float uSigmaPixels;\n" +
                 "void main() {\n" +
-                "    vec2 step = uDirection * uTexelSize * (uRadiusPixels / 4.0);\n" +
-                "    vec4 sum = texture2D(uTexture, vTexCoord) * 0.227027;\n" +
-                "    sum += texture2D(uTexture, vTexCoord + step * 1.0) * 0.1945946;\n" +
-                "    sum += texture2D(uTexture, vTexCoord - step * 1.0) * 0.1945946;\n" +
-                "    sum += texture2D(uTexture, vTexCoord + step * 2.0) * 0.1216216;\n" +
-                "    sum += texture2D(uTexture, vTexCoord - step * 2.0) * 0.1216216;\n" +
-                "    sum += texture2D(uTexture, vTexCoord + step * 3.0) * 0.054054;\n" +
-                "    sum += texture2D(uTexture, vTexCoord - step * 3.0) * 0.054054;\n" +
-                "    sum += texture2D(uTexture, vTexCoord + step * 4.0) * 0.016216;\n" +
-                "    sum += texture2D(uTexture, vTexCoord - step * 4.0) * 0.016216;\n" +
+                "    vec2 step = uDirection * uTexelSize * (uSigmaPixels / 3.0);\n" +
+                "    vec4 sum = texture2D(uTexture, vTexCoord) * 0.133571;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 1.0) + texture2D(uTexture, vTexCoord - step * 1.0)) * 0.126353;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 2.0) + texture2D(uTexture, vTexCoord - step * 2.0)) * 0.106955;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 3.0) + texture2D(uTexture, vTexCoord - step * 3.0)) * 0.081015;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 4.0) + texture2D(uTexture, vTexCoord - step * 4.0)) * 0.054913;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 5.0) + texture2D(uTexture, vTexCoord - step * 5.0)) * 0.033306;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 6.0) + texture2D(uTexture, vTexCoord - step * 6.0)) * 0.018077;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 7.0) + texture2D(uTexture, vTexCoord - step * 7.0)) * 0.008779;\n" +
+                "    sum += (texture2D(uTexture, vTexCoord + step * 8.0) + texture2D(uTexture, vTexCoord - step * 8.0)) * 0.003816;\n" +
                 "    gl_FragColor = sum;\n" +
                 "}\n";
 
@@ -1420,7 +1431,7 @@ public class OpenGLEditNative {
         };
 
         private int program;
-        private int aPositionLoc, aTexCoordLoc, uTextureLoc, uDirectionLoc, uTexelSizeLoc, uRadiusLoc;
+        private int aPositionLoc, aTexCoordLoc, uTextureLoc, uDirectionLoc, uTexelSizeLoc, uSigmaLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         public void init() {
@@ -1430,7 +1441,7 @@ public class OpenGLEditNative {
             uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
             uDirectionLoc = GLES20.glGetUniformLocation(program, "uDirection");
             uTexelSizeLoc = GLES20.glGetUniformLocation(program, "uTexelSize");
-            uRadiusLoc = GLES20.glGetUniformLocation(program, "uRadiusPixels");
+            uSigmaLoc = GLES20.glGetUniformLocation(program, "uSigmaPixels");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -1440,7 +1451,7 @@ public class OpenGLEditNative {
         }
 
         /** Draws into whatever framebuffer is currently bound. */
-        public void draw(int textureId, float dirX, float dirY, int textureWidth, int textureHeight, float radiusPixels) {
+        public void draw(int textureId, float dirX, float dirY, int textureWidth, int textureHeight, float sigmaPixels) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -1456,7 +1467,7 @@ public class OpenGLEditNative {
             GLES20.glUniform1i(uTextureLoc, 0);
             GLES20.glUniform2f(uDirectionLoc, dirX, dirY);
             GLES20.glUniform2f(uTexelSizeLoc, 1f / textureWidth, 1f / textureHeight);
-            GLES20.glUniform1f(uRadiusLoc, radiusPixels);
+            GLES20.glUniform1f(uSigmaLoc, sigmaPixels);
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1637,7 +1648,7 @@ public class OpenGLEditNative {
                     // be grouped into two passes (see OpenGLEdit.computeFrameForTimestamp).
                     for (OpenGLEdit.FrameLayer layer : layers) {
                         if (layer.simpleDraw != null) {
-                            if (layer.simpleDraw.blurRadiusPixels > 0f) {
+                            if (layer.simpleDraw.blurSigmaPixels > 0f) {
                                 // "unfold" in-animation: render the clip into a
                                 // scratch layer, blur it in two passes (H then V),
                                 // with the vertical pass compositing straight onto
@@ -1660,11 +1671,11 @@ public class OpenGLEditNative {
 
                                 blurScratchB.bindForDrawing();
                                 blurScratchB.clearTransparent();
-                                blurShader.draw(blurScratchA.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurRadiusPixels);
+                                blurShader.draw(blurScratchA.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurSigmaPixels);
 
                                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
                                 GLES20.glViewport(0, 0, width, height);
-                                blurShader.draw(blurScratchB.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurRadiusPixels);
+                                blurShader.draw(blurScratchB.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurSigmaPixels);
                             } else {
                                 renderDrawCommand(layer.simpleDraw, shader, imageShader, activeSources, activeImageSources,
                                         reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
@@ -1766,7 +1777,7 @@ public class OpenGLEditNative {
             }
             imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
-                    cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight);
+                    cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
             return true;
         }
 
@@ -1798,7 +1809,7 @@ public class OpenGLEditNative {
 
         shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
-                cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight);
+                cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
         return true;
     }
 
