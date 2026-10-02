@@ -117,7 +117,7 @@ public class OpenGLEdit {
         public final float temperatureKelvin;
         /**
          * Gaussian blur SIGMA in output pixels for this frame, from an active
-         * "unfold" in-animation (see UnfoldAnimation / buildDrawCommand).
+         * in-animation (see ClipAnimation / buildDrawCommand).
          * 0 means no blur — the caller should skip the extra blur passes
          * entirely rather than run a Gaussian blur shader with sigma 0.
          */
@@ -274,19 +274,27 @@ public class OpenGLEdit {
         return null;
     }
 
-    // ---- "unfold" in-animation ----------------------------------------------------
-    // All of the curves (top-centre squish, colour flash, blur) live in UnfoldAnimation,
-    // which is plain Java and shared with FFmpegEdit and the desktop port. This class
-    // only turns them into per-frame DrawCommand values. The squish itself is applied in
-    // the fragment shader (OpenGLEditNative.UNFOLD_WARP_*) as an inverse mapping with
-    // edge clamping, so the area the shrunken picture no longer covers is filled with
-    // edge pixels, like the reference, rather than showing a gap.
+    // ---- clip in-animation ---------------------------------------------------------
+    // Animations are data, not code: clip.inAnimation.type is an id looked up in
+    // ClipAnimationLoader (bundled assets/animations/*.json, see ClipAnimationAssets),
+    // which gives back a ClipAnimation whose evaluate(p) returns every channel for this
+    // frame. Plain Java, shared with the desktop port. This class only decides WHICH
+    // progress p applies and how each channel combines with the clip's own properties
+    // (see ClipAnimationFrame for the add / multiply / standalone rules).
+    // The top-centre squish is applied in the fragment shader (OpenGLEditNative.UNFOLD_WARP_*)
+    // as an inverse mapping with edge clamping, so the area the shrunken picture no
+    // longer covers is filled with edge pixels rather than showing a gap.
+    // An unknown type, or one whose direction isn't "in", animates nothing (the export
+    // reports unknown types up front - see OpenGLEditNative.exportTimeline).
 
-    /** Shared window/progress check. Returns -1 if there's no active "unfold" in-animation right now. */
-    private float unfoldProgress(EditingActivity.Clip clip, float outputTimeSeconds) {
+    /** The in-animation's channel values for this clip at this output time (NEUTRAL when none is active). */
+    private ClipAnimationFrame inAnimationFrame(EditingActivity.Clip clip, float outputTimeSeconds) {
         EditingActivity.AnimationClip anim = clip.inAnimation;
-        if (anim == null || !UnfoldAnimation.TYPE.equals(anim.type)) return -1f;
-        return UnfoldAnimation.progress(outputTimeSeconds - clip.startTime, anim.duration); // 0 at clip start -> 1 at animation end
+        if (anim == null) return ClipAnimationFrame.NEUTRAL;
+        ClipAnimation def = ClipAnimationLoader.get(anim.type);
+        if (def == null || def.getDirection() != ClipAnimation.Direction.IN) return ClipAnimationFrame.NEUTRAL;
+        // 0 at clip start -> 1 at animation end, -1 outside the window
+        return def.evaluate(ClipAnimation.progress(outputTimeSeconds - clip.startTime, anim.duration));
     }
 
     /** Builds one clip's complete draw info at outputTimeSeconds, or null if its type isn't drawable (audio/text/effect/3D — see getUnsupportedFeatures). */
@@ -320,23 +328,25 @@ public class OpenGLEdit {
                 ? elapsedOutput * speed
                 : clip.startClipTrim + elapsedOutput * speed;
 
-        // "unfold": every value stays neutral (0 / 1) outside the animation window, so the
-        // overwhelming majority of frames pay nothing for this.
-        float unfoldProgress = unfoldProgress(clip, outputTimeSeconds);
+        // Every channel is neutral outside the animation window (the shared NEUTRAL frame, no
+        // allocation), so the overwhelming majority of frames pay nothing for this.
+        ClipAnimationFrame anim = inAnimationFrame(clip, outputTimeSeconds);
 
-        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull);
-        float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity);
-        float hue = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue);
+        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim);
+        float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity)
+                * anim.opacity();
+        float hue = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue)
+                + anim.hueDegrees();
         float saturation = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Saturation)
-                * UnfoldAnimation.saturationMultiplier(unfoldProgress);
+                * anim.saturation();
         float brightness = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Brightness)
-                + UnfoldAnimation.brightness(unfoldProgress);
-        float temperature = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Temperature);
-        float blurSigmaPixels = UnfoldAnimation.blurSigmaFraction(unfoldProgress) * canvasWidth;
+                + anim.brightness();
+        float temperature = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Temperature)
+                + anim.temperatureKelvin();
+        float blurSigmaPixels = anim.blurWidthFraction() * canvasWidth;
 
         return new DrawCommand(clip, localSourceTime, mvp, opacity, hue, saturation, brightness, temperature, blurSigmaPixels,
-                UnfoldAnimation.topWidth(unfoldProgress), UnfoldAnimation.bottomWidth(unfoldProgress),
-                UnfoldAnimation.heightScale(unfoldProgress), UnfoldAnimation.contrastMultiplier(unfoldProgress));
+                anim.warpTopWidth(), anim.warpBottomWidth(), anim.warpHeight(), anim.contrast());
     }
 
     /**
@@ -378,14 +388,17 @@ public class OpenGLEdit {
      *   be computed from the expanded bbox to land in the same place FFmpeg would.
      */
     private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection,
-                                  int canvasWidth, int canvasHeight, boolean stretchToFull) {
-        float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX);
-        float scaleY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleY);
-        float posX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosX);
-        float posY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosY);
+                                  int canvasWidth, int canvasHeight, boolean stretchToFull, ClipAnimationFrame anim) {
+        // The in-animation's scale multiplies the clip's own (about its pivot), its offset is a
+        // fraction of the canvas size added to PosX/PosY, its rotation is added to RotInRadians.
+        float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX) * anim.scale();
+        float scaleY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleY) * anim.scale();
+        float posX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosX) + anim.offsetX() * canvasWidth;
+        float posY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PosY) + anim.offsetY() * canvasHeight;
         float pivotX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PivotX);
         float pivotY = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.PivotY);
-        float rotRadians = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.RotInRadians);
+        float rotRadians = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.RotInRadians)
+                + (float) Math.toRadians(anim.rotationDegrees());
 
         // Stretch-to-fit: matches FFmpegEdit's scale=w=(stretchToFull ? renderWidth
         // : iw)*ScaleX:h=(stretchToFull ? renderHeight : ih)*ScaleY (FFmpegEdit.java,

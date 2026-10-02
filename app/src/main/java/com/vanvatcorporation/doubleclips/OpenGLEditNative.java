@@ -670,7 +670,7 @@ public class OpenGLEditNative {
     // vertex position instead of a fixed fullscreen quad, an opacity uniform,
     // and GL_BLEND enabled so multiple clips composite correctly track-over-track.
 
-    // ---- "unfold" in-animation frame warp (shared shader snippets) ----------------
+    // ---- in-animation frame warp (ClipAnimation "warp.*" channels; shared shader snippets) ----------------
     // Done per-pixel in the FRAGMENT shader as an inverse mapping with edge
     // clamping, not by moving the quad: for every output pixel we work out which
     // source pixel the warped picture would have there. The warp squeezes the
@@ -857,7 +857,7 @@ public class OpenGLEditNative {
             drawClip(oesTextureId, texMatrix, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f, 1f);
         }
 
-        /** Same as above plus the "unfold" frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        /** Same as above plus the in-animation frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
         public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin,
                               float unfoldTopX, float unfoldBottomX, float unfoldHeight, float contrast) {
@@ -1061,7 +1061,7 @@ public class OpenGLEditNative {
             drawClip(texture2DId, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f, 1f);
         }
 
-        /** Same as above plus the "unfold" frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        /** Same as above plus the in-animation frame warp (1,1,1 = none) and contrast (1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
         public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin,
                               float unfoldTopX, float unfoldBottomX, float unfoldHeight, float contrast) {
@@ -1374,7 +1374,7 @@ public class OpenGLEditNative {
     }
 
 
-    // ---- "unfold" in-animation blur -------------------------------------------
+    // ---- in-animation blur -------------------------------------------
     // Two-pass separable Gaussian blur (sigma in output pixels), reusing the same offscreen-FBO idea as
     // transitions: render the clip once into a full-canvas texture, then a
     // horizontal blur pass, then a vertical blur pass composited onto the real
@@ -1541,6 +1541,7 @@ public class OpenGLEditNative {
                                 int width, int height, int bitrate, int frameRate, String outputPath,
                                 java.util.Map<EditingActivity.Clip, String> reversedClipPaths, boolean stretchToFull,
                                 ExportListener listener) {
+        prepareClipAnimations(timeline, listener);
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
             java.util.Map<EditingActivity.Clip, ImageFrameSource> activeImageSources = new java.util.IdentityHashMap<>();
@@ -1555,7 +1556,7 @@ public class OpenGLEditNative {
             OffscreenTarget transitionLayerA = null;
             OffscreenTarget transitionLayerB = null;
             TransitionBlendShader blendShader = null;
-            // "unfold" in-animation blur only: lazily created the first time any
+            // in-animation blur only: lazily created the first time any
             // clip actually needs it, same pattern as the transition layers above.
             OffscreenTarget blurScratchA = null;
             OffscreenTarget blurScratchB = null;
@@ -1649,7 +1650,7 @@ public class OpenGLEditNative {
                     for (OpenGLEdit.FrameLayer layer : layers) {
                         if (layer.simpleDraw != null) {
                             if (layer.simpleDraw.blurSigmaPixels > 0f) {
-                                // "unfold" in-animation: render the clip into a
+                                // in-animation blur: render the clip into a
                                 // scratch layer, blur it in two passes (H then V),
                                 // with the vertical pass compositing straight onto
                                 // the main frame (it's just another textured quad
@@ -1829,6 +1830,34 @@ public class OpenGLEditNative {
     }
 
     /** Persistent log always; on-screen log too when a listener is attached. */
+    /**
+     * Loads the bundled clip animations (idempotent) and warns once per unusable animation id
+     * used by this timeline: a clip whose in-animation isn't installed, or isn't an "in"
+     * animation, exports WITHOUT it (OpenGLEdit.inAnimationFrame) - this makes that visible
+     * instead of silent.
+     */
+    private void prepareClipAnimations(EditingActivity.Timeline timeline, ExportListener listener) {
+        for (String problem : ClipAnimationAssets.loadBuiltIns(context)) {
+            report(listener, "OpenGL: animation file problem - " + problem);
+        }
+        if (timeline == null || timeline.tracks == null) return;
+        java.util.Set<String> warned = new java.util.HashSet<>();
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip == null || clip.inAnimation == null) continue;
+                String type = clip.inAnimation.type;
+                if (type == null || type.isEmpty() || "none".equals(type) || !warned.add(type)) continue;
+                ClipAnimation def = ClipAnimationLoader.get(type);
+                if (def == null) {
+                    report(listener, "OpenGL: in-animation '" + type + "' is not installed - clips using it export without it");
+                } else if (def.getDirection() != ClipAnimation.Direction.IN) {
+                    report(listener, "OpenGL: animation '" + type + "' is an out animation - it can't be used as an in-animation");
+                }
+            }
+        }
+    }
+
     private void report(ExportListener listener, String message) {
         LoggingManager.LogToPersistentDataPath(context, "OpenGLEditNative: " + message);
         if (listener != null) listener.onLog(message);
