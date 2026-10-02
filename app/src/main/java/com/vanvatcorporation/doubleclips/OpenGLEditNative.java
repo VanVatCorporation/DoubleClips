@@ -18,6 +18,7 @@ import android.os.HandlerThread;
 import android.view.Surface;
 
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
+import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
 import java.util.List;
@@ -200,6 +201,7 @@ public class OpenGLEditNative {
             Thread.currentThread().interrupt();
         }
         if (error[0] != null) {
+            LoggingManager.LogToPersistentDataPath(context, "OpenGLEditNative: error running on GL thread: " + error[0].getMessage());
             throw new RuntimeException(error[0]);
         }
     }
@@ -668,6 +670,38 @@ public class OpenGLEditNative {
     // vertex position instead of a fixed fullscreen quad, an opacity uniform,
     // and GL_BLEND enabled so multiple clips composite correctly track-over-track.
 
+    // ---- "unfold" in-animation frame warp (shared shader snippets) ----------------
+    // Done per-pixel in the FRAGMENT shader as an inverse mapping with edge
+    // clamping, not by moving the quad: for every output pixel we work out which
+    // source pixel the warped picture would have there. The warp squeezes the
+    // clip's box toward its top-center - the TOP edge is uUnfoldTopX wide, the
+    // BOTTOM edge uUnfoldBottomX wide (both relative to normal, about the vertical
+    // center line), and the height is scaled by uUnfoldHeight keeping the top edge
+    // fixed. Source positions outside the clip are clamped to its edge, so the
+    // area the shrunken picture no longer covers is filled with edge pixels (what
+    // the reference does) instead of showing a gap.
+    // Quad space is Y-down: (-1,-1) = top-left, matching QUAD_VERTICES below.
+    // uUnfoldActive is 0 for every normal clip: the shader then uses the original
+    // interpolated texture coordinate untouched, so ordinary clips are bit-for-bit
+    // what they were before. These uniforms default to 0 in GL, so every drawClip
+    // MUST set them (the old overloads pass 1,1,1 / inactive).
+    private static final String UNFOLD_WARP_VERTEX_DECLS =
+            "varying vec2 vQuadPos;\n";
+    private static final String UNFOLD_WARP_VERTEX_BODY =
+            "    vQuadPos = aPosition.xy;\n";
+    private static final String UNFOLD_WARP_FRAGMENT_DECLS =
+            "varying vec2 vQuadPos;\n" +
+            "uniform float uUnfoldActive;\n" +
+            "uniform float uUnfoldTopX;\n" +
+            "uniform float uUnfoldBottomX;\n" +
+            "uniform float uUnfoldHeight;\n" +
+            "vec2 unfoldSourceQuadPos(vec2 q) {\n" +
+            "    float srcY = clamp((q.y + 1.0) / uUnfoldHeight - 1.0, -1.0, 1.0);\n" +
+            "    float edgeW = mix(uUnfoldTopX, uUnfoldBottomX, (srcY + 1.0) * 0.5);\n" +
+            "    float srcX = clamp(q.x / edgeW, -1.0, 1.0);\n" +
+            "    return vec2(srcX, srcY);\n" +
+            "}\n";
+
     public static class TransformShader {
         private static final String VERTEX_SHADER =
                 "attribute vec4 aPosition;\n" +
@@ -675,7 +709,9 @@ public class OpenGLEditNative {
                 "uniform mat4 uMvpMatrix;\n" +
                 "uniform mat4 uTexMatrix;\n" +
                 "varying vec2 vTexCoord;\n" +
+                UNFOLD_WARP_VERTEX_DECLS +
                 "void main() {\n" +
+                UNFOLD_WARP_VERTEX_BODY +
                 "    gl_Position = uMvpMatrix * aPosition;\n" +
                 "    vTexCoord = (uTexMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n" +
                 "}\n";
@@ -708,8 +744,19 @@ public class OpenGLEditNative {
                 // Visually similar direction (warmer above 6500K, cooler below),
                 // not a pixel match - flagging so this isn't mistaken for parity.
                 "uniform float uTemperatureKelvin;\n" +
+                // The fragment stage can't share uTexMatrix with the vertex stage
+                // (different default float precision = link error), so the same
+                // matrix is uploaded a second time under this name.
+                "uniform mat4 uUnfoldTexMatrix;\n" +
+                UNFOLD_WARP_FRAGMENT_DECLS +
                 "void main() {\n" +
-                "    vec4 color = texture2D(uTexture, vTexCoord);\n" +
+                "    vec2 sampleUv = vTexCoord;\n" +
+                "    if (uUnfoldActive > 0.5) {\n" +
+                "        vec2 s = unfoldSourceQuadPos(vQuadPos);\n" +
+                // quad y=-1 (top) samples v=1, y=+1 (bottom) samples v=0 - see QUAD_VERTICES
+                "        sampleUv = (uUnfoldTexMatrix * vec4(s.x * 0.5 + 0.5, 0.5 - s.y * 0.5, 0.0, 1.0)).xy;\n" +
+                "    }\n" +
+                "    vec4 color = texture2D(uTexture, sampleUv);\n" +
                 "    vec3 rgb = color.rgb;\n" +
                 "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
                 "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
@@ -751,12 +798,17 @@ public class OpenGLEditNative {
         private int aTexCoordLoc;
         private int uTextureLoc;
         private int uTexMatrixLoc;
+        private int uUnfoldTexMatrixLoc;
         private int uMvpMatrixLoc;
         private int uOpacityLoc;
         private int uHueLoc;
         private int uSaturationLoc;
         private int uBrightnessLoc;
         private int uTemperatureLoc;
+        private int uUnfoldActiveLoc;
+        private int uUnfoldTopXLoc;
+        private int uUnfoldBottomXLoc;
+        private int uUnfoldHeightLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -766,12 +818,17 @@ public class OpenGLEditNative {
             aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
             uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
             uTexMatrixLoc = GLES20.glGetUniformLocation(program, "uTexMatrix");
+            uUnfoldTexMatrixLoc = GLES20.glGetUniformLocation(program, "uUnfoldTexMatrix");
             uMvpMatrixLoc = GLES20.glGetUniformLocation(program, "uMvpMatrix");
             uOpacityLoc = GLES20.glGetUniformLocation(program, "uOpacity");
             uHueLoc = GLES20.glGetUniformLocation(program, "uHueDegrees");
             uSaturationLoc = GLES20.glGetUniformLocation(program, "uSaturation");
             uBrightnessLoc = GLES20.glGetUniformLocation(program, "uBrightness");
             uTemperatureLoc = GLES20.glGetUniformLocation(program, "uTemperatureKelvin");
+            uUnfoldActiveLoc = GLES20.glGetUniformLocation(program, "uUnfoldActive");
+            uUnfoldTopXLoc = GLES20.glGetUniformLocation(program, "uUnfoldTopX");
+            uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
+            uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -792,6 +849,13 @@ public class OpenGLEditNative {
         /** Call once per active clip, in back-to-front (track index ascending) order. */
         public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
+            drawClip(oesTextureId, texMatrix, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f);
+        }
+
+        /** Same as above plus the "unfold" frame warp (1,1,1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        public void drawClip(int oesTextureId, float[] texMatrix, float[] mvpMatrix, float opacity,
+                              float hueDegrees, float saturation, float brightness, float temperatureKelvin,
+                              float unfoldTopX, float unfoldBottomX, float unfoldHeight) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -809,6 +873,12 @@ public class OpenGLEditNative {
             GLES20.glUniform1f(uSaturationLoc, saturation);
             GLES20.glUniform1f(uBrightnessLoc, brightness);
             GLES20.glUniform1f(uTemperatureLoc, temperatureKelvin);
+            GLES20.glUniformMatrix4fv(uUnfoldTexMatrixLoc, 1, false, texMatrix, 0);
+            boolean unfoldActive = unfoldTopX != 1f || unfoldBottomX != 1f || unfoldHeight != 1f;
+            GLES20.glUniform1f(uUnfoldActiveLoc, unfoldActive ? 1f : 0f);
+            GLES20.glUniform1f(uUnfoldTopXLoc, unfoldTopX);
+            GLES20.glUniform1f(uUnfoldBottomXLoc, unfoldBottomX);
+            GLES20.glUniform1f(uUnfoldHeightLoc, unfoldHeight);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
@@ -875,7 +945,9 @@ public class OpenGLEditNative {
                 "attribute vec2 aTexCoord;\n" +
                 "uniform mat4 uMvpMatrix;\n" +
                 "varying vec2 vTexCoord;\n" +
+                UNFOLD_WARP_VERTEX_DECLS +
                 "void main() {\n" +
+                UNFOLD_WARP_VERTEX_BODY +
                 "    gl_Position = uMvpMatrix * aPosition;\n" +
                 "    vTexCoord = aTexCoord;\n" +
                 "}\n";
@@ -889,8 +961,15 @@ public class OpenGLEditNative {
                 "uniform float uSaturation;\n" +
                 "uniform float uBrightness;\n" +
                 "uniform float uTemperatureKelvin;\n" +
+                UNFOLD_WARP_FRAGMENT_DECLS +
                 "void main() {\n" +
-                "    vec4 color = texture2D(uTexture, vTexCoord);\n" +
+                "    vec2 sampleUv = vTexCoord;\n" +
+                "    if (uUnfoldActive > 0.5) {\n" +
+                "        vec2 s = unfoldSourceQuadPos(vQuadPos);\n" +
+                // quad y=-1 (top) samples v=0, y=+1 (bottom) samples v=1 - see QUAD_VERTICES
+                "        sampleUv = vec2(s.x * 0.5 + 0.5, s.y * 0.5 + 0.5);\n" +
+                "    }\n" +
+                "    vec4 color = texture2D(uTexture, sampleUv);\n" +
                 "    vec3 rgb = color.rgb;\n" +
                 "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
                 "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
@@ -938,6 +1017,10 @@ public class OpenGLEditNative {
         private int uSaturationLoc;
         private int uBrightnessLoc;
         private int uTemperatureLoc;
+        private int uUnfoldActiveLoc;
+        private int uUnfoldTopXLoc;
+        private int uUnfoldBottomXLoc;
+        private int uUnfoldHeightLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -952,6 +1035,10 @@ public class OpenGLEditNative {
             uSaturationLoc = GLES20.glGetUniformLocation(program, "uSaturation");
             uBrightnessLoc = GLES20.glGetUniformLocation(program, "uBrightness");
             uTemperatureLoc = GLES20.glGetUniformLocation(program, "uTemperatureKelvin");
+            uUnfoldActiveLoc = GLES20.glGetUniformLocation(program, "uUnfoldActive");
+            uUnfoldTopXLoc = GLES20.glGetUniformLocation(program, "uUnfoldTopX");
+            uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
+            uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -963,6 +1050,13 @@ public class OpenGLEditNative {
         /** Call once per active image clip. Caller is responsible for beginFrame() (viewport/clear/blend) once per output frame. */
         public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
                               float hueDegrees, float saturation, float brightness, float temperatureKelvin) {
+            drawClip(texture2DId, mvpMatrix, opacity, hueDegrees, saturation, brightness, temperatureKelvin, 1f, 1f, 1f);
+        }
+
+        /** Same as above plus the "unfold" frame warp (1,1,1 = none) - see UNFOLD_WARP_FRAGMENT_DECLS. */
+        public void drawClip(int texture2DId, float[] mvpMatrix, float opacity,
+                              float hueDegrees, float saturation, float brightness, float temperatureKelvin,
+                              float unfoldTopX, float unfoldBottomX, float unfoldHeight) {
             GLES20.glUseProgram(program);
 
             vertexBuffer.position(0);
@@ -979,6 +1073,11 @@ public class OpenGLEditNative {
             GLES20.glUniform1f(uSaturationLoc, saturation);
             GLES20.glUniform1f(uBrightnessLoc, brightness);
             GLES20.glUniform1f(uTemperatureLoc, temperatureKelvin);
+            boolean unfoldActive = unfoldTopX != 1f || unfoldBottomX != 1f || unfoldHeight != 1f;
+            GLES20.glUniform1f(uUnfoldActiveLoc, unfoldActive ? 1f : 0f);
+            GLES20.glUniform1f(uUnfoldTopXLoc, unfoldTopX);
+            GLES20.glUniform1f(uUnfoldBottomXLoc, unfoldBottomX);
+            GLES20.glUniform1f(uUnfoldHeightLoc, unfoldHeight);
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture2DId);
@@ -1010,6 +1109,381 @@ public class OpenGLEditNative {
         }
 
         private int compileShader(int type, String src) {
+            int shader = GLES20.glCreateShader(type);
+            GLES20.glShaderSource(shader, src);
+            GLES20.glCompileShader(shader);
+
+            int[] compileStatus = new int[1];
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0);
+            if (compileStatus[0] == 0) {
+                String log = GLES20.glGetShaderInfoLog(shader);
+                GLES20.glDeleteShader(shader);
+                throw new RuntimeException("Shader compile failed: " + log);
+            }
+            return shader;
+        }
+    }
+
+
+    // ---- Offscreen FBO target: one clip's full-canvas transparent layer ---------
+    // Needed for transitions: FFmpeg's xfade blends two FULL-CANVAS renders (each
+    // clip already scaled/rotated/positioned/color-graded, composited onto a
+    // transparent canvas-sized background), not two raw clip textures at a shared
+    // position (see PLAN.md decisions log). So each side of a transition gets
+    // rendered here first, then TransitionBlendShader blends the two results.
+    // FBOs don't need their own EGLSurface/eglMakeCurrent - glBindFramebuffer is
+    // enough to redirect drawing within the SAME EGL context, and binding 0
+    // afterward returns to whichever EGLSurface is still current (the encoder's).
+
+    public class OffscreenTarget {
+        private int framebufferId = -1;
+        private int textureId = -1;
+        private int width, height;
+
+        /** Must be called on the GL thread. */
+        public void create(int width, int height) {
+            this.width = width;
+            this.height = height;
+
+            int[] tex = new int[1];
+            GLES20.glGenTextures(1, tex, 0);
+            textureId = tex[0];
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+
+            int[] fb = new int[1];
+            GLES20.glGenFramebuffers(1, fb, 0);
+            framebufferId = fb[0];
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebufferId);
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, textureId, 0);
+
+            int status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
+            if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+                throw new RuntimeException("Offscreen framebuffer incomplete: 0x" + Integer.toHexString(status));
+            }
+        }
+
+        /** Redirects drawing here (still the same EGL context — no eglMakeCurrent). */
+        public void bindForDrawing() {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebufferId);
+            GLES20.glViewport(0, 0, width, height);
+        }
+
+        /** Transparent, not opaque black — this is a layer to be blended, not a final frame. */
+        public void clearTransparent() {
+            GLES20.glClearColor(0f, 0f, 0f, 0f);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        }
+
+        public int getTextureId() {
+            return textureId;
+        }
+
+        /** Must be called on the GL thread. */
+        public void release() {
+            if (framebufferId != -1) {
+                GLES20.glDeleteFramebuffers(1, new int[]{framebufferId}, 0);
+                framebufferId = -1;
+            }
+            if (textureId != -1) {
+                GLES20.glDeleteTextures(1, new int[]{textureId}, 0);
+                textureId = -1;
+            }
+        }
+    }
+
+
+    // ---- Transition blend: combines two full-canvas layers into the final frame -
+    // Fullscreen quad (no MVP — both inputs are already canvas-sized and
+    // pre-positioned), sampling two plain 2D textures. Style IDs match
+    // styleToId() below, which must stay in sync with
+    // OpenGLEdit.SUPPORTED_TRANSITION_STYLES.
+
+    public static class TransitionBlendShader {
+        public static final int STYLE_FADE = 0;
+        public static final int STYLE_WIPE_LEFT = 1;
+        public static final int STYLE_WIPE_RIGHT = 2;
+        public static final int STYLE_SLIDE_LEFT = 3;
+        public static final int STYLE_SLIDE_RIGHT = 4;
+        public static final int STYLE_SLIDE_UP = 5;
+        public static final int STYLE_SLIDE_DOWN = 6;
+
+        public static int styleToId(String style) {
+            switch (style) {
+                case "fade": case "dissolve": return STYLE_FADE; // dissolve approximated as a fade — see OpenGLEdit's SUPPORTED_TRANSITION_STYLES comment
+                case "wipeleft": return STYLE_WIPE_LEFT;
+                case "wiperight": return STYLE_WIPE_RIGHT;
+                case "slideleft": return STYLE_SLIDE_LEFT;
+                case "slideright": return STYLE_SLIDE_RIGHT;
+                case "slideup": return STYLE_SLIDE_UP;
+                case "slidedown": return STYLE_SLIDE_DOWN;
+                default: return STYLE_FADE; // shouldn't happen — caller filters to SUPPORTED_TRANSITION_STYLES first
+            }
+        }
+
+        private static final String VERTEX_SHADER =
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTexCoord;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "void main() {\n" +
+                "    gl_Position = aPosition;\n" +
+                "    vTexCoord = aTexCoord;\n" +
+                "}\n";
+
+        // wipeleft/right sweep direction and slide direction are a best-effort
+        // match to FFmpeg's xfade of the same name — not re-verified pixel-for-
+        // pixel against an FFmpeg export in this session. If a direction looks
+        // reversed compared to FFmpeg's output, swap the comparison/offset sign
+        // for that style here.
+        private static final String FRAGMENT_SHADER =
+                "precision mediump float;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "uniform sampler2D uTextureA;\n" +
+                "uniform sampler2D uTextureB;\n" +
+                "uniform float uProgress;\n" +
+                "uniform int uStyle;\n" +
+                "void main() {\n" +
+                "    vec4 result;\n" +
+                "    if (uStyle == 1) {\n" + // wipeleft: B revealed from the right edge moving left
+                "        result = (vTexCoord.x > 1.0 - uProgress) ? texture2D(uTextureB, vTexCoord) : texture2D(uTextureA, vTexCoord);\n" +
+                "    } else if (uStyle == 2) {\n" + // wiperight: B revealed from the left edge moving right
+                "        result = (vTexCoord.x < uProgress) ? texture2D(uTextureB, vTexCoord) : texture2D(uTextureA, vTexCoord);\n" +
+                "    } else if (uStyle == 3 || uStyle == 4 || uStyle == 5 || uStyle == 6) {\n" +
+                // Push-slide: both layers move together as one strip; whichever
+                // offset lands in [0,1] this pixel is the one shown, the other
+                // is skipped entirely (not sampled) rather than clamped, so
+                // there's no smeared/stretched edge.
+                "        vec2 axis = (uStyle == 3) ? vec2(1.0, 0.0) : (uStyle == 4) ? vec2(-1.0, 0.0) : (uStyle == 5) ? vec2(0.0, 1.0) : vec2(0.0, -1.0);\n" +
+                "        vec2 uvA = vTexCoord + axis * uProgress;\n" +
+                "        vec2 uvB = vTexCoord - axis * (1.0 - uProgress);\n" +
+                "        bool inA = uvA.x >= 0.0 && uvA.x <= 1.0 && uvA.y >= 0.0 && uvA.y <= 1.0;\n" +
+                "        result = inA ? texture2D(uTextureA, uvA) : texture2D(uTextureB, uvB);\n" +
+                "    } else {\n" + // fade / dissolve
+                "        result = mix(texture2D(uTextureA, vTexCoord), texture2D(uTextureB, vTexCoord), uProgress);\n" +
+                "    }\n" +
+                "    gl_FragColor = result;\n" +
+                "}\n";
+
+        // Same (non-flipped) convention as ImageTransformShader: FBO color
+        // attachments are plain 2D textures like a decoded bitmap, not
+        // SurfaceTexture/OES ones — see the comment above exportTimeline's
+        // transition handling for the full reasoning.
+        private static final float[] QUAD_VERTICES = {
+                -1f, -1f,     0f, 0f,
+                 1f, -1f,     1f, 0f,
+                -1f,  1f,     0f, 1f,
+                 1f,  1f,     1f, 1f,
+        };
+
+        private int program;
+        private int aPositionLoc, aTexCoordLoc, uTextureALoc, uTextureBLoc, uProgressLoc, uStyleLoc;
+        private java.nio.FloatBuffer vertexBuffer;
+
+        /** Must be called on the GL thread, once, after EGL context is current. */
+        public void init() {
+            program = buildSharedProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
+            aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
+            uTextureALoc = GLES20.glGetUniformLocation(program, "uTextureA");
+            uTextureBLoc = GLES20.glGetUniformLocation(program, "uTextureB");
+            uProgressLoc = GLES20.glGetUniformLocation(program, "uProgress");
+            uStyleLoc = GLES20.glGetUniformLocation(program, "uStyle");
+
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
+            bb.order(java.nio.ByteOrder.nativeOrder());
+            vertexBuffer = bb.asFloatBuffer();
+            vertexBuffer.put(QUAD_VERTICES);
+            vertexBuffer.position(0);
+        }
+
+        /** Draws into whatever framebuffer is currently bound (the caller sets viewport/clear beforehand). */
+        public void draw(int textureAId, int textureBId, float progress, int styleId) {
+            GLES20.glUseProgram(program);
+
+            vertexBuffer.position(0);
+            GLES20.glVertexAttribPointer(aPositionLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aPositionLoc);
+
+            vertexBuffer.position(2);
+            GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureAId);
+            GLES20.glUniform1i(uTextureALoc, 0);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureBId);
+            GLES20.glUniform1i(uTextureBLoc, 1);
+
+            GLES20.glUniform1f(uProgressLoc, progress);
+            GLES20.glUniform1i(uStyleLoc, styleId);
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+            GLES20.glDisableVertexAttribArray(aPositionLoc);
+            GLES20.glDisableVertexAttribArray(aTexCoordLoc);
+        }
+
+        private int buildSharedProgram(String vertexSrc, String fragmentSrc) {
+            int vertexShader = compileSharedShader(GLES20.GL_VERTEX_SHADER, vertexSrc);
+            int fragmentShader = compileSharedShader(GLES20.GL_FRAGMENT_SHADER, fragmentSrc);
+
+            int prog = GLES20.glCreateProgram();
+            GLES20.glAttachShader(prog, vertexShader);
+            GLES20.glAttachShader(prog, fragmentShader);
+            GLES20.glLinkProgram(prog);
+
+            int[] linkStatus = new int[1];
+            GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0);
+            if (linkStatus[0] == 0) {
+                String log = GLES20.glGetProgramInfoLog(prog);
+                GLES20.glDeleteProgram(prog);
+                throw new RuntimeException("Shader program link failed: " + log);
+            }
+            return prog;
+        }
+
+        private int compileSharedShader(int type, String src) {
+            int shader = GLES20.glCreateShader(type);
+            GLES20.glShaderSource(shader, src);
+            GLES20.glCompileShader(shader);
+
+            int[] compileStatus = new int[1];
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0);
+            if (compileStatus[0] == 0) {
+                String log = GLES20.glGetShaderInfoLog(shader);
+                GLES20.glDeleteShader(shader);
+                throw new RuntimeException("Shader compile failed: " + log);
+            }
+            return shader;
+        }
+    }
+
+
+    // ---- "unfold" in-animation blur -------------------------------------------
+    // Two-pass separable Gaussian blur, reusing the same offscreen-FBO idea as
+    // transitions: render the clip once into a full-canvas texture, then a
+    // horizontal blur pass, then a vertical blur pass composited onto the real
+    // target. Fixed 9-tap kernel per pass (compile-time bounded — no unbounded
+    // shader loops, matching the safety stance from the community-shader
+    // discussion) with TAP SPACING scaled by uRadiusPixels, so one compiled
+    // shader covers the whole 0..peak blur range instead of needing a shader
+    // per radius.
+
+    public static class GaussianBlurShader {
+        private static final String VERTEX_SHADER =
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTexCoord;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "void main() {\n" +
+                "    gl_Position = aPosition;\n" +
+                "    vTexCoord = aTexCoord;\n" +
+                "}\n";
+
+        // Weights are a standard discrete 9-tap Gaussian (sigma ~= 2), applied
+        // along uDirection only — call this once with direction=(1,0), then
+        // again on its output with direction=(0,1), for a full 2D blur at
+        // roughly half the cost of a 2D kernel.
+        private static final String FRAGMENT_SHADER =
+                "precision mediump float;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "uniform sampler2D uTexture;\n" +
+                "uniform vec2 uDirection;\n" + // (1,0) horizontal pass, (0,1) vertical pass
+                "uniform vec2 uTexelSize;\n" + // 1/width, 1/height
+                "uniform float uRadiusPixels;\n" +
+                "void main() {\n" +
+                "    vec2 step = uDirection * uTexelSize * (uRadiusPixels / 4.0);\n" +
+                "    vec4 sum = texture2D(uTexture, vTexCoord) * 0.227027;\n" +
+                "    sum += texture2D(uTexture, vTexCoord + step * 1.0) * 0.1945946;\n" +
+                "    sum += texture2D(uTexture, vTexCoord - step * 1.0) * 0.1945946;\n" +
+                "    sum += texture2D(uTexture, vTexCoord + step * 2.0) * 0.1216216;\n" +
+                "    sum += texture2D(uTexture, vTexCoord - step * 2.0) * 0.1216216;\n" +
+                "    sum += texture2D(uTexture, vTexCoord + step * 3.0) * 0.054054;\n" +
+                "    sum += texture2D(uTexture, vTexCoord - step * 3.0) * 0.054054;\n" +
+                "    sum += texture2D(uTexture, vTexCoord + step * 4.0) * 0.016216;\n" +
+                "    sum += texture2D(uTexture, vTexCoord - step * 4.0) * 0.016216;\n" +
+                "    gl_FragColor = sum;\n" +
+                "}\n";
+
+        // Same (non-flipped) convention as ImageTransformShader/TransitionBlendShader:
+        // this always samples a plain-2D FBO texture, never a SurfaceTexture/OES one.
+        private static final float[] QUAD_VERTICES = {
+                -1f, -1f,     0f, 0f,
+                 1f, -1f,     1f, 0f,
+                -1f,  1f,     0f, 1f,
+                 1f,  1f,     1f, 1f,
+        };
+
+        private int program;
+        private int aPositionLoc, aTexCoordLoc, uTextureLoc, uDirectionLoc, uTexelSizeLoc, uRadiusLoc;
+        private java.nio.FloatBuffer vertexBuffer;
+
+        public void init() {
+            program = buildSharedProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
+            aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
+            uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
+            uDirectionLoc = GLES20.glGetUniformLocation(program, "uDirection");
+            uTexelSizeLoc = GLES20.glGetUniformLocation(program, "uTexelSize");
+            uRadiusLoc = GLES20.glGetUniformLocation(program, "uRadiusPixels");
+
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
+            bb.order(java.nio.ByteOrder.nativeOrder());
+            vertexBuffer = bb.asFloatBuffer();
+            vertexBuffer.put(QUAD_VERTICES);
+            vertexBuffer.position(0);
+        }
+
+        /** Draws into whatever framebuffer is currently bound. */
+        public void draw(int textureId, float dirX, float dirY, int textureWidth, int textureHeight, float radiusPixels) {
+            GLES20.glUseProgram(program);
+
+            vertexBuffer.position(0);
+            GLES20.glVertexAttribPointer(aPositionLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aPositionLoc);
+
+            vertexBuffer.position(2);
+            GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+            GLES20.glUniform1i(uTextureLoc, 0);
+            GLES20.glUniform2f(uDirectionLoc, dirX, dirY);
+            GLES20.glUniform2f(uTexelSizeLoc, 1f / textureWidth, 1f / textureHeight);
+            GLES20.glUniform1f(uRadiusLoc, radiusPixels);
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+            GLES20.glDisableVertexAttribArray(aPositionLoc);
+            GLES20.glDisableVertexAttribArray(aTexCoordLoc);
+        }
+
+        private int buildSharedProgram(String vertexSrc, String fragmentSrc) {
+            int vertexShader = compileSharedShader(GLES20.GL_VERTEX_SHADER, vertexSrc);
+            int fragmentShader = compileSharedShader(GLES20.GL_FRAGMENT_SHADER, fragmentSrc);
+
+            int prog = GLES20.glCreateProgram();
+            GLES20.glAttachShader(prog, vertexShader);
+            GLES20.glAttachShader(prog, fragmentShader);
+            GLES20.glLinkProgram(prog);
+
+            int[] linkStatus = new int[1];
+            GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0);
+            if (linkStatus[0] == 0) {
+                String log = GLES20.glGetProgramInfoLog(prog);
+                GLES20.glDeleteProgram(prog);
+                throw new RuntimeException("Shader program link failed: " + log);
+            }
+            return prog;
+        }
+
+        private int compileSharedShader(int type, String src) {
             int shader = GLES20.glCreateShader(type);
             GLES20.glShaderSource(shader, src);
             GLES20.glCompileShader(shader);
@@ -1063,7 +1537,53 @@ public class OpenGLEditNative {
                     java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
             TransformShader shader = new TransformShader();
             ImageTransformShader imageShader = new ImageTransformShader();
+            // Transitions only: two full-canvas layers, one per side, blended by
+            // TransitionBlendShader. Created lazily below only if this timeline
+            // actually uses a supported transition, so a project with none pays
+            // no extra memory/setup cost for them.
+            OffscreenTarget transitionLayerA = null;
+            OffscreenTarget transitionLayerB = null;
+            TransitionBlendShader blendShader = null;
+            // "unfold" in-animation blur only: lazily created the first time any
+            // clip actually needs it, same pattern as the transition layers above.
+            OffscreenTarget blurScratchA = null;
+            OffscreenTarget blurScratchB = null;
+            GaussianBlurShader blurShader = null;
             ExportEncoder encoder = new ExportEncoder();
+
+            // Frame watchdog: if a single frame's rendering (decode + draw +
+            // encode) stalls past Constants.OPENGL_FRAME_RENDER_TIMEOUT_SECONDS,
+            // stop the export instead of hanging indefinitely. This is a
+            // cooperative check, not a forced kill — it flips the SAME
+            // `cancelled` flag the user-facing cancel() uses, which the main
+            // loop below already checks at the top of every frame. That means
+            // it correctly recovers a Java-side stall (e.g. a decoder that
+            // eventually gives up), but it CANNOT interrupt a genuine GPU
+            // driver hang (an in-flight native/driver call blocks its Java
+            // thread with no way to preempt it) — only an OS-level process
+            // kill could, which isn't what this does. Named timeout lives in
+            // Constants, not hardcoded here, per Viet's note.
+            java.util.concurrent.atomic.AtomicInteger watchdogFrameIndex = new java.util.concurrent.atomic.AtomicInteger(-1);
+            java.util.concurrent.atomic.AtomicLong watchdogFrameStartMs = new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+            java.util.concurrent.atomic.AtomicInteger watchdogTotalFrames = new java.util.concurrent.atomic.AtomicInteger(0);
+            long timeoutMs = Constants.OPENGL_FRAME_RENDER_TIMEOUT_SECONDS * 1000L;
+            Thread watchdogThread = new Thread(() -> {
+                while (!cancelled) {
+                    long stuckMs = System.currentTimeMillis() - watchdogFrameStartMs.get();
+                    if (watchdogFrameIndex.get() >= 0 && stuckMs > timeoutMs) {
+                        report(listener, "OpenGL: frame " + watchdogFrameIndex.get() + "/" + watchdogTotalFrames.get()
+                                + " timed out after " + Constants.OPENGL_FRAME_RENDER_TIMEOUT_SECONDS + "s — stopping export");
+                        cancel();
+                        break;
+                    }
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }, "OpenGLEdit-Export-Watchdog");
+            watchdogThread.start();
 
             try {
                 shader.init();
@@ -1075,6 +1595,7 @@ public class OpenGLEditNative {
                 // Frame count and every timestamp come from integer maths on the frame
                 // index, so nothing drifts however long the timeline is.
                 int totalFrames = (int) Math.max(1, Math.ceil(timelineDuration * frameRate - 1e-6));
+                watchdogTotalFrames.set(totalFrames);
 
                 report(listener, "OpenGL: compositing " + totalFrames + " frames at " + width + "x" + height + " @" + frameRate + "fps");
 
@@ -1084,71 +1605,106 @@ public class OpenGLEditNative {
                         report(listener, "OpenGL: export cancelled");
                         break;
                     }
+                    watchdogFrameIndex.set(frameIndex);
+                    watchdogFrameStartMs.set(System.currentTimeMillis());
 
                     long outputTimeUs = Math.round(frameIndex * 1_000_000.0 / frameRate);
                     float outputTimeSeconds = (float) (outputTimeUs / 1_000_000.0);
 
-                    List<OpenGLEdit.DrawCommand> commands = edit.computeFrameForTimestamp(timeline, outputTimeSeconds, width, height, stretchToFull);
+                    List<OpenGLEdit.FrameLayer> layers = edit.computeFrameForTimestamp(timeline, outputTimeSeconds, width, height, stretchToFull);
 
                     // Close sources for clips no longer active this frame - they
-                    // don't recur (clips don't loop/repeat within a track).
+                    // don't recur (clips don't loop/repeat within a track). Both
+                    // sides of a transition layer count as active.
                     java.util.Set<EditingActivity.Clip> stillActive =
                             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-                    for (OpenGLEdit.DrawCommand cmd : commands) stillActive.add(cmd.clip);
+                    for (OpenGLEdit.FrameLayer layer : layers) {
+                        if (layer.simpleDraw != null) {
+                            stillActive.add(layer.simpleDraw.clip);
+                        } else {
+                            stillActive.add(layer.transition.clipACommand.clip);
+                            stillActive.add(layer.transition.clipBCommand.clip);
+                        }
+                    }
                     releaseInactive(activeSources, stillActive);
                     releaseInactive(activeImageSources, stillActive);
 
                     encoder.makeEncoderSurfaceCurrent();
-                    shader.beginFrame(width, height); // also clears + enables blending for this frame; imageShader draws into the same state
+                    shader.beginFrame(width, height); // clears the frame + enables blending; imageShader/blendShader draw into the same state
 
-                    for (OpenGLEdit.DrawCommand cmd : commands) {
-                        if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
-                            ImageFrameSource imageSource = activeImageSources.get(cmd.clip);
-                            if (imageSource == null) {
-                                imageSource = new ImageFrameSource(cmd.clip.getAbsolutePath(projectPath));
-                                try {
-                                    imageSource.open();
-                                } catch (IOException | RuntimeException e) {
-                                    if (reportedNoFrame.add(cmd.clip)) {
-                                        report(listener, "OpenGL: could not open an image clip, it will be missing from the export: " + e.getMessage());
-                                    }
-                                    continue;
+                    // Draw layers in EXACT order — this is track stacking order,
+                    // and simple/transition layers must interleave correctly, not
+                    // be grouped into two passes (see OpenGLEdit.computeFrameForTimestamp).
+                    for (OpenGLEdit.FrameLayer layer : layers) {
+                        if (layer.simpleDraw != null) {
+                            if (layer.simpleDraw.blurRadiusPixels > 0f) {
+                                // "unfold" in-animation: render the clip into a
+                                // scratch layer, blur it in two passes (H then V),
+                                // with the vertical pass compositing straight onto
+                                // the main frame (it's just another textured quad
+                                // draw — blending is already enabled from
+                                // shader.beginFrame above, no separate blit needed).
+                                if (blurScratchA == null) {
+                                    blurScratchA = new OffscreenTarget();
+                                    blurScratchA.create(width, height);
+                                    blurScratchB = new OffscreenTarget();
+                                    blurScratchB.create(width, height);
+                                    blurShader = new GaussianBlurShader();
+                                    blurShader.init();
                                 }
-                                activeImageSources.put(cmd.clip, imageSource);
-                            }
-                            imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
-                                    cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin);
-                            continue;
-                        }
 
-                        ClipFrameSource source = activeSources.get(cmd.clip);
-                        if (source == null) {
-                            String overridePath = reversedClipPaths != null ? reversedClipPaths.get(cmd.clip) : null;
-                            String sourcePath = overridePath != null ? overridePath : cmd.clip.getAbsolutePath(projectPath);
-                            source = new ClipFrameSource(sourcePath);
-                            try {
-                                source.open();
-                            } catch (IOException | RuntimeException e) {
-                                if (reportedNoFrame.add(cmd.clip)) {
-                                    report(listener, "OpenGL: could not open a clip, it will be missing from the export: " + e.getMessage());
-                                }
-                                continue;
-                            }
-                            activeSources.put(cmd.clip, source);
-                        }
+                                blurScratchA.bindForDrawing();
+                                blurScratchA.clearTransparent();
+                                renderDrawCommand(layer.simpleDraw, shader, imageShader, activeSources, activeImageSources,
+                                        reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
 
-                        long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
-                        if (!source.advanceToTime(localSourceTimeUs, timeoutUsPerStep)) {
-                            // Only when the decoder never produced a single frame.
-                            // Reported once per clip, not once per frame.
-                            if (reportedNoFrame.add(cmd.clip)) {
-                                report(listener, "OpenGL: a clip produced no frames (from output t=" + outputTimeSeconds + "s)");
+                                blurScratchB.bindForDrawing();
+                                blurScratchB.clearTransparent();
+                                blurShader.draw(blurScratchA.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurRadiusPixels);
+
+                                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                                GLES20.glViewport(0, 0, width, height);
+                                blurShader.draw(blurScratchB.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurRadiusPixels);
+                            } else {
+                                renderDrawCommand(layer.simpleDraw, shader, imageShader, activeSources, activeImageSources,
+                                        reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
                             }
                             continue;
                         }
 
-                        shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
-                                cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin);
+                        // Transition: render each side to its own full-canvas
+                        // transparent layer, then blend those two layers - NOT
+                        // the raw clip textures - onto the main frame. This is
+                        // what makes it match FFmpeg's xfade (see the class
+                        // comment above OffscreenTarget).
+                        if (transitionLayerA == null) {
+                            transitionLayerA = new OffscreenTarget();
+                            transitionLayerA.create(width, height);
+                            transitionLayerB = new OffscreenTarget();
+                            transitionLayerB.create(width, height);
+                            blendShader = new TransitionBlendShader();
+                            blendShader.init();
+                        }
+
+                        OpenGLEdit.TransitionCommand transition = layer.transition;
+
+                        transitionLayerA.bindForDrawing();
+                        transitionLayerA.clearTransparent();
+                        renderDrawCommand(transition.clipACommand, shader, imageShader, activeSources, activeImageSources,
+                                reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+
+                        transitionLayerB.bindForDrawing();
+                        transitionLayerB.clearTransparent();
+                        renderDrawCommand(transition.clipBCommand, shader, imageShader, activeSources, activeImageSources,
+                                reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+
+                        // Back to the main frame's own framebuffer - still the
+                        // same EGL context/surface the whole time, only the FBO
+                        // binding changed, so no eglMakeCurrent is needed here.
+                        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                        GLES20.glViewport(0, 0, width, height);
+                        blendShader.draw(transitionLayerA.getTextureId(), transitionLayerB.getTextureId(),
+                                transition.progress, TransitionBlendShader.styleToId(transition.style));
                     }
 
                     encoder.swapAndPresent(outputTimeUs * 1000L);
@@ -1166,16 +1722,86 @@ public class OpenGLEditNative {
             } catch (IOException e) {
                 LoggingManager.LogExceptionToNoteOverlay(context, e);
             } finally {
+                watchdogThread.interrupt();
                 for (ClipFrameSource source : activeSources.values()) {
                     source.release();
                 }
                 for (ImageFrameSource source : activeImageSources.values()) {
                     source.release();
                 }
+                if (transitionLayerA != null) transitionLayerA.release();
+                if (transitionLayerB != null) transitionLayerB.release();
+                if (blurScratchA != null) blurScratchA.release();
+                if (blurScratchB != null) blurScratchB.release();
                 encoder.close();
             }
         });
     }
+
+    /**
+     * Opens (if needed), advances (video only), and draws one clip's
+     * DrawCommand into whatever framebuffer is currently bound — the main
+     * encoder surface for a normal draw, or an OffscreenTarget for one side of
+     * a transition. Returns true if something was actually drawn.
+     */
+    private boolean renderDrawCommand(OpenGLEdit.DrawCommand cmd, TransformShader shader, ImageTransformShader imageShader,
+                                       java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources,
+                                       java.util.Map<EditingActivity.Clip, ImageFrameSource> activeImageSources,
+                                       java.util.Set<EditingActivity.Clip> reportedNoFrame,
+                                       java.util.Map<EditingActivity.Clip, String> reversedClipPaths,
+                                       String projectPath, long timeoutUsPerStep, float outputTimeSeconds, ExportListener listener) {
+        if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
+            ImageFrameSource imageSource = activeImageSources.get(cmd.clip);
+            if (imageSource == null) {
+                imageSource = new ImageFrameSource(cmd.clip.getAbsolutePath(projectPath));
+                try {
+                    imageSource.open();
+                } catch (IOException | RuntimeException e) {
+                    if (reportedNoFrame.add(cmd.clip)) {
+                        report(listener, "OpenGL: could not open an image clip, it will be missing from the export: " + e.getMessage());
+                    }
+                    return false;
+                }
+                activeImageSources.put(cmd.clip, imageSource);
+            }
+            imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
+                    cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                    cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight);
+            return true;
+        }
+
+        ClipFrameSource source = activeSources.get(cmd.clip);
+        if (source == null) {
+            String overridePath = reversedClipPaths != null ? reversedClipPaths.get(cmd.clip) : null;
+            String sourcePath = overridePath != null ? overridePath : cmd.clip.getAbsolutePath(projectPath);
+            source = new ClipFrameSource(sourcePath);
+            try {
+                source.open();
+            } catch (IOException | RuntimeException e) {
+                if (reportedNoFrame.add(cmd.clip)) {
+                    report(listener, "OpenGL: could not open a clip, it will be missing from the export: " + e.getMessage());
+                }
+                return false;
+            }
+            activeSources.put(cmd.clip, source);
+        }
+
+        long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
+        if (!source.advanceToTime(localSourceTimeUs, timeoutUsPerStep)) {
+            // Only when the decoder never produced a single frame.
+            // Reported once per clip, not once per frame.
+            if (reportedNoFrame.add(cmd.clip)) {
+                report(listener, "OpenGL: a clip produced no frames (from output t=" + outputTimeSeconds + "s)");
+            }
+            return false;
+        }
+
+        shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
+                cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight);
+        return true;
+    }
+
 
     /** Releases and removes every entry whose clip is not in stillActive. Shared by the video and image source maps. */
     private <T> void releaseInactive(java.util.Map<EditingActivity.Clip, T> sources, java.util.Set<EditingActivity.Clip> stillActive) {
