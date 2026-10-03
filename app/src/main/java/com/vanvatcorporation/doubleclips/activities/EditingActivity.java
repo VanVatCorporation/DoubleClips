@@ -71,6 +71,9 @@ import com.google.gson.annotations.Expose;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.FXCommandEmitter;
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.ClipAnimationAssets;
+import com.vanvatcorporation.doubleclips.ClipAnimationPacks;
+import com.vanvatcorporation.doubleclips.activities.editing.AnimationPackDialog;
 import com.vanvatcorporation.doubleclips.activities.editing.BaseEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipsEditSpecificAreaScreen;
@@ -613,6 +616,24 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
     );
+    // Animation packs: the picked .zip is validated and installed by ClipAnimationAssets / ClipAnimationPacks.
+    private ActivityResultLauncher<Intent> animationPackImportLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
+                try {
+                    ClipAnimationPacks.InstallResult installed = ClipAnimationAssets.importPack(this, result.getData().getData());
+                    refreshAnimationPickers();
+                    String what = installed.replacedVersion > 0
+                            ? "Updated \"" + installed.pack.name + "\" (v" + installed.replacedVersion + " -> v" + installed.pack.version + ")."
+                            : "Installed \"" + installed.pack.name + "\".";
+                    new AlertDialog.Builder(this).setTitle("Animation pack").setMessage(what + "\n\n"
+                            + installed.pack.animationCount() + " animation(s) are now in the in / out pickers.").show();
+                } catch (ClipAnimationPacks.PackException e) {
+                    new AlertDialog.Builder(this).setTitle("Couldn't install the pack").setMessage(e.getMessage()).show();
+                }
+            }
+    );
     private ActivityResultLauncher<Intent> clipExportLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -762,6 +783,21 @@ public class EditingActivity extends AppCompatActivityImpl {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.putExtra(Intent.EXTRA_TITLE, "export_clip_" + data.getClipName() + ".json");
         clipExportLauncher.launch(Intent.createChooser(intent, "Select Export Clip Json Data File"));
+    }
+    public void importAnimationPack()
+    {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        // file managers disagree on the zip MIME type, so accept the usual ones
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/x-zip-compressed", "application/octet-stream"});
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        animationPackImportLauncher.launch(Intent.createChooser(intent, "Select Animation Pack (.zip)"));
+    }
+    /** The in / out pickers re-read the registry (after a pack was imported or removed). */
+    private void refreshAnimationPickers()
+    {
+        clipEditSpecificAreaScreen.inAnimationPicker.refresh();
+        clipEditSpecificAreaScreen.outAnimationPicker.refresh();
     }
     public void importSingularClip()
     {
@@ -2087,6 +2123,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                     clearKeyframe(selectedClip);
                 }
             });
+
+            clipEditSpecificAreaScreen.animationPacksButton.setOnClickListener(v ->
+                    AnimationPackDialog.show(this, this::importAnimationPack, this::refreshAnimationPickers));
 
             clipEditSpecificAreaScreen.importKeyframesButton.setOnClickListener(v -> {
                 if(selectedClip != null) {

@@ -40,6 +40,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
     public Spinner easingSpinner, inAnimationTypeSpinner, outAnimationTypeSpinner;
     public AnimationPicker inAnimationPicker, outAnimationPicker;
+    public android.view.View animationPacksButton;
     public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
 
 
@@ -101,6 +102,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         // Choices come from the animation registry (none + installed animations of that direction)
         inAnimationPicker = new AnimationPicker(getContext(), inAnimationTypeSpinner, inAnimationDurationField, ClipAnimation.Direction.IN);
         outAnimationPicker = new AnimationPicker(getContext(), outAnimationTypeSpinner, outAnimationDurationField, ClipAnimation.Direction.OUT);
+        animationPacksButton = findViewById(R.id.animationPacksButton);
 
         opacitySeekbar.setDecimalScale(2);
         speedSeekbar.setDecimalScale(2);

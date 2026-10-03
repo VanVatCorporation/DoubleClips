@@ -36,8 +36,8 @@ public final class ClipAnimationFFmpegChecks {
     public static List<String> runAll() throws Exception {
         List<String> fails = new ArrayList<>();
         ClipAnimationLoader.clearForTests();
-        ClipAnimation unfold = ClipAnimationLoader.register(read("src/main/assets/animations/unfold.json"), "unfold.json", true);
-        ClipAnimation fold = ClipAnimationLoader.register(read("src/main/assets/animations/fold.json"), "fold.json", true);
+        ClipAnimation unfold = ClipAnimationLoader.register(read("src/main/assets/animations/in/unfold.json"), "unfold.json", true);
+        ClipAnimation fold = ClipAnimationLoader.register(read("src/main/assets/animations/out/fold.json"), "fold.json", true);
 
         // 1. unfold (in): eq / perspective / blur slices reproduce the frozen legacy unfold numerically
         final double start = 0.5, dur = 1.5, fps = 30;

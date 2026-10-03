@@ -108,13 +108,39 @@ public final class ClipAnimationLoader {
      * @param builtIn  true for the app's own bundled animations
      */
     public static ClipAnimation register(String json, String source, boolean builtIn) throws FormatException {
-        ClipAnimation a = parse(json, source);
+        return register(json, source, builtIn, null);
+    }
+
+    /**
+     * Like {@link #register(String, String, boolean)}, and when {@code expectedDirection} isn't null
+     * the file must declare exactly that direction (the asset / pack folder it was found in:
+     * animations/in/ holds "in" animations, animations/out/ holds "out" ones).
+     */
+    public static ClipAnimation register(String json, String source, boolean builtIn,
+                                         ClipAnimation.Direction expectedDirection) throws FormatException {
+        ClipAnimation a = parse(json, source, null, expectedDirection);
+        registerParsed(a, builtIn, source);
+        return a;
+    }
+
+    /** Registers an already-parsed animation. A built-in id can only be replaced by another built-in. */
+    static void registerParsed(ClipAnimation a, boolean builtIn, String source) throws FormatException {
         if (!builtIn && BUILT_IN_IDS.contains(a.getId())) {
             throw new FormatException(prefix(source) + "id '" + a.getId() + "' is a built-in animation and can't be replaced");
         }
         REGISTRY.put(a.getId(), a);
         if (builtIn) BUILT_IN_IDS.add(a.getId());
-        return a;
+    }
+
+    /** True if id belongs to one of the app's own bundled animations. */
+    public static boolean isBuiltIn(String id) {
+        return id != null && BUILT_IN_IDS.contains(id);
+    }
+
+    /** Removes an installed (non-built-in) animation from the registry. Returns false if it wasn't there or is built-in. */
+    public static boolean unregister(String id) {
+        if (id == null || BUILT_IN_IDS.contains(id)) return false;
+        return REGISTRY.remove(id) != null;
     }
 
     /** Test hook: forget everything. */
@@ -135,16 +161,29 @@ public final class ClipAnimationLoader {
 
     /** Parses and validates without registering. A "mirrorOf" file needs its base already registered. */
     public static ClipAnimation parse(String json, String source) throws FormatException {
+        return parse(json, source, null, null);
+    }
+
+    /**
+     * Parses and validates without registering.
+     *
+     * @param extraBases        animations a "mirrorOf" may point at in addition to the registry (a pack being
+     *                          validated before anything is registered); may be null
+     * @param expectedDirection the direction the file's folder implies, or null for any
+     */
+    public static ClipAnimation parse(String json, String source, Map<String, ClipAnimation> extraBases,
+                                      ClipAnimation.Direction expectedDirection) throws FormatException {
         final String pre = prefix(source);
         try {
-            return parseInternal(json);
+            return parseInternal(json, extraBases, expectedDirection);
         } catch (FormatException e) {
             if (pre.isEmpty()) throw e;
             throw new FormatException(pre + e.getMessage(), e.missingMirrorBase);
         }
     }
 
-    private static ClipAnimation parseInternal(String json) throws FormatException {
+    private static ClipAnimation parseInternal(String json, Map<String, ClipAnimation> extraBases,
+                                               ClipAnimation.Direction expectedDirection) throws FormatException {
         if (json == null) throw new FormatException("no data");
         if (json.length() > MAX_JSON_CHARS) {
             throw new FormatException("file is larger than " + MAX_JSON_CHARS + " characters");
@@ -172,6 +211,10 @@ public final class ClipAnimationLoader {
         String dirStr = reqString(top, "direction", "$", 8);
         ClipAnimation.Direction direction = ClipAnimation.Direction.fromJson(dirStr);
         if (direction == null) throw new FormatException("$.direction: must be \"in\" or \"out\"");
+        if (expectedDirection != null && direction != expectedDirection) {
+            throw new FormatException("$.direction: this file is in the \"" + expectedDirection.json
+                    + "\" folder but declares direction \"" + direction.json + "\"");
+        }
 
         double duration = DEFAULT_DURATION_FALLBACK;
         if (top.containsKey("defaultDuration")) {
@@ -189,7 +232,7 @@ public final class ClipAnimationLoader {
 
         if (hasMirror) {
             String baseId = reqString(top, "mirrorOf", "$", 64);
-            ClipAnimation base = REGISTRY.get(baseId);
+            ClipAnimation base = extraBases != null && extraBases.containsKey(baseId) ? extraBases.get(baseId) : REGISTRY.get(baseId);
             if (base == null) {
                 throw new FormatException("$.mirrorOf: '" + baseId + "' is not registered (load it first)", true);
             }
@@ -294,8 +337,15 @@ public final class ClipAnimationLoader {
 
     // ---- typed accessors ---------------------------------------------------------------
 
+    /** Strictly parses a JSON document whose root must be an object (shared with the pack manifest reader). */
+    static Map<String, Object> parseObject(String json) throws FormatException {
+        if (json == null) throw new FormatException("no data");
+        if (json.length() > MAX_JSON_CHARS) throw new FormatException("file is larger than " + MAX_JSON_CHARS + " characters");
+        return asObject(new Json(json).parseDocument(), "$");
+    }
+
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> asObject(Object o, String path) throws FormatException {
+    static Map<String, Object> asObject(Object o, String path) throws FormatException {
         if (!(o instanceof Map)) throw new FormatException(path + ": must be an object");
         return (Map<String, Object>) o;
     }
@@ -306,7 +356,7 @@ public final class ClipAnimationLoader {
         return (List<Object>) o;
     }
 
-    private static String reqString(Map<String, Object> m, String key, String path, int maxChars) throws FormatException {
+    static String reqString(Map<String, Object> m, String key, String path, int maxChars) throws FormatException {
         Object o = m.get(key);
         if (!(o instanceof String)) throw new FormatException(path + "." + key + ": required string");
         String s = (String) o;
@@ -314,18 +364,18 @@ public final class ClipAnimationLoader {
         return s;
     }
 
-    private static String optString(Map<String, Object> m, String key, String path, int maxChars) throws FormatException {
+    static String optString(Map<String, Object> m, String key, String path, int maxChars) throws FormatException {
         if (!m.containsKey(key)) return null;
         return reqString(m, key, path, maxChars);
     }
 
-    private static double reqNumber(Map<String, Object> m, String key, String path) throws FormatException {
+    static double reqNumber(Map<String, Object> m, String key, String path) throws FormatException {
         Object o = m.get(key);
         if (!(o instanceof Double)) throw new FormatException(path + "." + key + ": required number");
         return (Double) o;
     }
 
-    private static void allowKeys(Map<String, Object> m, String path, String... allowed) throws FormatException {
+    static void allowKeys(Map<String, Object> m, String path, String... allowed) throws FormatException {
         Set<String> ok = new HashSet<>(Arrays.asList(allowed));
         for (String k : m.keySet()) if (!ok.contains(k)) throw new FormatException(path + "." + k + ": unknown key");
     }

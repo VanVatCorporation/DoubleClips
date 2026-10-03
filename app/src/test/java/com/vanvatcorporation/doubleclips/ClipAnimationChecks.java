@@ -12,7 +12,7 @@ import java.util.List;
  */
 public final class ClipAnimationChecks {
 
-    private static final String UNFOLD_PATH = "src/main/assets/animations/unfold.json";
+    private static final String UNFOLD_PATH = "src/main/assets/animations/in/unfold.json";
 
     private ClipAnimationChecks() {}
 
@@ -65,7 +65,7 @@ public final class ClipAnimationChecks {
         if (ClipAnimationLoader.list(ClipAnimation.Direction.OUT).size() != 1 || ClipAnimationLoader.get("unfold_out") != out) fails.add("registry lookup wrong");
 
         // 3b. the bundled fold.json (out) mirrors unfold, loaded after it exactly like ClipAnimationAssets would
-        String foldJson = new String(Files.readAllBytes(new File("src/main/assets/animations/fold.json").toPath()), StandardCharsets.UTF_8);
+        String foldJson = new String(Files.readAllBytes(new File("src/main/assets/animations/out/fold.json").toPath()), StandardCharsets.UTF_8);
         ClipAnimation fold = ClipAnimationLoader.register(foldJson, "fold.json", true);
         if (fold.getDirection() != ClipAnimation.Direction.OUT || !fold.isReversed() || fold.getDefaultDuration() != 1.5f
                 || !fold.getName().equals("Fold")) fails.add("fold.json metadata wrong");
@@ -110,6 +110,25 @@ public final class ClipAnimationChecks {
         if (ClipAnimation.fitDuration(1f, 1f, 0f) != 1f) fails.add("unknown clip duration must not change anything");
         float inD = ClipAnimation.fitDuration(1.5f, 1.5f, 2f), outD = ClipAnimation.fitDuration(1.5f, 1.5f, 2f);
         if (inD + outD > 2f + 1e-5f) fails.add("in + out must fit in the clip");
+
+        // 5b. folder / direction: a file in the "out" folder must declare "out" (and vice versa), registering nothing otherwise
+        try {
+            ClipAnimationLoader.register(unfoldJson.replace("\"id\": \"unfold\"", "\"id\": \"unfold_x\""), "out/unfold_x.json", false, ClipAnimation.Direction.OUT);
+            fails.add("an 'in' animation in the out folder must be rejected");
+        } catch (ClipAnimationLoader.FormatException expected) {
+            if (!expected.getMessage().contains("\"out\" folder")) fails.add("folder mismatch message unclear: " + expected.getMessage());
+        }
+        if (ClipAnimationLoader.get("unfold_x") != null) fails.add("a folder-mismatched file got registered");
+        if (ClipAnimationLoader.get("unfold", ClipAnimation.Direction.IN) != unfold || ClipAnimationLoader.get("unfold", ClipAnimation.Direction.OUT) != null
+                || ClipAnimationLoader.get("nope", ClipAnimation.Direction.IN) != null) fails.add("get(id, direction) wrong");
+        if (!ClipAnimationLoader.isBuiltIn("unfold") || ClipAnimationLoader.isBuiltIn("t-all")) fails.add("isBuiltIn wrong");
+        if (ClipAnimationLoader.unregister("unfold") || !ClipAnimationLoader.unregister("t-all") || ClipAnimationLoader.get("t-all") != null
+                || ClipAnimationLoader.unregister("t-all")) fails.add("unregister must remove user animations only, once");
+        // a mirror can use a base from extraBases without registering anything
+        java.util.Map<String, ClipAnimation> extra = new java.util.HashMap<>();
+        extra.put("staged_base", unfold);
+        ClipAnimation viaExtra = ClipAnimationLoader.parse("{\"schema\":1,\"id\":\"m2\",\"direction\":\"out\",\"mirrorOf\":\"staged_base\"}", "m2", extra, null);
+        if (!viaExtra.isReversed() || ClipAnimationLoader.get("m2") != null) fails.add("parse() with extraBases must not register");
 
         // 6. built-ins can't be shadowed; later user files may replace user files
         String shadow = "{\"schema\":1,\"id\":\"unfold\",\"direction\":\"in\",\"channels\":{\"opacity\":{\"kind\":\"constant\",\"value\":0.5}}}";

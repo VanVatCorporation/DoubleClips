@@ -15,6 +15,12 @@ public class ClipAnimationTest {
     }
 
     @Test
+    public void animationPacksInstallValidateAndRejectHostileZips() throws Exception {
+        List<String> fails = ClipAnimationPackChecks.runAll();
+        assertTrue(fails.toString(), fails.isEmpty());
+    }
+
+    @Test
     public void ffmpegGeneratorMatchesCurvesAndLegacyUnfold() throws Exception {
         List<String> fails = ClipAnimationFFmpegChecks.runAll();
         assertTrue(fails.toString(), fails.isEmpty());

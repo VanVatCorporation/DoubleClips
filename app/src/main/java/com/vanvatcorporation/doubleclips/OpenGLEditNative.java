@@ -1837,7 +1837,7 @@ public class OpenGLEditNative {
      * this makes that visible instead of silent.
      */
     private void prepareClipAnimations(EditingActivity.Timeline timeline, ExportListener listener) {
-        for (String problem : ClipAnimationAssets.loadBuiltIns(context)) {
+        for (String problem : ClipAnimationAssets.loadAll(context)) {
             report(listener, "OpenGL: animation file problem - " + problem);
         }
         if (timeline == null || timeline.tracks == null) return;

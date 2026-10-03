@@ -47,7 +47,7 @@ public final class AnimationPicker {
         this.spinner = spinner;
         this.durationField = durationField;
         this.direction = direction;
-        ClipAnimationAssets.loadBuiltIns(context); // no-op after the first call
+        ClipAnimationAssets.loadAll(context); // built-ins + installed packs; no-op after the first call
         this.adapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1);
         rebuildChoices();
         spinner.setAdapter(adapter);
@@ -85,6 +85,20 @@ public final class AnimationPicker {
             if (adapter.getItem(i).id.equals(id)) return i;
         }
         return -1;
+    }
+
+    /** Re-reads the registry (after a pack was imported or removed) and keeps the current selection. */
+    public void refresh() {
+        Choice current = (Choice) spinner.getSelectedItem();
+        String id = current == null ? "none" : current.id;
+        userIsPicking = false;
+        rebuildChoices();
+        int idx = indexOf(id);
+        if (idx < 0) {
+            adapter.add(new Choice(id, id + " (not installed)"));
+            idx = adapter.getCount() - 1;
+        }
+        spinner.setSelection(idx);
     }
 
     /** Shows a clip's saved animation. A saved id that isn't installed stays selectable (and is kept on save). */

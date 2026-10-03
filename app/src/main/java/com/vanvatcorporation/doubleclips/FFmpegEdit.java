@@ -439,7 +439,7 @@ public class FFmpegEdit {
                     // looked up in ClipAnimationLoader and ClipAnimationFFmpeg turns them into filters (eq / hue /
                     // opacity + blur slices / perspective) plus overlay offset terms. Channels FFmpeg can't do
                     // (scale, rotation, temperature) are left out - see getUnsupportedAnimationFeatures.
-                    ClipAnimationAssets.loadBuiltIns(context); // no-op after the first call
+                    ClipAnimationAssets.loadAll(context); // no-op after the first call
                     ClipAnimation inAnim = ClipAnimationLoader.get(clip.inAnimation == null ? null : clip.inAnimation.type, ClipAnimation.Direction.IN);
                     ClipAnimation outAnim = ClipAnimationLoader.get(clip.outAnimation == null ? null : clip.outAnimation.type, ClipAnimation.Direction.OUT);
                     // Blur sigma is a fraction of the width of the picture being blurred (same as the OpenGL
@@ -786,7 +786,7 @@ public class FFmpegEdit {
     public static List<String> getUnsupportedAnimationFeatures(Context context, EditingActivity.Timeline timeline) {
         java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
         if (timeline == null || timeline.tracks == null) return new ArrayList<>(found);
-        ClipAnimationAssets.loadBuiltIns(context);
+        ClipAnimationAssets.loadAll(context);
         for (EditingActivity.Track track : timeline.tracks) {
             if (track == null || track.clips == null) continue;
             for (EditingActivity.Clip clip : track.clips) {
