@@ -13,4 +13,10 @@ public class ClipAnimationTest {
         List<String> fails = ClipAnimationChecks.runAll();
         assertTrue(fails.toString(), fails.isEmpty());
     }
+
+    @Test
+    public void ffmpegGeneratorMatchesCurvesAndLegacyUnfold() throws Exception {
+        List<String> fails = ClipAnimationFFmpegChecks.runAll();
+        assertTrue(fails.toString(), fails.isEmpty());
+    }
 }

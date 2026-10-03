@@ -46,7 +46,6 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
-import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.java.ArrayListImpl;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -436,24 +435,25 @@ public class FFmpegEdit {
                     //  Deliver with .zip pack, upload transition API, contains .gif for display.
                     //  which FFmpeg does support.
                     //  For now it's hardcoded.
-                    // 🎬 Handle "In" Animations
-                    if (clip.inAnimation != null && !"none".equals(clip.inAnimation.type)) {
-                        if (UnfoldAnimation.TYPE.equals(clip.inAnimation.type)) {
-                            // CapCut-style "unfold", shared with the OpenGL export (UnfoldAnimation): a squish
-                            // anchored at the top-centre, a decaying exposure/colour flash and a blur that
-                            // eases out over the first ~12 reference frames. See UnfoldAnimation for the
-                            // measurements it is built from.
-                            float fps = templateSettings.settings.getFrameRate();
-                            // Blur sigma is a fraction of the width of the picture being blurred (same as
-                            // the OpenGL path, which blurs a canvas-sized layer): the clip's own width here.
-                            int blurWidth = templateSettings.settings.isStretchToFull()
-                                    ? ParserHelper.TryParse(templateSettings.settings.getRenderVideoWidth(templateSettings.isTemplateCommand), 1920)
-                                    : Math.max(1, Math.round(clip.width
-                                    * clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX)));
-                            filterComplex.append(UnfoldAnimation.ffmpegPerspective(clip.inAnimation.duration, fps))
-                                    .append(UnfoldAnimation.ffmpegFilters(clip.startTime, clip.inAnimation.duration, blurWidth));
-                        }
-                    }
+                    // 🎬 In / Out animations. Data-driven: the ids in clip.inAnimation / clip.outAnimation are
+                    // looked up in ClipAnimationLoader and ClipAnimationFFmpeg turns them into filters (eq / hue /
+                    // opacity + blur slices / perspective) plus overlay offset terms. Channels FFmpeg can't do
+                    // (scale, rotation, temperature) are left out - see getUnsupportedAnimationFeatures.
+                    ClipAnimationAssets.loadBuiltIns(context); // no-op after the first call
+                    ClipAnimation inAnim = ClipAnimationLoader.get(clip.inAnimation == null ? null : clip.inAnimation.type, ClipAnimation.Direction.IN);
+                    ClipAnimation outAnim = ClipAnimationLoader.get(clip.outAnimation == null ? null : clip.outAnimation.type, ClipAnimation.Direction.OUT);
+                    // Blur sigma is a fraction of the width of the picture being blurred (same as the OpenGL
+                    // path, which blurs a canvas-sized layer): the clip's own width here.
+                    int animBlurWidth = templateSettings.settings.isStretchToFull()
+                            ? templateSettings.settings.getVideoWidth()
+                            : Math.max(1, Math.round(clip.width
+                            * clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleX)));
+                    ClipAnimationFFmpeg.Plan animPlan = ClipAnimationFFmpeg.plan(
+                            inAnim, clip.inAnimation == null ? 0f : clip.inAnimation.duration,
+                            outAnim, clip.outAnimation == null ? 0f : clip.outAnimation.duration,
+                            clip.startTime, clip.duration, templateSettings.settings.getFrameRate(), animBlurWidth,
+                            templateSettings.settings.getVideoWidth(), templateSettings.settings.getVideoHeight());
+                    filterComplex.append(animPlan.filters);
 
                     filterComplex.append(clipLabel).append(";\n");
                     // TODO: For robust speed control
@@ -510,8 +510,9 @@ public class FFmpegEdit {
                     String centerYExpr = "(" + posYExpr + "+" + pivotYExpr + "*" + baseHExpr
                             + "+" + toCenterX + "*sin" + rotOverlayExpr + "+" + toCenterY + "*cos" + rotOverlayExpr + ")";
 
-                    filterComplex.append("overlay='").append(centerXExpr).append("-overlay_w/2'")
-                            .append(":'").append(centerYExpr).append("-overlay_h/2'");
+                    // animPlan.offset*Pixels are "" or "+<expr of t>": the in/out animations' offsetX / offsetY.
+                    filterComplex.append("overlay='").append(centerXExpr).append(animPlan.offsetXPixels).append("-overlay_w/2'")
+                            .append(":'").append(centerYExpr).append(animPlan.offsetYPixels).append("-overlay_h/2'");
 
 
 
@@ -776,6 +777,42 @@ public class FFmpegEdit {
 
         return cmd.toString();
     }
+    /**
+     * Human-readable list of clip animations (or parts of them) the FFmpeg export will NOT reproduce:
+     * an animation id that isn't installed, or channels FFmpeg can't express (see
+     * ClipAnimationFFmpeg.SUPPORTED). Empty = the FFmpeg export plays every animation in full.
+     * The OpenGL export supports every channel (see OpenGLEdit.animationFrame).
+     */
+    public static List<String> getUnsupportedAnimationFeatures(Context context, EditingActivity.Timeline timeline) {
+        java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
+        if (timeline == null || timeline.tracks == null) return new ArrayList<>(found);
+        ClipAnimationAssets.loadBuiltIns(context);
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip == null) continue;
+                collectUnsupportedAnimation(clip.inAnimation, ClipAnimation.Direction.IN, found);
+                collectUnsupportedAnimation(clip.outAnimation, ClipAnimation.Direction.OUT, found);
+            }
+        }
+        return new ArrayList<>(found);
+    }
+
+    private static void collectUnsupportedAnimation(EditingActivity.AnimationClip slot, ClipAnimation.Direction wanted,
+                                                    java.util.Set<String> found) {
+        if (slot == null || slot.type == null || slot.type.isEmpty() || "none".equals(slot.type)) return;
+        ClipAnimation def = ClipAnimationLoader.get(slot.type);
+        if (def == null) {
+            found.add("The " + wanted.json + " animation '" + slot.type + "' is not installed");
+        } else if (def.getDirection() != wanted) {
+            found.add("'" + slot.type + "' is an " + def.getDirection().json + " animation and can't be used as an " + wanted.json + " animation");
+        } else {
+            for (ClipAnimation.Channel ch : ClipAnimationFFmpeg.unsupportedChannels(def)) {
+                found.add("'" + def.getName() + "' animates " + ch.json + ", which FFmpeg can't do");
+            }
+        }
+    }
+
     public static String generateCmdFull(Context context, EditingActivity.VideoSettings settings, EditingActivity.Timeline timeline, MainAreaScreen.ProjectData data, boolean isTemplateCommand, boolean isTrimAllowed) {
 
         RenderSettings renderSettings = new RenderSettings(settings, timeline, new EditingActivity.Clip[0], data, 0, false, isTemplateCommand, isTrimAllowed);

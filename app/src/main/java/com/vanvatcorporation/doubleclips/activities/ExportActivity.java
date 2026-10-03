@@ -435,7 +435,22 @@ public class ExportActivity extends AppCompatActivityImpl {
      */
     private void exportClipViaChosenEngine(boolean exportAsTemplate) {
         if (!settings.isOpenGlRenderEngine()) {
-            exportClip(exportAsTemplate);
+            // FFmpeg plays every feature except a few animation channels (scale / rotation / temperature
+            // animations, or animations that aren't installed) - tell the user before they wait for an export.
+            List<String> animationGaps = FFmpegEdit.getUnsupportedAnimationFeatures(this, timeline);
+            if (animationGaps.isEmpty()) {
+                exportClip(exportAsTemplate);
+                return;
+            }
+            StringBuilder gapMessage = new StringBuilder("FFmpeg export can't reproduce these animation effects:\n");
+            for (String gap : animationGaps) gapMessage.append("\n  \u2022 ").append(gap);
+            gapMessage.append("\n\nSwitch the render engine to OpenGL to get them, or continue and they will be left out of this export.");
+            new AlertDialog.Builder(this)
+                    .setTitle("Some animation effects are not available")
+                    .setMessage(gapMessage.toString())
+                    .setPositiveButton("Continue with FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
+                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                    .show();
             return;
         }
 

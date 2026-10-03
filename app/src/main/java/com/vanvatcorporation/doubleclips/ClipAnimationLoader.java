@@ -81,6 +81,15 @@ public final class ClipAnimationLoader {
         return id == null ? null : REGISTRY.get(id);
     }
 
+    /**
+     * The animation registered under id only if it has the wanted direction, else null. This is
+     * how the engines read a clip's in / out slot: an unknown id or the wrong direction animates nothing.
+     */
+    public static ClipAnimation get(String id, ClipAnimation.Direction wanted) {
+        ClipAnimation a = get(id);
+        return (a != null && a.getDirection() == wanted) ? a : null;
+    }
+
     /** All registered animations of one direction, sorted by id. */
     public static List<ClipAnimation> list(ClipAnimation.Direction direction) {
         List<ClipAnimation> out = new ArrayList<>();
@@ -206,7 +215,7 @@ public final class ClipAnimationLoader {
             if (ch == null) throw new FormatException(path + ": unknown channel");
             curves.put(ch, parseCurve(asObject(e.getValue(), path), ch, referenceFrames, path));
         }
-        return new ClipAnimation(id, name, direction, (float) duration, curves, false);
+        return new ClipAnimation(id, name, direction, (float) duration, curves, false, referenceFrames);
     }
 
     private static ClipAnimation.Curve parseCurve(Map<String, Object> m, ClipAnimation.Channel ch,

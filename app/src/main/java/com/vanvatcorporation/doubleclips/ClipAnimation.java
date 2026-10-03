@@ -159,17 +159,19 @@ public final class ClipAnimation {
     private final Direction direction;
     private final float defaultDuration;
     private final boolean reversed;
+    private final int referenceFrames;
     private final Channel[] activeChannels;
     private final Curve[] activeCurves;
     private final Map<Channel, Curve> curves;
 
     ClipAnimation(String id, String name, Direction direction, float defaultDuration,
-                  Map<Channel, Curve> curves, boolean reversed) {
+                  Map<Channel, Curve> curves, boolean reversed, int referenceFrames) {
         this.id = id;
         this.name = name;
         this.direction = direction;
         this.defaultDuration = defaultDuration;
         this.reversed = reversed;
+        this.referenceFrames = referenceFrames;
         EnumMap<Channel, Curve> copy = new EnumMap<>(Channel.class);
         copy.putAll(curves);
         this.curves = Collections.unmodifiableMap(copy);
@@ -180,7 +182,7 @@ public final class ClipAnimation {
 
     /** The time-reverse of {@code base}, sharing its curves, as a new animation. */
     static ClipAnimation mirror(ClipAnimation base, String id, String name, Direction direction, float defaultDuration) {
-        return new ClipAnimation(id, name, direction, defaultDuration, base.curves, !base.reversed);
+        return new ClipAnimation(id, name, direction, defaultDuration, base.curves, !base.reversed, base.referenceFrames);
     }
 
     public String getId() { return id; }
@@ -188,6 +190,11 @@ public final class ClipAnimation {
     public Direction getDirection() { return direction; }
     /** Suggested duration in seconds (the editor's duration field default for this animation). */
     public float getDefaultDuration() { return defaultDuration; }
+    /**
+     * The file's "referenceFrames" (how many frames of the capture the animation was measured from,
+     * 0 if the file didn't say). A hint for exporters that have to step through time in slices.
+     */
+    public int getReferenceFrames() { return referenceFrames; }
     /** True if p is flipped (1 - p) before sampling the curves (a "mirrorOf" animation). */
     public boolean isReversed() { return reversed; }
     /** The channels this animation drives (the rest stay neutral). */

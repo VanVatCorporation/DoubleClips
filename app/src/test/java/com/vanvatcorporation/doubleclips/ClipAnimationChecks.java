@@ -27,13 +27,13 @@ public final class ClipAnimationChecks {
         for (int i = 0; i <= 4000; i++) {
             float p = i / 4000f;
             ClipAnimationFrame f = unfold.evaluate(p);
-            mb = Math.max(mb, Math.abs(f.brightness() - UnfoldAnimation.brightness(p)));
-            ms = Math.max(ms, Math.abs(f.saturation() - UnfoldAnimation.saturationMultiplier(p)));
-            mc = Math.max(mc, Math.abs(f.contrast() - UnfoldAnimation.contrastMultiplier(p)));
-            mbl = Math.max(mbl, Math.abs(f.blurWidthFraction() - UnfoldAnimation.blurSigmaFraction(p)));
-            mt = Math.max(mt, Math.abs(f.warpTopWidth() - UnfoldAnimation.topWidth(p)));
-            mbo = Math.max(mbo, Math.abs(f.warpBottomWidth() - UnfoldAnimation.bottomWidth(p)));
-            mh = Math.max(mh, Math.abs(f.warpHeight() - UnfoldAnimation.heightScale(p)));
+            mb = Math.max(mb, Math.abs(f.brightness() - LegacyUnfoldReference.brightness(p)));
+            ms = Math.max(ms, Math.abs(f.saturation() - LegacyUnfoldReference.saturationMultiplier(p)));
+            mc = Math.max(mc, Math.abs(f.contrast() - LegacyUnfoldReference.contrastMultiplier(p)));
+            mbl = Math.max(mbl, Math.abs(f.blurWidthFraction() - LegacyUnfoldReference.blurSigmaFraction(p)));
+            mt = Math.max(mt, Math.abs(f.warpTopWidth() - LegacyUnfoldReference.topWidth(p)));
+            mbo = Math.max(mbo, Math.abs(f.warpBottomWidth() - LegacyUnfoldReference.bottomWidth(p)));
+            mh = Math.max(mh, Math.abs(f.warpHeight() - LegacyUnfoldReference.heightScale(p)));
         }
         System.out.printf("unfold.json vs UnfoldAnimation, max abs diff: brightness %.2e saturation %.2e contrast %.2e blur %.2e top %.2e bottom %.2e height %.2e%n",
                 mb, ms, mc, mbl, mt, mbo, mh);
