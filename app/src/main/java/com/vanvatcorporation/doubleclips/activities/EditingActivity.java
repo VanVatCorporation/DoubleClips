@@ -87,6 +87,7 @@ import com.vanvatcorporation.doubleclips.activities.editing.TextEditSpecificArea
 import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.PreviewEngine;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
 import com.vanvatcorporation.doubleclips.commands.AddClipCommand;
@@ -2185,6 +2186,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             settings.tune = videoPropertiesEditSpecificAreaScreen.tuneSpinner.getSelectedItem().toString();
             settings.isStretchToFull = videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.isChecked();
             settings.useHardwareAccel = videoPropertiesEditSpecificAreaScreen.hardwareAccelCheckbox.isChecked();
+            boolean legacyNow = !videoPropertiesEditSpecificAreaScreen.gpuPreviewCheckbox.isChecked();
+            boolean gpuPreviewChanged = settings.legacyPreview != legacyNow;
+            settings.legacyPreview = legacyNow;
+            boolean proxyPreviewChanged = settings.useProxyPreview != videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
+            settings.useProxyPreview = videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
 
@@ -2209,6 +2215,14 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             // Update ruler with new fps
             updateRuler(timeline.duration, currentRulerInterval);
+
+            // Preview engine changed: rebuild. Proxy/original only: the live engine switches by itself.
+            if (gpuPreviewChanged) {
+                if (isPlaying) stopPlayback(true);
+                else regeneratingTimelineRenderer();
+            } else if (proxyPreviewChanged) {
+                timelineRenderer.setUseProxyPreview(settings.useProxyPreview);
+            }
         });
         videoPropertiesEditSpecificAreaScreen.onOpen.add(() -> {
             videoPropertiesEditSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
@@ -2222,6 +2236,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             videoPropertiesEditSpecificAreaScreen.stretchMediaToFullCheckbox.setChecked(settings.isStretchToFull());
             videoPropertiesEditSpecificAreaScreen.hardwareAccelCheckbox.setChecked(settings.isUseHardwareAccel());
             videoPropertiesEditSpecificAreaScreen.updateHardwareAccelState(settings.isUseHardwareAccel());
+            videoPropertiesEditSpecificAreaScreen.gpuPreviewCheckbox.setChecked(!settings.isLegacyPreview());
+            videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.setChecked(settings.isUseProxyPreview());
 
             float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
             videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", activeFps));
@@ -5566,6 +5582,13 @@ public class EditingActivity extends AppCompatActivityImpl {
         // OpenGLEditNative). Old saved project JSON won't have this field; Gson
         // leaves it null, loadSettingsFromProject below falls back to "ffmpeg".
         String renderEngine;
+        // Preview engine. false (default, and for old project.settings files that lack the field) =
+        // GPU preview (PreviewEngine); true = the legacy per-clip-view preview.
+        boolean legacyPreview;
+        // GPU preview only: decode the lightweight proxies instead of the original clips.
+        boolean useProxyPreview;
+        public boolean isLegacyPreview() { return legacyPreview; }
+        public boolean isUseProxyPreview() { return useProxyPreview; }
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune, boolean isStretchToFull)
         {
             this.videoWidth = videoWidth;
@@ -6287,9 +6310,14 @@ frameRate = 60;
         private float posMatrixX = 0, posMatrixY = 0;
 
 
-        public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo) {
+        // true when PreviewEngine draws VIDEO/IMAGE clips: no per-clip view or video decoder here,
+        // this renderer then only plays the clip's audio.
+        private final boolean gpuVisuals;
+
+        public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo, boolean gpuVisuals) {
             this.context = context;
             this.clip = clip;
+            this.gpuVisuals = gpuVisuals;
 
             try
             {
@@ -6306,6 +6334,9 @@ frameRate = 60;
 
 
 
+                        visual:
+                        {
+                        if (gpuVisuals) break visual;
                         textureView = new TextureView(context);
                         textureView.setOpaque(false);
                         RelativeLayout.LayoutParams textureViewLayoutParams =
@@ -6381,6 +6412,8 @@ frameRate = 60;
 
 
 
+                        } // end visual
+
                         // AUDIO
 
                         audioExtractor = new MediaExtractor();
@@ -6417,6 +6450,7 @@ frameRate = 60;
                     }
                     case IMAGE:
                     {
+                        if (gpuVisuals) break;
                         textureView = new TextureView(context);
                         textureView.setOpaque(false);
                         RelativeLayout.LayoutParams textureViewLayoutParams =
@@ -7283,6 +7317,12 @@ frameRate = 60;
             if(renderThreadExecutorVideo != null) {
                 renderThreadExecutorVideo.shutdownNow();
             }
+            audioRunning = false;
+            if (audioTrack != null) {
+                try { audioTrack.pause(); audioTrack.flush(); } catch (Exception ignored) {}
+                try { audioTrack.release(); } catch (Exception ignored) {}
+                audioTrack = null;
+            }
 
         }
     }
@@ -7291,6 +7331,11 @@ frameRate = 60;
     public static class TimelineRenderer {
         private final Context context;
         private List<List<ClipRenderer>> trackLayers = new ArrayList<>();
+
+        // GPU preview. null engine = legacy per-clip-view preview.
+        private PreviewEngine engine;
+        private Timeline renderedTimeline;
+        private boolean gpuDisabledThisSession;
 
         public TimelineRenderer(Context context) {
             this.context = context;
@@ -7312,6 +7357,30 @@ frameRate = 60;
             blackBox.setBackgroundColor(Color.BLACK);
             previewViewGroup.addView(blackBox, params);
 
+            renderedTimeline = timeline;
+            if (!settings.isLegacyPreview() && !gpuDisabledThisSession) {
+                try {
+                    engine = new PreviewEngine(context, properties, settings.videoWidth, settings.videoHeight,
+                            settings.isStretchToFull(), settings.isUseProxyPreview(), message ->
+                            new Handler(Looper.getMainLooper()).post(() -> {
+                                // The engine died (EGL/driver problem): fall back to the legacy preview once.
+                                if (engine == null || gpuDisabledThisSession) return;
+                                gpuDisabledThisSession = true;
+                                LoggingManager.LogToToast(editingActivity, "GPU preview unavailable, using the classic preview.");
+                                editingActivity.regeneratingTimelineRenderer();
+                            }));
+                    TextureView gpuView = new TextureView(context);
+                    gpuView.setOpaque(true);
+                    previewViewGroup.addView(gpuView, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                    engine.attach(gpuView);
+                } catch (Exception e) {
+                    LoggingManager.LogExceptionToNoteOverlay(context, e);
+                    if (engine != null) { engine.close(); engine = null; }
+                    gpuDisabledThisSession = true;
+                }
+            }
+
             trackLayers = new ArrayList<>();
 
             for (Track track : timeline.tracks) {
@@ -7323,7 +7392,7 @@ frameRate = 60;
                         case AUDIO:
                         case IMAGE:
                         case SCENE_3D:
-                            ClipRenderer clipRenderer = new ClipRenderer(context, clip, properties, settings, editingActivity, previewViewGroup, textCanvasControllerInfo);
+                            ClipRenderer clipRenderer = new ClipRenderer(context, clip, properties, settings, editingActivity, previewViewGroup, textCanvasControllerInfo, engine != null);
                             renderers.add(clipRenderer);
                             break;
                     }
@@ -7355,11 +7424,18 @@ frameRate = 60;
                     }
                 }
             }
+            if (engine != null) engine.render(renderedTimeline, time, !isSeekingOnly);
+        }
+
+        /** Proxy vs original clips for the GPU preview; no effect on the legacy preview. */
+        public void setUseProxyPreview(boolean useProxy) {
+            if (engine != null) engine.setUseProxy(useProxy);
         }
 
 
         public void startPlayAt(float playheadTime) {
 
+            if (engine != null) engine.render(renderedTimeline, playheadTime, true);
             boolean renderedAny = false;
 
             for (List<ClipRenderer> track : trackLayers) {
@@ -7382,6 +7458,10 @@ frameRate = 60;
         }
 
         public void release() {
+            if (engine != null) {
+                engine.close();
+                engine = null;
+            }
             for (List<ClipRenderer> track : trackLayers) {
                 for (ClipRenderer cr : track) cr.release();
             }

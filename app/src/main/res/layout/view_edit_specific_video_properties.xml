@@ -755,6 +755,93 @@
                 </RelativeLayout>
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:sectionTitle="Preview">
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_memory_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="GPU Preview"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/gpuPreviewCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="8dp"
+                    android:text="On: the preview is drawn by the same OpenGL code as the export. Off: the classic preview."
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp" />
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_high_quality_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Use Proxy for Preview"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/useProxyPreviewCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:checked="false" />
+
+                </RelativeLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="12dp"
+                    android:text="Off: GPU preview plays your original clips (sharper, heavier). On: it plays the lightweight proxies (smoother on weaker devices). Export is not affected."
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="12sp" />
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
         </LinearLayout>
     </ScrollView>
 
