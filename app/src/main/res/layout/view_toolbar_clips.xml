@@ -45,6 +45,27 @@
             app:navText="Clone" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/copyMediaButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/baseline_content_copy_24"
+            app:navText="Copy" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/cutMediaButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/baseline_drive_file_move_24"
+            app:navText="Cut" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/pasteMediaButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/baseline_content_paste_24"
+            app:navText="Paste" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/editMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"

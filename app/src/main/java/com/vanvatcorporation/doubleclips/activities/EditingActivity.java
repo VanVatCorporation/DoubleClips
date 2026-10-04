@@ -5,6 +5,8 @@ import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -65,6 +67,8 @@ import androidx.core.content.res.ResourcesCompat;
 import com.arthenica.ffmpegkit.Log;
 import com.arthenica.ffmpegkit.Statistics;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.annotations.Expose;
 
@@ -86,11 +90,15 @@ import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditS
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
 import com.vanvatcorporation.doubleclips.commands.AddClipCommand;
+import com.vanvatcorporation.doubleclips.commands.AddClipsCommand;
+import com.vanvatcorporation.doubleclips.commands.DeleteClipsCommand;
+import com.vanvatcorporation.doubleclips.commands.MoveClipsCommand;
 import com.vanvatcorporation.doubleclips.commands.DeleteClipCommand;
 import com.vanvatcorporation.doubleclips.commands.SplitClipCommand;
 import com.vanvatcorporation.doubleclips.commands.BatchCommand;
 import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
+import com.vanvatcorporation.doubleclips.helper.ClipGroupMath;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
 import com.vanvatcorporation.doubleclips.helper.FrameHelper;
@@ -198,6 +206,19 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
     static CommandManager actionManager = new CommandManager();
+
+    // ---- Group edit state: multi-select drag, clipboard copy / cut / paste ----
+    /** In a multi-selection, the clip tapped last. Only this one shows trim handles. */
+    private Clip lastPickedClip = null;
+    /** Clips marked by Cut. They are only MOVED when the cut is pasted (see pasteCut). */
+    private final List<Clip> pendingCut = new ArrayList<>();
+    /** The exact clipboard text Cut wrote, so Paste can tell the clipboard still holds that cut. */
+    private String pendingCutPayload = null;
+    private static final float CUT_ALPHA = 0.45f;
+    /** Same JSON layout as the project file (only @Expose fields), so what is copied is what is saved. */
+    private final Gson clipboardGson = GsonHelper.createExposeOnlyGson();
+    private final Handler edgeScrollHandler = new Handler(Looper.getMainLooper());
+    private Runnable edgeScrollTick = null;
 
 
 
@@ -1282,7 +1303,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     selectedClip = null;
                 }
             }
-            else if (selectedTrack != null)
+            else if (selectedTrack != null && selectedClips.isEmpty())
             {
                 List<Clip> listClip = selectedTrack.getClipsAtCurrentTime(currentTime);
                 if(!listClip.isEmpty())
@@ -1396,6 +1417,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         // ===========================       DEFAULT ZONE       ====================================
 
 
+        toolbarDefault.findViewById(R.id.pasteMediaButton).setOnClickListener(v -> handlePaste());
         toolbarDefault.findViewById(R.id.addTrackButton).setOnClickListener(v -> {
             Track track = addNewTrack();
             track.viewRef.trackInfo = track;
@@ -1493,6 +1515,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             addClipToTrack(selectedTrack, newClip);
         });
+        toolbarTrack.findViewById(R.id.copyMediaButton).setOnClickListener(v -> handleCopy(true));
+        toolbarTrack.findViewById(R.id.pasteMediaButton).setOnClickListener(v -> handlePaste());
         toolbarTrack.findViewById(R.id.selectAllButton).setOnClickListener(v -> {
             // Todo: Not fully implemented yet. The idea is to remake the whole thing, get the "array" of selected clip is completed
             // now if one clip is move then the whole array move along. Also ghost will be as well
@@ -1577,6 +1601,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
+        toolbarClip.findViewById(R.id.copyMediaButton).setOnClickListener(v -> handleCopy(false));
+        toolbarClip.findViewById(R.id.cutMediaButton).setOnClickListener(v -> handleCut());
+        toolbarClip.findViewById(R.id.pasteMediaButton).setOnClickListener(v -> handlePaste());
         toolbarClip.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 editingSpecific(selectedClip.type);
@@ -1647,14 +1674,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         toolbarClips.findViewById(R.id.deleteMediaButton).setOnClickListener(v -> {
             if(selectedClips != null && !selectedClips.isEmpty()) {
-                // Use BatchCommand to delete multiple clips
-                BatchCommand batchDelete = new BatchCommand("Delete Multiple Clips");
-                List<Clip> affectedClips = new ArrayList<>(selectedClips);
-                for (Clip clip : affectedClips) {
-                    batchDelete.addCommand(new DeleteClipCommand(this, clip));
-                }
-                executeCommand(batchDelete);
-                updateCurrentClipEnd();
+                // One undo step; every clip goes back to the track it came from
+                executeCommand(new DeleteClipsCommand(this, new ArrayList<>(selectedClips)));
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
 
@@ -1676,6 +1697,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
         });
+        toolbarClips.findViewById(R.id.copyMediaButton).setOnClickListener(v -> handleCopy(false));
+        toolbarClips.findViewById(R.id.cutMediaButton).setOnClickListener(v -> handleCut());
+        toolbarClips.findViewById(R.id.pasteMediaButton).setOnClickListener(v -> handlePaste());
         toolbarClips.findViewById(R.id.editMediaButton).setOnClickListener(v -> {
             if(!selectedClips.isEmpty())
             {
@@ -2928,226 +2952,710 @@ public class EditingActivity extends AppCompatActivityImpl {
         });
 
     }
+    // =====================================================================================
+    //  GROUP EDIT SUPPORT
+    //  The three group commands (MoveClipsCommand, AddClipsCommand, DeleteClipsCommand) change
+    //  the Timeline model themselves and call these to keep the views in step with it.
+    // =====================================================================================
+
+    /** Appends an empty track (model, row and header) to the end of the timeline. */
+    public Track appendTrackUi() {
+        return addNewTrack();
+    }
+
+    /** Removes the last track (model, row and header). The caller makes sure it is empty. */
+    public void removeLastTrackUi() {
+        if (timeline.tracks.isEmpty()) return;
+        Track last = timeline.tracks.get(timeline.tracks.size() - 1);
+        if (selectedTrack == last) selectedTrack = null;
+        last.delete(timeline, timelineTracksContainer, trackInfoLayout, this);
+    }
+
+    private static void detachView(View v) {
+        if (v != null && v.getParent() instanceof ViewGroup) ((ViewGroup) v.getParent()).removeView(v);
+    }
+
+    /** Takes every view of the clip (body, trim handles, transition knot) off its track. */
+    public void detachClipUi(Clip clip) {
+        detachView(clip.viewRef);
+        detachView(clip.leftHandle);
+        detachView(clip.rightHandle);
+        detachView(clip.transitionKnotViewRef);
+    }
+
+    /** Builds the views of a clip that was just put on {@code track} (a paste, or the undo of a delete). */
+    public void attachClipUi(Track track, Clip clip) {
+        detachClipUi(clip); // views left over from an earlier life of this clip, if any
+        addClipToTrackUi(track.viewRef, clip);
+    }
+
+    /**
+     * Puts an already-built clip on the row of {@code clip.trackIndex}, at {@code clip.startTime}.
+     * Its trim handles and transition knot follow. Used after a group move and after its undo.
+     */
+    public void placeClipUi(Clip clip) {
+        if (clip.viewRef == null || clip.trackIndex < 0 || clip.trackIndex >= timeline.tracks.size()) return;
+        TrackFrameLayout target = timeline.tracks.get(clip.trackIndex).viewRef;
+        if (target == null) return;
+
+        if (clip.viewRef.getParent() != target) {
+            detachView(clip.viewRef);
+            target.addView(clip.viewRef);
+            clip.forceAddHandlesToTrack(target);
+            clip.forceAddTransitionKnotToTrack(target);
+        }
+        clip.viewRef.setX(getTimeInX(clip.startTime));
+        clip.viewRef.setVisibility(View.VISIBLE);
+        clip.resetHandlesPosition();
+        clip.resetTransitionKnotPosition();
+    }
+
+    /** Re-syncs everything that depends on the clip layout once a group command ran (or was undone). */
+    public void afterGroupEdit() {
+        pruneSelection();
+        pruneCut();
+        updateCurrentClipEnd();
+        // Views that were just created have no size yet: measure again once they are laid out.
+        timelineTracksContainer.post(() -> updateCurrentClipEnd());
+    }
+
+    // ------------------------------------  selection helpers  ------------------------------------
+
+    /** The selected clips: the multi-selection, or the single selected clip. Never null. */
+    private List<Clip> currentSelection() {
+        List<Clip> sel = new ArrayList<>();
+        if (!selectedClips.isEmpty()) sel.addAll(selectedClips);
+        else if (selectedClip != null) sel.add(selectedClip);
+        return sel;
+    }
+
+    /** The selection in timeline order (track first, then start time): what Copy and Cut write. */
+    private List<Clip> orderedSelection() {
+        List<Clip> sel = currentSelection();
+        sel.sort((a, b) -> a.trackIndex != b.trackIndex
+                ? Integer.compare(a.trackIndex, b.trackIndex)
+                : Float.compare(a.startTime, b.startTime));
+        return sel;
+    }
+
+    /** Drops selected clips that no longer exist in the timeline (deleted, or an add that was undone). */
+    private void pruneSelection() {
+        boolean changed = false;
+        for (int i = selectedClips.size() - 1; i >= 0; i--) {
+            if (timeline.getTrackFromClip(selectedClips.get(i)) == null) {
+                selectedClips.remove(i);
+                changed = true;
+            }
+        }
+        if (lastPickedClip != null && !selectedClips.contains(lastPickedClip)) {
+            lastPickedClip = selectedClips.isEmpty() ? null : selectedClips.get(selectedClips.size() - 1);
+            changed = true;
+        }
+        if (selectedClip != null && timeline.getTrackFromClip(selectedClip) == null) {
+            selectedClip = null;
+            changed = true;
+        }
+        if (!changed) return;
+        if (selectedClip == null && selectedClips.isEmpty()) deselectingClip(); // hides both clip toolbars
+        else refreshPrimaryHandles();
+    }
+
+    /** Only the primary clip of a multi-selection shows trim handles. */
+    private void refreshPrimaryHandles() {
+        if (!selectedClips.isEmpty()) {
+            for (Clip c : selectedClips) c.toggleHandlesVisibility(c == lastPickedClip);
+        } else if (selectedClip != null) {
+            selectedClip.toggleHandlesVisibility(true);
+        }
+    }
+
+    /** Makes exactly these clips the selection (single clip: normal selection, several: multi-select). */
+    private void selectClipsExact(List<Clip> clips) {
+        deselectingClip();
+        selectedClip = null;
+        if (clips.isEmpty()) return;
+        if (clips.size() == 1) {
+            isClipSelectMultiple = false;
+            selectingClip(clips.get(0), false);
+        } else {
+            isClipSelectMultiple = true;
+            for (Clip c : clips) selectingClip(c, false);
+        }
+        for (Clip c : clips) refreshHandlesWhenLaidOut(c);
+    }
+
+    /** A clip that was just created has no width until it is laid out, so its handles are placed again afterwards. */
+    private void refreshHandlesWhenLaidOut(Clip clip) {
+        if (clip.viewRef == null) return;
+        clip.viewRef.post(() -> clip.viewRef.post(() -> {
+            if (clip.leftHandle != null && clip.leftHandle.getVisibility() == View.VISIBLE) clip.resetHandlesPosition();
+        }));
+    }
+
+    /** Selects just this clip, without moving the playhead (grabbing an unselected clip to drag it). */
+    private void selectOnly(Clip clip) {
+        deselectingClip();
+        selectedClip = null;
+        selectingClip(clip, false);
+    }
+
+    // ------------------------------------  cut / copy / paste  ------------------------------------
+
+    private void putOnClipboard(String text) {
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("DoubleClips timeline", text));
+    }
+
+    private String readClipboardText() {
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm == null || !cm.hasPrimaryClip()) return null;
+        ClipData data = cm.getPrimaryClip();
+        if (data == null || data.getItemCount() == 0) return null;
+        CharSequence text = data.getItemAt(0).coerceToText(this);
+        return text == null ? null : text.toString();
+    }
+
+    /**
+     * Copies the selected clips to the clipboard as a JSON ARRAY of clips (one element for a single clip), in
+     * timeline order. With {@code trackOnly}, or when no clip is selected, the selected track is copied instead.
+     */
+    private void handleCopy(boolean trackOnly) {
+        List<Clip> sel = trackOnly ? new ArrayList<>() : orderedSelection();
+        if (!sel.isEmpty()) {
+            cancelPendingCut(); // a new copy replaces the cut
+            putOnClipboard(clipboardGson.toJson(sel.toArray(new Clip[0])));
+            LoggingManager.LogToToast(this, sel.size() == 1 ? "Clip copied" : sel.size() + " clips copied");
+        } else if (selectedTrack != null) {
+            cancelPendingCut();
+            putOnClipboard(clipboardGson.toJson(selectedTrack));
+            LoggingManager.LogToToast(this, "Track copied");
+        } else {
+            LoggingManager.LogToToast(this, "Select a clip or a track to copy");
+        }
+    }
+
+    /** Cut: copy the selected clips and dim them. Nothing is removed; the clips MOVE when pasted. */
+    private void handleCut() {
+        List<Clip> ordered = orderedSelection();
+        if (ordered.isEmpty()) {
+            LoggingManager.LogToToast(this, "Select clips to cut");
+            return;
+        }
+        String json = clipboardGson.toJson(ordered.toArray(new Clip[0]));
+        putOnClipboard(json);
+        cancelPendingCut(); // brings an older cut back to full opacity
+        pendingCut.addAll(ordered);
+        pendingCutPayload = json;
+        refreshCutVisuals();
+        LoggingManager.LogToToast(this, "Cut: paste to move");
+    }
+
+    private void cancelPendingCut() {
+        if (pendingCut.isEmpty() && pendingCutPayload == null) return;
+        pendingCut.clear();
+        pendingCutPayload = null;
+        refreshCutVisuals();
+    }
+
+    private void refreshCutVisuals() {
+        for (Track t : timeline.tracks) {
+            for (Clip c : t.clips) {
+                if (c.viewRef != null) c.viewRef.setAlpha(pendingCut.contains(c) ? CUT_ALPHA : 1f);
+            }
+        }
+    }
+
+    /** Forgets cut clips that left the timeline; the cut is over once none is left. */
+    private void pruneCut() {
+        if (pendingCut.isEmpty()) return;
+        boolean removed = false;
+        for (int i = pendingCut.size() - 1; i >= 0; i--) {
+            if (timeline.getTrackFromClip(pendingCut.get(i)) == null) {
+                pendingCut.remove(i);
+                removed = true;
+            }
+        }
+        if (removed && pendingCut.isEmpty()) pendingCutPayload = null;
+    }
+
+    private boolean cutSourcesStillInTimeline() {
+        for (Clip c : pendingCut) {
+            if (c.trackIndex < 0 || c.trackIndex >= timeline.tracks.size()) return false;
+            if (!timeline.tracks.get(c.trackIndex).clips.contains(c)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Pastes from the clipboard. Understood: a JSON array of clips (what Copy writes), a single clip object
+     * and a track object. Anything else is reported and ignored.
+     */
+    private void handlePaste() {
+        String pasteText = readClipboardText();
+        if (pasteText == null || pasteText.trim().isEmpty()) {
+            LoggingManager.LogToToast(this, "Clipboard is empty");
+            return;
+        }
+
+        if (!pendingCut.isEmpty()) {
+            if (pasteText.equals(pendingCutPayload) && cutSourcesStillInTimeline()) {
+                pasteCut(); // moves the cut clips
+                return;
+            }
+            cancelPendingCut(); // the clipboard moved on, or the cut clips are gone: a normal paste
+        }
+
+        JsonElement root;
+        try {
+            root = clipboardGson.fromJson(pasteText, JsonElement.class);
+        } catch (RuntimeException e) {
+            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            return;
+        }
+        if (root == null) {
+            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            return;
+        }
+
+        if (root.isJsonObject() && root.getAsJsonObject().has("clips") && !root.getAsJsonObject().has("type")) {
+            pasteTrack(root);
+            return;
+        }
+
+        List<Clip> pasted = new ArrayList<>();
+        try {
+            if (root.isJsonArray()) {
+                for (JsonElement el : root.getAsJsonArray()) {
+                    Clip c = parseClipFromJson(el);
+                    if (c != null) pasted.add(c);
+                }
+            } else {
+                Clip c = parseClipFromJson(root);
+                if (c != null) pasted.add(c);
+            }
+        } catch (RuntimeException e) {
+            LoggingManager.LogExceptionToNoteOverlay(this, e);
+            return;
+        }
+        if (pasted.isEmpty()) {
+            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            return;
+        }
+        pasteClips(pasted);
+    }
+
+    /** One clip from clipboard JSON, or null when the element does not look like a clip. */
+    private Clip parseClipFromJson(JsonElement el) {
+        if (el == null || !el.isJsonObject()) return null;
+        JsonObject obj = el.getAsJsonObject();
+        if (!obj.has("clipName") && !obj.has("type")) return null;
+        Clip c = clipboardGson.fromJson(obj, Clip.class);
+        if (c == null) return null;
+        c.filterNullAfterLoad();
+        return c;
+    }
+
+    /** A clip copied from another project points at a media file this project doesn't have. */
+    private boolean isClipMediaMissing(Clip c) {
+        if (c.type != ClipType.VIDEO && c.type != ClipType.AUDIO && c.type != ClipType.IMAGE) return false;
+        return !IOHelper.isFileExist(c.getAbsolutePath(properties));
+    }
+
+    /**
+     * Pastes a group so it keeps its internal layout (same gaps in time, same track spacing). The earliest pasted
+     * clip starts at the playhead (right after the selection when the playhead sits on the selection's start); the
+     * topmost pasted clip goes on the topmost selected track. Missing tracks are created. One undo step, and the
+     * pasted clips become the selection.
+     */
+    private void pasteClips(List<Clip> pasted) {
+        List<Clip> usable = new ArrayList<>();
+        int skipped = 0;
+        for (Clip c : pasted) {
+            if (isClipMediaMissing(c)) skipped++;
+            else usable.add(c);
+        }
+        if (skipped > 0) {
+            LoggingManager.LogToToast(this, skipped + (skipped == 1 ? " clip" : " clips") + " skipped: media isn't in this project");
+        }
+        if (usable.isEmpty()) return;
+
+        ClipGroupMath.PastePlan plan = computePastePlan(usable, null);
+        List<AddClipsCommand.Entry> entries = new ArrayList<>();
+        for (Clip c : usable) {
+            int newTrack = Math.max(0, c.trackIndex + plan.trackShift);
+            float newStart = Math.max(0f, c.startTime + plan.timeShift);
+            float shift = newStart - c.startTime;
+            if (c.endTransition != null) { // keep its settings, move it along with the clip
+                c.endTransition.trackIndex = newTrack;
+                c.endTransition.startTime += shift;
+                if (c.endTransition.effect != null) c.endTransition.effect.offset += shift; // the effect's offset mirrors the transition's start
+            }
+            c.startTime = newStart;
+            c.trackIndex = newTrack;
+            entries.add(new AddClipsCommand.Entry(c, newTrack));
+        }
+        executeCommand(new AddClipsCommand(this, entries));
+        selectClipsExact(usable);
+    }
+
+    /**
+     * Where a pasted (or cut-and-pasted) group lands. {@code ignoreInSelection} are clips that must not count as
+     * "the selection": the cut clips, which are about to move.
+     */
+    private ClipGroupMath.PastePlan computePastePlan(List<Clip> group, List<Clip> ignoreInSelection) {
+        float groupMinStart = Float.MAX_VALUE;
+        int groupMinTrack = Integer.MAX_VALUE;
+        for (Clip c : group) {
+            groupMinStart = Math.min(groupMinStart, c.startTime);
+            groupMinTrack = Math.min(groupMinTrack, c.trackIndex);
+        }
+        groupMinTrack = Math.max(0, groupMinTrack);
+
+        float anchorStart = FrameHelper.calculateToNearestFrame(Math.max(0f, currentTime), settings.frameRate);
+        int baseTrack = groupMinTrack;
+
+        float selMinStart = Float.MAX_VALUE, selMaxEnd = 0f;
+        int selMinTrack = Integer.MAX_VALUE;
+        boolean haveSelection = false;
+        for (Clip c : currentSelection()) {
+            if (ignoreInSelection != null && ignoreInSelection.contains(c)) continue;
+            haveSelection = true;
+            selMinStart = Math.min(selMinStart, c.startTime);
+            selMaxEnd = Math.max(selMaxEnd, c.startTime + c.duration);
+            selMinTrack = Math.min(selMinTrack, c.trackIndex);
+        }
+        if (haveSelection) {
+            baseTrack = selMinTrack;
+            if (Math.abs(currentTime - selMinStart) < 0.001f) anchorStart = selMaxEnd;
+        } else if (selectedTrack != null) {
+            baseTrack = selectedTrack.timelineIndex; // no clip selected, but a track is: paste onto that track
+        }
+        return ClipGroupMath.planPaste(groupMinStart, groupMinTrack, anchorStart, baseTrack);
+    }
+
+    /**
+     * Paste after a cut: the SAME clips are moved (identity, thumbnails and settings kept) instead of being copied
+     * while the old ones are deleted. One undo step. The cut is then used up: pasting again inserts copies.
+     */
+    private void pasteCut() {
+        List<Clip> group = new ArrayList<>(pendingCut);
+        ClipGroupMath.PastePlan plan = computePastePlan(group, pendingCut);
+
+        List<MoveClipsCommand.Entry> moves = new ArrayList<>();
+        boolean nothingChanges = true;
+        for (Clip c : group) {
+            float newStart = Math.max(0f, c.startTime + plan.timeShift);
+            int newTrack = Math.max(0, c.trackIndex + plan.trackShift);
+            moves.add(new MoveClipsCommand.Entry(c, c.startTime, newStart, c.trackIndex, newTrack));
+            if (Math.abs(newStart - c.startTime) > 1e-6f || newTrack != c.trackIndex) nothingChanges = false;
+        }
+
+        cancelPendingCut(); // before the move, so the clips come back at full opacity
+        if (nothingChanges) return;
+
+        executeCommand(new MoveClipsCommand(this, moves));
+        selectClipsExact(group);
+    }
+
+    /** Pastes a copied track: its clips go on one NEW track at the bottom, with their times unchanged. */
+    private void pasteTrack(JsonElement root) {
+        Track source;
+        try {
+            source = clipboardGson.fromJson(root, Track.class);
+        } catch (RuntimeException e) {
+            LoggingManager.LogToToast(this, "Clipboard doesn't hold a track");
+            return;
+        }
+        if (source == null || source.clips == null || source.clips.isEmpty()) {
+            LoggingManager.LogToToast(this, "The copied track is empty");
+            return;
+        }
+        int newTrack = timeline.tracks.size();
+        List<AddClipsCommand.Entry> entries = new ArrayList<>();
+        int skipped = 0;
+        for (Clip c : source.clips) {
+            if (c == null) continue;
+            c.filterNullAfterLoad();
+            if (isClipMediaMissing(c)) { skipped++; continue; }
+            c.trackIndex = newTrack;
+            if (c.endTransition != null) c.endTransition.trackIndex = newTrack;
+            entries.add(new AddClipsCommand.Entry(c, newTrack));
+        }
+        if (skipped > 0) {
+            LoggingManager.LogToToast(this, skipped + (skipped == 1 ? " clip" : " clips") + " skipped: media isn't in this project");
+        }
+        if (entries.isEmpty()) return;
+        executeCommand(new AddClipsCommand(this, entries));
+    }
+
+    // =====================================================================================
+    //  CLIP INTERACTION: tap to select, long-press then drag to move the clip (or the whole selection)
+    // =====================================================================================
+
     private void handleClipInteraction(View view) {
-        DragContext dragContext = new DragContext();
+        final GroupDrag[] drag = new GroupDrag[1];   // non-null while a long-press drag is running
+        final float[] down = new float[2];           // where the finger touched the clip (raw x, y)
+
         view.setOnClickListener(v -> {
             Clip clip = (Clip) view.getTag(); // Already stored
-
             selectingClip(clip);
         });
 
-
         view.setOnLongClickListener(v -> {
-
-            Clip clip = (Clip) view.getTag(); // Already stored
-            Track track = timeline.tracks.get(clip.trackIndex);
-
-
-
+            Clip clip = (Clip) view.getTag();
             timelineScroll.requestDisallowInterceptTouchEvent(true);
-
-            // 👻 Create ghost
-            ImageGroupView ghost = new ImageGroupView(v.getContext());
-            ghost.setLayoutParams(new TrackFrameLayout.LayoutParams(v.getWidth(), v.getHeight()));
-            ghost.setFilledImageBitmap(((ImageGroupView)v).getFilledImageBitmap());
-            ghost.setAlpha(0.5f);
-
-
-
-
-            track.viewRef.addView(ghost);
-            ghost.setX(view.getX());
-            ghost.setY(view.getY());
-
-            v.setVisibility(View.INVISIBLE); // Hide original
-
-            dragContext.ghost = ghost;
-            dragContext.currentTrack = track;
-            dragContext.clip = clip;
-
+            drag[0] = beginGroupDrag(clip, down[0], down[1]);
             return true;
         });
 
-        view.setOnTouchListener(new View.OnTouchListener() {
-            float dX;
+        view.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    down[0] = event.getRawX();
+                    down[1] = event.getRawY();
+                    break;
 
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                Clip data = (Clip) v.getTag();
+                case MotionEvent.ACTION_MOVE:
+                    if (drag[0] != null) {
+                        updateGroupDrag(drag[0], event.getRawX(), event.getRawY());
+                        return true;
+                    }
+                    break;
 
-
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        dX = v.getX() - event.getRawX();
-                        //dY = v.getY() - event.getRawY();
-                        break;
-
-                    case MotionEvent.ACTION_MOVE:
-
-
-                        if(dragContext.clip != null) {
-                            dragContext.clip.toggleHandlesVisibility(false);
-                        }
-
-                        if (dragContext.ghost != null) {
-                            float newX = event.getRawX() + dX;
-                            if (newX < centerOffset) newX = centerOffset; // ⛔ Prevent going past 0s
-
-                            float ghostWidth = dragContext.ghost.getWidth();
-                            float ghostStart = newX;
-                            float ghostEnd = newX + ghostWidth;
-
-
-                            // 🧲 Check for snapping
-                            // Snap the playhead
-                            float playheadX = (timelineScroll.getScrollX() + centerOffset) - 2;
-
-                            if (Math.abs(ghostStart - playheadX) < Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-                                newX = playheadX;
-                            }
-                            if (Math.abs(ghostEnd - playheadX) < Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-                                newX = playheadX - ghostWidth;
-                            }
-
-
-
-                            // Snap the other track
-                            for (int j = 0; j < timeline.tracks.size(); j++) {
-                                Track track = timeline.tracks.get(j);
-
-                                // Only snap in neighbors track, user can choose to snap to all track
-                                // default is false (only neighbors)
-                                // if user set to snap all track, remove these 2 lines.
-                                int currentTrackIndex = timeline.tracks.indexOf(dragContext.currentTrack);
-                                if (!(j >= currentTrackIndex - 1 && j <= currentTrackIndex + 1)) continue;
-
-                                for (int i = 0; i < track.viewRef.getChildCount(); i++) {
-
-                                    View other = track.viewRef.getChildAt(i);
-                                    if (other == dragContext.ghost || other == v) continue;
-                                    if (!(other.getTag() instanceof Clip)) continue;
-
-
-                                    float otherStart = other.getX();
-                                    float otherEnd = other.getX() + other.getWidth();
-
-                                    // Snap ghost start to other end
-                                    if (Math.abs(ghostStart - otherEnd) <= Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-                                        newX = otherEnd;
-                                        break;
-                                    }
-
-                                    // Snap ghost end to other start
-                                    if (Math.abs(ghostEnd - otherStart) <= Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-                                        newX = otherStart - ghostWidth;
-                                        break;
-                                    }
-
-                                    // Optional: Snap start-to-start or end-to-end
-                                    // Todo: Pending removal as no sense of letting clips overlapping each other in the same track in the near future.
-//                                    if (Math.abs(ghostStart - otherStart) <= Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-//                                        newX = otherStart;
-//                                        break;
-//                                    }
-//                                    if (Math.abs(ghostEnd - otherEnd) <= Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL) {
-//                                        newX = otherEnd - ghostWidth;
-//                                        break;
-//                                    }
-                                }
-                            }
-                            dragContext.ghost.setX(newX);
-
-                            // 🔍 Detect track under finger
-                            Track targetTrack = null;
-                            float touchY = event.getRawY();
-
-
-                            for (Track track : timeline.tracks) {
-                                TrackFrameLayout trackRef = track.viewRef;
-
-                                int[] loc = new int[2];
-                                trackRef.getLocationOnScreen(loc);
-                                float top = loc[1];
-                                float bottom = top + trackRef.getHeight();
-                                // 🧲 Move ghost to new track if needed
-                                if (touchY >= top && touchY <= bottom && track != dragContext.currentTrack) {
-                                    dragContext.currentTrack.viewRef.removeView(dragContext.ghost);
-                                    track.viewRef.addView(dragContext.ghost);
-                                    dragContext.ghost.setY(4);
-                                    dragContext.currentTrack = track;
-                                    break;
-                                }
-                            }
-                            return true;
-                        }
-                        break;
-
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        timelineScroll.requestDisallowInterceptTouchEvent(false);
-
-                        if(dragContext.clip != null) {
-                            if(selectedClip == dragContext.clip)
-                                dragContext.clip.toggleHandlesVisibility(true);
-                            dragContext.clip.resetTransitionKnotPosition();
-                        }
-
-                        if (dragContext.ghost != null) {
-                            float finalX = dragContext.ghost.getX();
-                            if (finalX < centerOffset) finalX = centerOffset; // ⛔ Clamp again for safety
-
-
-                            float finalX1 = finalX;
-
-                            v.post(() -> {
-                                // Move original to new track and position
-                                ViewGroup oldParent = (ViewGroup) v.getParent();
-                                oldParent.removeView(v);
-//                                oldParent.removeView(dragContext.clip.leftHandle);
-//                                oldParent.removeView(dragContext.clip.rightHandle);
-
-                                // Add to new track
-                                dragContext.currentTrack.viewRef.addView(v);
-//                                dragContext.currentTrack.viewRef.addView(dragContext.clip.leftHandle);
-//                                dragContext.currentTrack.viewRef.addView(dragContext.clip.rightHandle);
-                                dragContext.clip.forceAddHandlesToTrack(dragContext.currentTrack.viewRef);
-
-                                float newStartTime = (finalX1 - centerOffset) / pixelsPerSecond;
-                                float newSnappedStartTime = FrameHelper.calculateToNearestFrame(newStartTime, settings.frameRate);
-                                float finalX2 = (newSnappedStartTime * pixelsPerSecond) + centerOffset;
-                                v.setX(finalX2);
-                                v.setVisibility(View.VISIBLE);
-
-                                // Update metadata
-                                dragContext.clip.setStartTime(Math.max(0, newStartTime), settings.frameRate); // Clamp to 0
-                                timeline.tracks.get(dragContext.clip.trackIndex).removeClip(dragContext.clip);
-                                dragContext.clip.trackIndex = dragContext.currentTrack.timelineIndex;
-                                timeline.tracks.get(dragContext.clip.trackIndex).addClip((dragContext.clip));
-
-
-                                updateCurrentClipEnd();
-                                dragContext.clip.resetHandlesPosition();
-
-
-                                // Remove ghost
-                                dragContext.currentTrack.viewRef.removeView(dragContext.ghost);
-                                dragContext.ghost = null;
-
-
-
-
-                                timeline.tracks.get(dragContext.clip.trackIndex).sortClips();
-                            });
-
-                        }
-                        break;
-                }
-                return false;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    timelineScroll.requestDisallowInterceptTouchEvent(false);
+                    if (drag[0] != null) {
+                        GroupDrag finished = drag[0];
+                        drag[0] = null;
+                        boolean commit = event.getAction() == MotionEvent.ACTION_UP;
+                        // Not inside the touch dispatch: the dragged view is about to be re-parented.
+                        v.post(() -> endGroupDrag(finished, commit));
+                    }
+                    break;
             }
+            return false;
         });
     }
 
+    /**
+     * Starts a drag: the whole multi-selection if the pressed clip belongs to it, otherwise just that clip (which
+     * becomes the selection). Every member gets a ghost, and its original is hidden while the ghost moves.
+     */
+    private GroupDrag beginGroupDrag(Clip clip, float rawX, float rawY) {
+        GroupDrag d = new GroupDrag();
+        if (selectedClips.contains(clip)) {
+            d.members.addAll(selectedClips);
+        } else {
+            if (selectedClip != clip) selectOnly(clip);
+            d.members.add(clip);
+        }
+        d.anchor = clip;
+        d.anchorTrack = clip.trackIndex;
+        d.downRawX = rawX;
+        d.downRawY = rawY;
+        d.lastRawX = rawX;
+        d.lastRawY = rawY;
+        d.downScrollX = timelineScroll.getScrollX();
 
+        d.minTrack = Integer.MAX_VALUE;
+        d.maxTrack = 0;
+        d.earliestStart = Float.MAX_VALUE;
+        d.groupLeftPx = Float.MAX_VALUE;
+        d.groupRightPx = 0f;
+        for (Clip c : d.members) {
+            d.minTrack = Math.min(d.minTrack, c.trackIndex);
+            d.maxTrack = Math.max(d.maxTrack, c.trackIndex);
+            d.earliestStart = Math.min(d.earliestStart, c.startTime);
+            float left = c.viewRef.getX();
+            d.groupLeftPx = Math.min(d.groupLeftPx, left);
+            d.groupRightPx = Math.max(d.groupRightPx, left + c.viewRef.getWidth());
+
+            ImageGroupView ghost = new ImageGroupView(c.viewRef.getContext());
+            ghost.setLayoutParams(new TrackFrameLayout.LayoutParams(c.viewRef.getWidth(), c.viewRef.getHeight()));
+            ghost.setFilledImageBitmap(c.viewRef.getFilledImageBitmap());
+            ghost.setAlpha(0.5f);
+            timeline.tracks.get(c.trackIndex).viewRef.addView(ghost);
+            ghost.setX(left);
+            ghost.setY(c.viewRef.getY());
+            d.ghosts.add(ghost);
+
+            c.viewRef.setVisibility(View.INVISIBLE); // hide the original
+            c.toggleHandlesVisibility(false);
+        }
+        startVerticalEdgeScroll(d);
+        return d;
+    }
+
+    /** Moves every ghost by the same time delta and the same track delta, so the group keeps its shape. */
+    private void updateGroupDrag(GroupDrag d, float rawX, float rawY) {
+        d.lastRawX = rawX;
+        d.lastRawY = rawY;
+        int trackCount = timeline.tracks.size();
+
+        // Track delta = the row under the finger minus the row of the clip that was grabbed. Rows are measured
+        // from the first track on screen, so vertical scrolling is accounted for and rows past the last track count too.
+        TrackFrameLayout firstRow = timeline.tracks.get(0).viewRef;
+        int[] firstRowLoc = new int[2];
+        firstRow.getLocationOnScreen(firstRowLoc);
+        float rowHeight = firstRow.getHeight() > 0 ? firstRow.getHeight() : TRACK_HEIGHT;
+        int pointerTrack = ClipGroupMath.rawTrackFromY(rawY - firstRowLoc[1], rowHeight);
+        d.trackDelta = ClipGroupMath.clampTrackDelta(pointerTrack - d.anchorTrack, d.minTrack, d.maxTrack, trackCount);
+
+        // Time delta: never before 0s (the earliest clip stops there), then snapped on the group's outer edges.
+        float dx = (rawX - d.downRawX) + (timelineScroll.getScrollX() - d.downScrollX);
+        float leftRoom = d.groupLeftPx - centerOffset;
+        dx = (float) ClipGroupMath.clampTimeDeltaPx(dx, leftRoom);
+        dx = (float) ClipGroupMath.clampTimeDeltaPx(dx + groupSnapAdjustment(d, dx), leftRoom);
+        d.dxPx = dx;
+
+        layoutGhosts(d);
+    }
+
+    /** How far to nudge the group so its start or end meets the playhead or a neighbouring clip, or 0. */
+    private float groupSnapAdjustment(GroupDrag d, float dx) {
+        float start = d.groupLeftPx + dx;
+        float end = d.groupRightPx + dx;
+        float threshold = Constants.TRACK_CLIPS_SNAP_THRESHOLD_PIXEL;
+        float[] best = {0f, Float.MAX_VALUE}; // adjustment, its size
+
+        float playheadX = (timelineScroll.getScrollX() + centerOffset) - 2;
+        considerSnap(best, playheadX - start, threshold);
+        considerSnap(best, playheadX - end, threshold);
+
+        // Only the rows the group lands on and their neighbours, like the single-clip drag always did.
+        int first = Math.max(0, d.minTrack + d.trackDelta - 1);
+        int last = Math.min(timeline.tracks.size() - 1, d.maxTrack + d.trackDelta + 1);
+        for (int j = first; j <= last; j++) {
+            for (Clip other : timeline.tracks.get(j).clips) {
+                if (d.members.contains(other) || other.viewRef == null) continue; // the group never snaps to itself
+                float otherStart = other.viewRef.getX();
+                float otherEnd = otherStart + other.viewRef.getWidth();
+                considerSnap(best, otherEnd - start, threshold);   // group start meets another clip's end
+                considerSnap(best, otherStart - end, threshold);   // group end meets another clip's start
+            }
+        }
+        return best[0];
+    }
+
+    private static void considerSnap(float[] best, float adjustment, float threshold) {
+        float size = Math.abs(adjustment);
+        if (size < threshold && size < best[1]) {
+            best[0] = adjustment;
+            best[1] = size;
+        }
+    }
+
+    /** Puts each ghost on the row of its target track. Rows past the last track are blank ones made for the drag. */
+    private void layoutGhosts(GroupDrag d) {
+        int trackCount = timeline.tracks.size();
+        int lowest = ClipGroupMath.lowestTrackAfterMove(d.maxTrack, d.trackDelta);
+        // Row index trackCount is the blank row the timeline always keeps below the last track; more are added after it.
+        ensurePhantomRows(d, Math.max(0, lowest - trackCount));
+
+        for (int i = 0; i < d.members.size(); i++) {
+            Clip c = d.members.get(i);
+            View ghost = d.ghosts.get(i);
+            ViewGroup row = rowForTrack(d, c.trackIndex + d.trackDelta);
+            if (ghost.getParent() != row) {
+                detachView(ghost);
+                row.addView(ghost);
+            }
+            ghost.setX(c.viewRef.getX() + d.dxPx);
+            ghost.setY(c.viewRef.getY());
+        }
+    }
+
+    private ViewGroup rowForTrack(GroupDrag d, int index) {
+        int trackCount = timeline.tracks.size();
+        if (index < trackCount) return timeline.tracks.get(index).viewRef;
+        if (index == trackCount) return addNewTrackBlankTrackSpacer;
+        return d.phantomRows.get(index - trackCount - 1);
+    }
+
+    private void ensurePhantomRows(GroupDrag d, int count) {
+        while (d.phantomRows.size() < count) {
+            TrackFrameLayout row = new TrackFrameLayout(this);
+            row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, TRACK_HEIGHT));
+            row.setBackgroundColor(Color.parseColor("#222222"));
+            row.setPadding(4, 4, 4, 4);
+            timelineTracksContainer.addView(row); // after the blank row, so row order matches track order
+            d.phantomRows.add(row);
+        }
+        while (d.phantomRows.size() > count) {
+            TrackFrameLayout row = d.phantomRows.remove(d.phantomRows.size() - 1);
+            timelineTracksContainer.removeView(row);
+        }
+    }
+
+    /** Finger up: ghosts and blank rows go first, then the move is committed as ONE undoable command. */
+    private void endGroupDrag(GroupDrag d, boolean commit) {
+        stopVerticalEdgeScroll();
+
+        // Before the command runs, so tracks it creates land at the right index.
+        for (View g : d.ghosts) detachView(g);
+        ensurePhantomRows(d, 0);
+
+        boolean moved = commit && (Math.abs(d.dxPx) >= 1f || d.trackDelta != 0);
+        List<MoveClipsCommand.Entry> moves = new ArrayList<>();
+        boolean changes = false;
+        if (moved) {
+            // Frame snapping on the earliest clip; every member gets the same delta so gaps are preserved.
+            float desiredEarliest = Math.max(0f, d.earliestStart + d.dxPx / pixelsPerSecond);
+            float snappedEarliest = FrameHelper.calculateToNearestFrame(desiredEarliest, settings.frameRate);
+            float dt = snappedEarliest - d.earliestStart;
+            for (Clip c : d.members) {
+                float newStart = Math.max(0f, c.startTime + dt);
+                int newTrack = c.trackIndex + d.trackDelta;
+                moves.add(new MoveClipsCommand.Entry(c, c.startTime, newStart, c.trackIndex, newTrack));
+                if (Math.abs(newStart - c.startTime) > 1e-6f || newTrack != c.trackIndex) changes = true;
+            }
+        }
+
+        if (changes) {
+            executeCommand(new MoveClipsCommand(this, moves));
+        } else {
+            for (Clip c : d.members) {
+                c.viewRef.setVisibility(View.VISIBLE);
+                c.resetTransitionKnotPosition();
+            }
+        }
+        refreshPrimaryHandles();
+    }
+
+    /** While dragging near the top or bottom of the tracks area, scroll it so the blank rows can be reached. */
+    private void startVerticalEdgeScroll(GroupDrag d) {
+        stopVerticalEdgeScroll();
+        edgeScrollTick = new Runnable() {
+            @Override
+            public void run() {
+                int[] loc = new int[2];
+                timelineVerticalScroll.getLocationOnScreen(loc);
+                float top = loc[1];
+                float bottom = top + timelineVerticalScroll.getHeight();
+                float zone = TRACK_HEIGHT * 0.6f;
+                int speed = 0;
+                if (d.lastRawY < top + zone) {
+                    speed = -(int) (24 * Math.min(1f, (top + zone - d.lastRawY) / zone));
+                } else if (d.lastRawY > bottom - zone) {
+                    speed = (int) (24 * Math.min(1f, (d.lastRawY - (bottom - zone)) / zone));
+                }
+                if (speed != 0) {
+                    timelineVerticalScroll.scrollBy(0, speed);
+                    updateGroupDrag(d, d.lastRawX, d.lastRawY); // the rows moved under the finger
+                }
+                edgeScrollHandler.postDelayed(this, 16);
+            }
+        };
+        edgeScrollHandler.post(edgeScrollTick);
+    }
+
+    private void stopVerticalEdgeScroll() {
+        if (edgeScrollTick != null) {
+            edgeScrollHandler.removeCallbacks(edgeScrollTick);
+            edgeScrollTick = null;
+        }
+    }
 
     void updateCurrentClipEnd()
     {
@@ -3379,21 +3887,37 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     private void selectingClip(Clip selectedClip)
     {
+        selectingClip(selectedClip, true);
+    }
+
+    /**
+     * @param movePlayhead false when a clip gets selected as a side effect (grabbing it to drag, a paste), so the
+     *                     playhead stays where it is.
+     */
+    private void selectingClip(Clip selectedClip, boolean movePlayhead)
+    {
         if(getClipSelectMultiple())
         {
+            // In multi-select a tap toggles the clip in or out of the selection (the Ctrl/Cmd+click of desktop).
             this.selectedClip = null;
             if(selectedClips.contains(selectedClip))
             {
                 selectedClips.remove(selectedClip);
                 selectedClip.deselect();
+                if(lastPickedClip == selectedClip)
+                    lastPickedClip = selectedClips.isEmpty() ? null : selectedClips.get(selectedClips.size() - 1);
+                if(selectedClips.isEmpty())
+                    toolbarClips.setVisibility(View.GONE);
             }
             else
             {
                 selectedClips.add(selectedClip);
                 selectedClip.select();
+                lastPickedClip = selectedClip;
                 toolbarClip.setVisibility(View.GONE);
                 toolbarClips.setVisibility(View.VISIBLE);
             }
+            refreshPrimaryHandles();
         }
         else {
             deselectingClip();
@@ -3421,7 +3945,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     }
                 }
             }
-            if(currentTime < selectedClip.startTime)
+            if(movePlayhead && currentTime < selectedClip.startTime)
                 setCurrentTime(selectedClip.startTime);
         }
 
@@ -3458,6 +3982,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarClips.setVisibility(View.GONE);
 //        if(getClipSelectMultiple())
         selectedClips.clear();
+        lastPickedClip = null;
 
         for (Track track : timeline.tracks) {
             for (Clip clip : track.clips) {
@@ -4966,10 +5491,21 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
 
-    static class DragContext {
-        View ghost;
-        Track currentTrack;
-        Clip clip;
+    /** State of one running clip drag: the dragged clips (one, or the whole multi-selection) and their ghosts. */
+    static class GroupDrag {
+        final List<Clip> members = new ArrayList<>();
+        final List<View> ghosts = new ArrayList<>();
+        /** Blank rows added below the timeline while the group hangs past its last track. */
+        final List<TrackFrameLayout> phantomRows = new ArrayList<>();
+        Clip anchor;          // the clip the finger grabbed
+        int anchorTrack;
+        int minTrack, maxTrack;
+        int trackDelta;
+        float earliestStart;  // seconds
+        float groupLeftPx, groupRightPx;
+        float dxPx;           // current horizontal shift, after clamping and snapping
+        float downRawX, downRawY, lastRawX, lastRawY;
+        int downScrollX;
     }
 
     public static class TransitionClip implements Serializable {
