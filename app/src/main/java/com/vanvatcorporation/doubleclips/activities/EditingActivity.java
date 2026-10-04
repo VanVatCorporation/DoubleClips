@@ -88,6 +88,8 @@ import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificA
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
+import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
+import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
 import com.vanvatcorporation.doubleclips.commands.AddClipCommand;
@@ -3965,6 +3967,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 setCurrentTime(selectedClip.startTime);
         }
 
+        if(timelineRenderer != null) timelineRenderer.refreshGizmo();
     }
     private void selectingTrack(Track selectedTrack)
     {
@@ -4008,6 +4011,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
         }
+        if(timelineRenderer != null) timelineRenderer.refreshGizmo();
     }
     private void deselectingTrack()
     {
@@ -7336,6 +7340,28 @@ frameRate = 60;
         private PreviewEngine engine;
         private Timeline renderedTimeline;
         private boolean gpuDisabledThisSession;
+        // On-canvas move/scale/rotate overlay for the GPU preview (lives next to the canvas pane, not inside it)
+        private PreviewGizmoView gizmo;
+        private View blackBoxView, gpuSurfaceView;
+        private FrameLayout canvasPane;
+
+        private void removeGizmo() {
+            if (gizmo != null) {
+                gizmo.cancel();
+                if (gizmo.getParent() instanceof ViewGroup) ((ViewGroup) gizmo.getParent()).removeView(gizmo);
+                gizmo = null;
+            }
+        }
+
+        /** Redraws the gizmo box (selection / time / layout changed). */
+        public void refreshGizmo() {
+            if (gizmo != null) gizmo.refresh();
+        }
+
+        /** Re-renders the GPU preview at {@code time} without touching the legacy per-clip views. */
+        public void renderNow(float time) {
+            if (engine != null) engine.render(renderedTimeline, time, false);
+        }
 
         public TimelineRenderer(Context context) {
             this.context = context;
@@ -7346,6 +7372,8 @@ frameRate = 60;
             // Release the previous render session
             release();
 
+            removeGizmo();
+            canvasPane = previewViewGroup;
             previewViewGroup.removeAllViews();
 
             // Black box for blank video
@@ -7354,6 +7382,7 @@ frameRate = 60;
                     ViewGroup.LayoutParams.MATCH_PARENT
             );
             View blackBox = new View(context);
+            blackBoxView = blackBox;
             blackBox.setBackgroundColor(Color.BLACK);
             previewViewGroup.addView(blackBox, params);
 
@@ -7373,7 +7402,9 @@ frameRate = 60;
                     gpuView.setOpaque(true);
                     previewViewGroup.addView(gpuView, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                    gpuSurfaceView = gpuView;
                     engine.attach(gpuView);
+                    attachGizmo(context, editingActivity, previewViewGroup, settings, textCanvasControllerInfo);
                 } catch (Exception e) {
                     LoggingManager.LogExceptionToNoteOverlay(context, e);
                     if (engine != null) { engine.close(); engine = null; }
@@ -7425,6 +7456,48 @@ frameRate = 60;
                 }
             }
             if (engine != null) engine.render(renderedTimeline, time, !isSeekingOnly);
+            if (gizmo != null) gizmo.refresh();
+        }
+
+        private void attachGizmo(Context context, EditingActivity activity, FrameLayout pane, VideoSettings settings, TextView infoView) {
+            if (!(pane.getParent() instanceof ViewGroup)) return;
+            ViewGroup outer = (ViewGroup) pane.getParent();
+            PreviewGizmoView.Host host = new PreviewGizmoView.Host() {
+                @Override public Timeline timeline() { return renderedTimeline; }
+                @Override public float currentTime() { return activity.currentTime; }
+                @Override public boolean isPlaying() { return activity.isPlaying; }
+                @Override public boolean isMultiSelect() { return activity.getClipSelectMultiple(); }
+                @Override public Clip selectedClip() { return EditingActivity.selectedClip; }
+                @Override public void selectClip(Clip clip) { activity.selectingClip(clip, false); }
+                @Override public void commit(String name, Runnable redo, Runnable undo) {
+                    activity.executeCommand(new TransformGestureCommand(name, redo, undo));
+                }
+                @Override public void requestRender() { renderNow(activity.currentTime); }
+                @Override public void clipChanged(Clip clip) {
+                    renderNow(activity.currentTime);
+                    refreshGizmo();
+                }
+                @Override public void addKeyframe(Clip clip, Keyframe keyframe) { activity.addKeyframe(clip, keyframe); }
+                @Override public void removeKeyframe(Clip clip, Keyframe keyframe) { activity.removeKeyframe(clip, keyframe); }
+                @Override public boolean claimedByOtherView(float cx, float cy) {
+                    android.graphics.Rect r = new android.graphics.Rect();
+                    for (int i = 0; i < pane.getChildCount(); i++) {
+                        View child = pane.getChildAt(i);
+                        if (child == blackBoxView || child == gpuSurfaceView || child.getVisibility() != View.VISIBLE) continue;
+                        child.getHitRect(r);
+                        if (r.contains((int) cx, (int) cy)) return true;
+                    }
+                    return false;
+                }
+                @Override public void showInfo(String text) {
+                    if (infoView != null) infoView.setText(text);
+                }
+            };
+            gizmo = new PreviewGizmoView(context, host, pane, settings.videoWidth, settings.videoHeight,
+                    settings.isStretchToFull(), settings.frameRate);
+            // Directly above the canvas pane, below any alert panels that follow it.
+            outer.addView(gizmo, outer.indexOfChild(pane) + 1,
+                    new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
 
         /** Proxy vs original clips for the GPU preview; no effect on the legacy preview. */
@@ -7458,6 +7531,7 @@ frameRate = 60;
         }
 
         public void release() {
+            removeGizmo();
             if (engine != null) {
                 engine.close();
                 engine = null;
