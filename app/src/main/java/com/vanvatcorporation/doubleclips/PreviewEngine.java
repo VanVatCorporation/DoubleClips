@@ -136,6 +136,7 @@ public final class PreviewEngine {
         this.useProxy = useProxy;
         this.failureListener = failureListener;
         OpenGLEdit.textMeasurer = TextRasterizer::measure;
+        OpenGLEdit.textUnitProvider = TextRasterizer::units;
 
         glThread = new HandlerThread("Preview-GL");
         glThread.start();
@@ -453,7 +454,7 @@ public final class PreviewEngine {
 
     private boolean drawCommand(OpenGLEdit.DrawCommand cmd, float outputTimeSeconds) {
         if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
-            int texture = pool.text.texture(cmd.clip);
+            int texture = cmd.textUnit == null ? pool.text.texture(cmd.clip) : pool.text.unitTexture(cmd.clip, cmd.textUnit);
             if (texture == 0) return false;
             imageShader.drawClip(texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,

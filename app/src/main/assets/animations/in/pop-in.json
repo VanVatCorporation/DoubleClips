@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "id": "pop-in",
+  "name": "Pop",
+  "description": "Scales up past full size and settles, fading in.",
+  "direction": "in",
+  "defaultDuration": 0.5,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.35,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "scale": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0.3
+        ],
+        [
+          0.6,
+          1.15
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

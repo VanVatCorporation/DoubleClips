@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "rise-in",
+  "name": "Rise",
+  "description": "Slides up into place while fading in.",
+  "direction": "in",
+  "defaultDuration": 0.5,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.6,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "offsetY": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0.06
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

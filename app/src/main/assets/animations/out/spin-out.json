@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "spin-out",
+  "name": "Spin Out",
+  "description": "Spin played backwards.",
+  "direction": "out",
+  "defaultDuration": 0.6,
+  "mirrorOf": "spin-in"
+}

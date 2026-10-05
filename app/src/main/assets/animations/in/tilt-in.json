@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "id": "tilt-in",
+  "name": "Tilt",
+  "description": "Tips upright from a slight angle while fading in.",
+  "direction": "in",
+  "defaultDuration": 0.5,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.5,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "rotation": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          -25
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    },
+    "offsetY": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0.03
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

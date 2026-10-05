@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "rise-out",
+  "name": "Sink",
+  "description": "Rise played backwards: slides down while fading out.",
+  "direction": "out",
+  "defaultDuration": 0.5,
+  "mirrorOf": "rise-in"
+}

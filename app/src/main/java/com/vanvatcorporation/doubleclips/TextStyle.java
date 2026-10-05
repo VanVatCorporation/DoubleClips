@@ -35,8 +35,19 @@ public class TextStyle implements Serializable {
     @Expose public int outlineColorArgb = 0xFF000000;
     /** Outline thickness in canvas pixels, around each glyph. 0 = none. */
     @Expose public float outlineWidth = 0f;
-    /** Engines this style renders on; null or empty = both. Later styles (per-character animation) will list only OPENGL. */
+    /** Engines this style renders on; null or empty = both. Per-character animation styles list only OPENGL. */
     @Expose public List<String> supportedEngines;
+
+    // ---- per-unit (character / word / line) animation: OpenGL only --------------------------
+    /** The clip's in / out animation is applied to each unit instead of the whole text: "CHARACTER", "WORD" or "LINE"; null / "NONE" = whole text. */
+    @Expose public String unitMode;
+    /** Share of the animation window spent staggering the units' starts, 0..0.95 (0 = all together). */
+    @Expose public float stagger = 0.6f;
+    /** Which unit goes first: "FORWARD", "REVERSE", "CENTER_OUT" or "RANDOM". */
+    @Expose public String order = "FORWARD";
+    /** Animation ids to put on the clip's in / out slots when this style is picked; null = leave the clip's own. */
+    @Expose public String inAnimationId;
+    @Expose public String outAnimationId;
 
     public TextStyle() { }
 
@@ -49,12 +60,22 @@ public class TextStyle implements Serializable {
         this.outlineColorArgb = other.outlineColorArgb;
         this.outlineWidth = other.outlineWidth;
         this.supportedEngines = other.supportedEngines == null ? null : new ArrayList<>(other.supportedEngines);
+        this.unitMode = other.unitMode;
+        this.stagger = other.stagger;
+        this.order = other.order;
+        this.inAnimationId = other.inAnimationId;
+        this.outAnimationId = other.outAnimationId;
+    }
+
+    public boolean animatesPerUnit() {
+        return unitMode != null && !"NONE".equals(unitMode);
     }
 
     /** Shared read-only default for clips with no style yet: plain white text, no outline. Never mutate it. */
     public static final TextStyle DEFAULT = builtIn("classic", "Classic", 0xFFFFFFFF, 0xFF000000, 0f);
 
     public boolean supportsEngine(String engine) {
+        if (animatesPerUnit() && !ENGINE_OPENGL.equals(engine)) return false; // FFmpeg's drawtext can't animate per unit
         return supportedEngines == null || supportedEngines.isEmpty() || supportedEngines.contains(engine);
     }
 
@@ -63,8 +84,15 @@ public class TextStyle implements Serializable {
         if (o == null) return false;
         return colorArgb == o.colorArgb && outlineColorArgb == o.outlineColorArgb
                 && Math.abs(outlineWidth - o.outlineWidth) < 1e-3f
-                && (fontPath == null ? o.fontPath == null : fontPath.equals(o.fontPath));
+                && (fontPath == null ? o.fontPath == null : fontPath.equals(o.fontPath))
+                && java.util.Objects.equals(normMode(unitMode), normMode(o.unitMode))
+                && Math.abs(stagger - o.stagger) < 1e-3f
+                && java.util.Objects.equals(order, o.order)
+                && java.util.Objects.equals(inAnimationId, o.inAnimationId)
+                && java.util.Objects.equals(outAnimationId, o.outAnimationId);
     }
+
+    private static String normMode(String m) { return m == null ? "NONE" : m; }
 
     /** Key part for texture / measurement caches: everything that changes the pixels. */
     public String cacheKey() {
@@ -83,6 +111,19 @@ public class TextStyle implements Serializable {
         return s;
     }
 
+    private static TextStyle animated(String id, String name, int color, int outlineColor, float outlineWidth,
+                                      String unitMode, float stagger, String order, String in, String out) {
+        TextStyle s = builtIn(id, name, color, outlineColor, outlineWidth);
+        s.unitMode = unitMode;
+        s.stagger = stagger;
+        s.order = order;
+        s.inAnimationId = in;
+        s.outAnimationId = out;
+        s.supportedEngines = new ArrayList<>();
+        s.supportedEngines.add(ENGINE_OPENGL);
+        return s;
+    }
+
     /** The styles that ship with the app. Fresh copies each call. */
     public static List<TextStyle> builtIns() {
         List<TextStyle> list = new ArrayList<>();
@@ -91,6 +132,13 @@ public class TextStyle implements Serializable {
         list.add(builtIn("caption-yellow", "Caption Yellow", 0xFFFFD60A, 0xFF000000, 3f));
         list.add(builtIn("neon-pink", "Neon Pink", 0xFFFF4FD8, 0xFF6A0057, 3f));
         list.add(builtIn("sticker", "Sticker", 0xFF111111, 0xFFFFFFFF, 6f));
+        // Per-unit animated styles (OpenGL only). Each puts its animation on the clip's in / out slots.
+        list.add(animated("pop-letters", "Pop Letters", 0xFFFFFFFF, 0xFF000000, 3f, "CHARACTER", 0.7f, "FORWARD", "pop-in", "fade-out"));
+        list.add(animated("typewriter", "Typewriter", 0xFFE8F5E9, 0xFF1B5E20, 2f, "CHARACTER", 0.9f, "FORWARD", "fade-in", null));
+        list.add(animated("drop-words", "Drop Words", 0xFFFFD60A, 0xFF000000, 3f, "WORD", 0.6f, "FORWARD", "drop-in", "rise-out"));
+        list.add(animated("rise-lines", "Rise Lines", 0xFFFFFFFF, 0xFF000000, 0f, "LINE", 0.6f, "FORWARD", "rise-in", "fade-out"));
+        list.add(animated("spin-letters", "Spin Letters", 0xFFFF4FD8, 0xFF6A0057, 3f, "CHARACTER", 0.6f, "CENTER_OUT", "spin-in", "fade-out"));
+        list.add(animated("shuffle", "Shuffle", 0xFF7CE0FF, 0xFF00334D, 3f, "CHARACTER", 0.8f, "RANDOM", "tilt-in", "fade-out"));
         return list;
     }
 

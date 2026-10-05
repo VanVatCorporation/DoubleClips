@@ -25,8 +25,13 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public EditText textEditContent;
     public EditText textSizeContent;
     public EditText colorContent, outlineWidthContent, outlineColorContent;
-    private TextView stylePresetValue, fontValue;
-    private View stylePresetRow, fontRow;
+    private TextView stylePresetValue, fontValue, unitModeValue, unitOrderValue;
+    private View stylePresetRow, fontRow, unitModeRow, unitOrderRow;
+    public EditText staggerContent;
+    private String unitMode = "NONE", unitOrder = "FORWARD";
+    private String inAnimationId, outAnimationId;
+    /** Set when the user picks a style that carries in / out animations; the editor puts them on the clip once, on close. */
+    private TextStyle pendingAnimationStyle;
 
     /** Project folder, for imported fonts. Set by the editor. */
     public String projectPath;
@@ -67,6 +72,13 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         stylePresetValue = findViewById(R.id.stylePresetValue);
         fontRow = findViewById(R.id.fontRow);
         fontValue = findViewById(R.id.fontValue);
+        unitModeRow = findViewById(R.id.unitModeRow);
+        unitModeValue = findViewById(R.id.unitModeValue);
+        unitOrderRow = findViewById(R.id.unitOrderRow);
+        unitOrderValue = findViewById(R.id.unitOrderValue);
+        staggerContent = findViewById(R.id.staggerContent);
+        unitModeRow.setOnClickListener(v -> pickUnitMode());
+        unitOrderRow.setOnClickListener(v -> pickUnitOrder());
 
         stylePresetRow.setOnClickListener(v -> showStyleBrowser());
         fontRow.setOnClickListener(v -> showFontPicker());
@@ -77,7 +89,43 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             colorContent.clearFocus();
             outlineWidthContent.clearFocus();
             outlineColorContent.clearFocus();
+            staggerContent.clearFocus();
         });
+    }
+
+    private static final String[] MODES = {"NONE", "CHARACTER", "WORD", "LINE"};
+    private static final String[] MODE_LABELS = {"Whole text", "Character", "Word", "Line"};
+    private static final String[] ORDERS = {"FORWARD", "REVERSE", "CENTER_OUT", "RANDOM"};
+    private static final String[] ORDER_LABELS = {"Forward", "Reverse", "From the centre", "Random"};
+
+    private static String labelOf(String[] values, String[] labels, String value) {
+        for (int i = 0; i < values.length; i++) if (values[i].equals(value)) return labels[i];
+        return labels[0];
+    }
+
+    private void pickUnitMode() {
+        new AlertDialog.Builder(getContext()).setTitle("Animate by").setItems(MODE_LABELS, (d, which) -> {
+            unitMode = MODES[which];
+            styleId = null;
+            styleName = "Custom";
+            refreshLabels();
+        }).show();
+    }
+
+    private void pickUnitOrder() {
+        new AlertDialog.Builder(getContext()).setTitle("Order").setItems(ORDER_LABELS, (d, which) -> {
+            unitOrder = ORDERS[which];
+            styleId = null;
+            styleName = "Custom";
+            refreshLabels();
+        }).show();
+    }
+
+    /** The style the user picked this session if it carries in / out animations (then forgets it), else null. */
+    public TextStyle takePendingAnimationStyle() {
+        TextStyle s = pendingAnimationStyle;
+        pendingAnimationStyle = null;
+        return s;
     }
 
     // ======================================================================
@@ -95,6 +143,12 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         styleAuthor = shown.author;
         fontPath = shown.fontPath;
         supportedEngines = shown.supportedEngines == null ? null : new ArrayList<>(shown.supportedEngines);
+        unitMode = shown.unitMode == null ? "NONE" : shown.unitMode;
+        unitOrder = shown.order == null ? "FORWARD" : shown.order;
+        staggerContent.setText(String.valueOf(Math.round(shown.stagger * 100f)));
+        inAnimationId = shown.inAnimationId;
+        outAnimationId = shown.outAnimationId;
+        pendingAnimationStyle = null;
         refreshLabels();
     }
 
@@ -116,6 +170,24 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         }
         result.outlineWidth = Math.max(0f, Math.min(64f, width));
         result.supportedEngines = supportedEngines == null ? null : new ArrayList<>(supportedEngines);
+        result.unitMode = "NONE".equals(unitMode) ? null : unitMode;
+        result.order = unitOrder;
+        float staggerPercent = base.stagger * 100f;
+        try {
+            staggerPercent = Float.parseFloat(staggerContent.getText().toString().trim());
+        } catch (NumberFormatException ignored) {
+            // keep the previous value
+        }
+        result.stagger = Math.max(0f, Math.min(95f, staggerPercent)) / 100f;
+        result.inAnimationId = inAnimationId;
+        result.outAnimationId = outAnimationId;
+        // Only a unit-animated style needs OpenGL; anything else renders on both engines.
+        if (result.animatesPerUnit()) {
+            result.supportedEngines = new ArrayList<>();
+            result.supportedEngines.add(TextStyle.ENGINE_OPENGL);
+        } else {
+            result.supportedEngines = null;
+        }
 
         TextStyle source = findStyle(styleId);
         if (source != null && source.sameLookAs(withFont(result, source.fontPath))) {
@@ -147,6 +219,8 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     private void refreshLabels() {
         stylePresetValue.setText(styleName != null ? styleName : "Custom");
         fontValue.setText(TextFonts.labelFor(projectPath, fontPath));
+        unitModeValue.setText(labelOf(MODES, MODE_LABELS, unitMode));
+        unitOrderValue.setText(labelOf(ORDERS, ORDER_LABELS, unitOrder));
     }
 
     /** The look currently in the controls, without touching the clip. */
@@ -219,6 +293,12 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         outlineWidthContent.setText(String.valueOf(style.outlineWidth));
         outlineColorContent.setText(TextStyle.toHex(style.outlineColorArgb));
         if (style.fontPath != null) fontPath = style.fontPath;
+        unitMode = style.unitMode == null ? "NONE" : style.unitMode;
+        unitOrder = style.order == null ? "FORWARD" : style.order;
+        staggerContent.setText(String.valueOf(Math.round(style.stagger * 100f)));
+        inAnimationId = style.inAnimationId;
+        outAnimationId = style.outAnimationId;
+        pendingAnimationStyle = (style.inAnimationId != null || style.outAnimationId != null) ? style : null;
         styleId = style.id;
         styleName = style.name;
         styleAuthor = style.author;

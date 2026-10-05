@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "tilt-out",
+  "name": "Tilt Out",
+  "description": "Tilt played backwards.",
+  "direction": "out",
+  "defaultDuration": 0.5,
+  "mirrorOf": "tilt-in"
+}

@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "id": "spin-in",
+  "name": "Spin",
+  "description": "Spins into place while growing and fading in.",
+  "direction": "in",
+  "defaultDuration": 0.6,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.4,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "scale": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0.2
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "interp": "smooth"
+    },
+    "rotation": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          -180
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

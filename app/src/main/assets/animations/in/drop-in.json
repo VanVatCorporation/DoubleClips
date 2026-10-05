@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "id": "drop-in",
+  "name": "Drop",
+  "description": "Falls in from above with a small bounce.",
+  "direction": "in",
+  "defaultDuration": 0.6,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.3,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "offsetY": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          -0.1
+        ],
+        [
+          0.6,
+          0.012
+        ],
+        [
+          0.8,
+          -0.006
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

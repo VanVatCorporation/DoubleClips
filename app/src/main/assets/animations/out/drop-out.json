@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "drop-out",
+  "name": "Lift",
+  "description": "Drop played backwards.",
+  "direction": "out",
+  "defaultDuration": 0.6,
+  "mirrorOf": "drop-in"
+}

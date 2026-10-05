@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "pop-out",
+  "name": "Pop Out",
+  "description": "Pop played backwards.",
+  "direction": "out",
+  "defaultDuration": 0.5,
+  "mirrorOf": "pop-in"
+}

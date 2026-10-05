@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "slide-left-in",
+  "name": "Slide From Right",
+  "description": "Slides in from the right while fading in.",
+  "direction": "in",
+  "defaultDuration": 0.5,
+  "channels": {
+    "opacity": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.6,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "offsetX": {
+      "kind": "knots",
+      "points": [
+        [
+          0,
+          0.08
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      "interp": "smooth"
+    }
+  }
+}

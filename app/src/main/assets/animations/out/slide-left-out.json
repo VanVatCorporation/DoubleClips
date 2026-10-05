@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "slide-left-out",
+  "name": "Slide To Right",
+  "description": "Slides out to the right while fading out.",
+  "direction": "out",
+  "defaultDuration": 0.5,
+  "mirrorOf": "slide-left-in"
+}

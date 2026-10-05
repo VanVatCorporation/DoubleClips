@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class TextTextureCache {
 
-    private static final int MAX_TEXTURES = 24;
+    private static final int MAX_TEXTURES = 160; // whole blocks and single units (characters / words / lines) share this
 
     private final LinkedHashMap<String, Integer> textures = new LinkedHashMap<>(16, 0.75f, true);
 
@@ -36,15 +36,38 @@ public final class TextTextureCache {
             bitmap.recycle();
         }
         textures.put(key, texture);
+        trim(texture);
+        return texture;
+    }
 
+    /** Texture for one unit of the clip's text (a character, word or line) in the clip's style, or 0 if there is none. */
+    public int unitTexture(EditingActivity.Clip clip, String unitText) {
+        TextStyle style = clip.textStyle != null ? clip.textStyle : TextStyle.DEFAULT;
+        String key = "u|" + TextRasterizer.unitKey(unitText, clip.fontSize, style);
+        Integer hit = textures.get(key);
+        if (hit != null) return hit;
+
+        Bitmap bitmap = TextRasterizer.renderUnit(unitText, clip.fontSize, style);
+        if (bitmap == null) return 0;
+        int texture;
+        try {
+            texture = upload(bitmap);
+        } finally {
+            bitmap.recycle();
+        }
+        textures.put(key, texture);
+        trim(texture);
+        return texture;
+    }
+
+    private void trim(int keep) {
         Iterator<Map.Entry<String, Integer>> it = textures.entrySet().iterator();
         while (textures.size() > MAX_TEXTURES && it.hasNext()) {
             Map.Entry<String, Integer> eldest = it.next();
-            if (eldest.getValue() == texture) break;
+            if (eldest.getValue() == keep) break;
             GLES20.glDeleteTextures(1, new int[]{eldest.getValue()}, 0);
             it.remove();
         }
-        return texture;
     }
 
     /**

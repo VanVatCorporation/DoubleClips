@@ -75,7 +75,9 @@ import com.google.gson.annotations.Expose;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.FXCommandEmitter;
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.ClipAnimation;
 import com.vanvatcorporation.doubleclips.ClipAnimationAssets;
+import com.vanvatcorporation.doubleclips.ClipAnimationLoader;
 import com.vanvatcorporation.doubleclips.ClipAnimationPacks;
 import com.vanvatcorporation.doubleclips.activities.editing.AnimationPackDialog;
 import com.vanvatcorporation.doubleclips.activities.editing.BaseEditSpecificAreaScreen;
@@ -674,6 +676,16 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
     );
+    /** Puts a picked text style's animation on one of the clip's in / out slots (a null id leaves the slot as it is). */
+    private void applyStyleAnimation(AnimationClip slot, String animationId)
+    {
+        if (slot == null || animationId == null) return;
+        ClipAnimationAssets.loadAll(this);
+        ClipAnimation def = ClipAnimationLoader.get(animationId);
+        if (def == null) return; // not installed: leave the slot alone
+        slot.type = animationId;
+        slot.duration = def.getDefaultDuration();
+    }
     private void importFontFile()
     {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
@@ -1840,6 +1852,17 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.fontSize = ParserHelper.TryParse(textEditSpecificAreaScreen.textSizeContent.getText().toString(), 28f);
                 if (selectedClip.type == ClipType.TEXT) {
                     selectedClip.textStyle = textEditSpecificAreaScreen.readStyle(selectedClip.textStyle);
+                    TextStyle animated = textEditSpecificAreaScreen.takePendingAnimationStyle();
+                    if (animated != null) {
+                        if (animated.inAnimationId != null) {
+                            if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
+                            applyStyleAnimation(selectedClip.inAnimation, animated.inAnimationId);
+                        }
+                        if (animated.outAnimationId != null) {
+                            if (selectedClip.outAnimation == null) selectedClip.outAnimation = new AnimationClip("none", 0.5f);
+                            applyStyleAnimation(selectedClip.outAnimation, animated.outAnimationId);
+                        }
+                    }
                     if (timelineRenderer != null) {
                         timelineRenderer.renderNow(currentTime); // GPU preview: show the new text / look
                         timelineRenderer.refreshGizmo();         // the box follows the new text size

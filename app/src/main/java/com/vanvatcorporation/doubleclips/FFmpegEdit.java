@@ -832,11 +832,25 @@ public class FFmpegEdit {
             if (track == null || track.clips == null) continue;
             for (EditingActivity.Clip clip : track.clips) {
                 if (clip == null) continue;
+                if (clip.type == EditingActivity.ClipType.TEXT) {
+                    // drawtext can't animate at all: text in / out animations (and per-character ones) are OpenGL-only.
+                    if (clip.textStyle != null && clip.textStyle.animatesPerUnit() && hasAnimation(clip)) {
+                        found.add("Text animated per " + clip.textStyle.unitMode.toLowerCase() + " (" + (clip.textStyle.name == null ? "custom" : clip.textStyle.name) + ")");
+                    } else if (hasAnimation(clip)) {
+                        found.add("In / out animations on text clips");
+                    }
+                    continue;
+                }
                 collectUnsupportedAnimation(clip.inAnimation, ClipAnimation.Direction.IN, found);
                 collectUnsupportedAnimation(clip.outAnimation, ClipAnimation.Direction.OUT, found);
             }
         }
         return new ArrayList<>(found);
+    }
+
+    private static boolean hasAnimation(EditingActivity.Clip clip) {
+        return (clip.inAnimation != null && clip.inAnimation.type != null && !clip.inAnimation.type.isEmpty() && !"none".equals(clip.inAnimation.type))
+                || (clip.outAnimation != null && clip.outAnimation.type != null && !clip.outAnimation.type.isEmpty() && !"none".equals(clip.outAnimation.type));
     }
 
     private static void collectUnsupportedAnimation(EditingActivity.AnimationClip slot, ClipAnimation.Direction wanted,

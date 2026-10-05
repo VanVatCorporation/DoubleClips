@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "fade-out",
+  "name": "Fade Out",
+  "description": "Fades to transparent.",
+  "direction": "out",
+  "defaultDuration": 0.5,
+  "mirrorOf": "fade-in"
+}

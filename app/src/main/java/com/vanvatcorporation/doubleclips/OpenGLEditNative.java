@@ -1542,6 +1542,7 @@ public class OpenGLEditNative {
                                 java.util.Map<EditingActivity.Clip, String> reversedClipPaths, boolean stretchToFull,
                                 ExportListener listener) {
         OpenGLEdit.textMeasurer = TextRasterizer::measure;
+        OpenGLEdit.textUnitProvider = TextRasterizer::units;
         TextRasterizer.setFontRoot(projectPath);
         prepareClipAnimations(timeline, listener);
         runOnGlThreadAndWait(() -> {
@@ -1773,7 +1774,7 @@ public class OpenGLEditNative {
                                        String projectPath, long timeoutUsPerStep, float outputTimeSeconds, ExportListener listener) {
         if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
             if (textCache == null) textCache = new TextTextureCache();
-            int textTexture = textCache.texture(cmd.clip);
+            int textTexture = cmd.textUnit == null ? textCache.texture(cmd.clip) : textCache.unitTexture(cmd.clip, cmd.textUnit);
             if (textTexture == 0) return false;
             imageShader.drawClip(textTexture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
