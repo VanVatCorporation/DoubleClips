@@ -795,8 +795,8 @@ public class FFmpegEdit {
 
     /** Font file for drawtext: the style's own font if it exists, else the same DroidSans the GL path defaults to. */
     private static String textFontFile(EditingActivity.Clip clip) {
-        String path = textStyleOf(clip).fontPath;
-        if (path == null || !new java.io.File(path).isFile()) return "/system/fonts/DroidSans.ttf";
+        String path = TextRasterizer.resolveFont(textStyleOf(clip));
+        if (path == null) return "/system/fonts/DroidSans.ttf";
         return path.replace("\\", "/").replace(":", "\\:").replace("'", "\\'");
     }
 

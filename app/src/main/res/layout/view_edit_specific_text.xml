@@ -197,8 +197,12 @@
                 app:sectionTitle="Style">
 
                 <RelativeLayout
+                    android:id="@+id/stylePresetRow"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:paddingHorizontal="16dp">
 
                     <ImageView
@@ -213,16 +217,59 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Preset"
+                        android:text="Style"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
-                    <Spinner
-                        android:id="@+id/stylePresetSpinner"
+                    <TextView
+                        android:id="@+id/stylePresetValue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
-                        android:layout_centerVertical="true" />
+                        android:layout_centerVertical="true"
+                        android:text="Custom"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
+
+                </RelativeLayout>
+
+                <View android:layout_width="match_parent" android:layout_height="0.5dp"
+                    android:layout_marginStart="50dp" android:background="?attr/colorOutlineVariant"/>
+
+                <RelativeLayout
+                    android:id="@+id/fontRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingHorizontal="16dp">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/baseline_format_size_24"
+                        app:tint="@color/ios_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="34dp"
+                        android:text="Font"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/fontValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:text="Default"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="15sp" />
 
                 </RelativeLayout>
 

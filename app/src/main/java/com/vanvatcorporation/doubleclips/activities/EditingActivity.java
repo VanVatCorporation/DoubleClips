@@ -88,6 +88,8 @@ import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificA
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
+import com.vanvatcorporation.doubleclips.TextFonts;
+import com.vanvatcorporation.doubleclips.TextRasterizer;
 import com.vanvatcorporation.doubleclips.TextStyle;
 import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
 import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
@@ -659,6 +661,28 @@ public class EditingActivity extends AppCompatActivityImpl {
                 }
             }
     );
+    // Text fonts: the picked .ttf / .otf / .ttc is validated and copied into the project's Fonts folder.
+    private ActivityResultLauncher<Intent> fontImportLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
+                try {
+                    String relative = TextFonts.importFont(this, properties.getProjectPath(), result.getData().getData());
+                    textEditSpecificAreaScreen.fontImported(relative);
+                } catch (java.io.IOException e) {
+                    new AlertDialog.Builder(this).setTitle("Couldn't import the font").setMessage(e.getMessage()).show();
+                }
+            }
+    );
+    private void importFontFile()
+    {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"font/ttf", "font/otf", "font/collection", "application/x-font-ttf",
+                "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream"});
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        fontImportLauncher.launch(Intent.createChooser(intent, "Select a font (.ttf, .otf)"));
+    }
     private ActivityResultLauncher<Intent> clipExportLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -1758,6 +1782,9 @@ public class EditingActivity extends AppCompatActivityImpl {
     {
         // ===========================       TEXT ZONE       ====================================
         textEditSpecificAreaScreen = (TextEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_text, null);
+        textEditSpecificAreaScreen.projectPath = properties.getProjectPath();
+        textEditSpecificAreaScreen.onImportFontRequested = this::importFontFile;
+        TextRasterizer.setFontRoot(properties.getProjectPath()); // imported fonts resolve against the project folder
         scene3dEditSpecificAreaScreen = (Scene3dEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_scene3d, null);
         editingZone.addView(textEditSpecificAreaScreen);
         editingZone.addView(scene3dEditSpecificAreaScreen);

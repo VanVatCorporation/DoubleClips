@@ -25,7 +25,11 @@ public class TextStyle implements Serializable {
     @Expose public String name;
     /** Community attribution such as "@username"; null for built-ins and local styles. */
     @Expose public String author;
-    /** Absolute path of a .ttf / .otf, or null for the default font (DroidSans, what the FFmpeg export uses). */
+    /**
+     * A .ttf / .otf / .ttc: relative to the project folder ("Fonts/Name.ttf", an imported font) or an absolute
+     * path (a system font). Null = the default font (DroidSans, what the FFmpeg export uses). A style
+     * whose font is null leaves the clip's current font alone when it is applied.
+     */
     @Expose public String fontPath;
     @Expose public int colorArgb = 0xFFFFFFFF;
     @Expose public int outlineColorArgb = 0xFF000000;

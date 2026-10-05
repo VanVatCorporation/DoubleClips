@@ -147,6 +147,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         setContentView(R.layout.layout_export);
 
         properties = (MainAreaScreen.ProjectData) createrBundle.getSerializable("ProjectProperties");
+        com.vanvatcorporation.doubleclips.TextRasterizer.setFontRoot(properties.getProjectPath()); // imported fonts, for the FFmpeg export
         timeline = (EditingActivity.Timeline) createrBundle.getSerializable("ProjectTimeline");
         settings = (EditingActivity.VideoSettings) createrBundle.getSerializable("ProjectSettings");
 

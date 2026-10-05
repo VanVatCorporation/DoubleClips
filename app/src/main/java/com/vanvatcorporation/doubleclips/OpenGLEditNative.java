@@ -1542,6 +1542,7 @@ public class OpenGLEditNative {
                                 java.util.Map<EditingActivity.Clip, String> reversedClipPaths, boolean stretchToFull,
                                 ExportListener listener) {
         OpenGLEdit.textMeasurer = TextRasterizer::measure;
+        TextRasterizer.setFontRoot(projectPath);
         prepareClipAnimations(timeline, listener);
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
