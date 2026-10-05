@@ -546,7 +546,7 @@ public final class PreviewGizmoView extends View {
     // ======================================================================
 
     private static boolean isGizmoClip(Clip c) {
-        return c != null && (c.type == ClipType.VIDEO || c.type == ClipType.IMAGE);
+        return c != null && (c.type == ClipType.VIDEO || c.type == ClipType.IMAGE || c.type == ClipType.TEXT);
     }
 
     private static boolean isActive(Clip c, float t) {
@@ -573,11 +573,21 @@ public final class PreviewGizmoView extends View {
     private double[] quadFor(Clip clip, VideoProperties p) {
         double baseW = stretch ? canvasW : (clip.width > 0 ? clip.width : canvasW);
         double baseH = stretch ? canvasH : (clip.height > 0 ? clip.height : canvasH);
+        double originX = 0, originY = 0;
+        if (clip.type == ClipType.TEXT) {
+            // Same placement as OpenGLEdit.buildClipMvp: the text block is centred, PosX/PosY offset it.
+            int[] size = com.vanvatcorporation.doubleclips.TextRasterizer.measure(clip);
+            if (size == null) return null;
+            baseW = size[0];
+            baseH = size[1];
+            originX = (canvasW - baseW) / 2.0;
+            originY = (canvasH - baseH) / 2.0;
+        }
         double scaledW = baseW * p.valueScaleX;
         double scaledH = baseH * p.valueScaleY;
         double px = p.valuePivotX, py = p.valuePivotY;
-        double pivotX = p.valuePosX + px * baseW;
-        double pivotY = p.valuePosY + py * baseH;
+        double pivotX = p.valuePosX + originX + px * baseW;
+        double pivotY = p.valuePosY + originY + py * baseH;
         double theta = Math.toRadians(p.valueRot);
         double c = Math.cos(theta), s = Math.sin(theta);
         double[] out = new double[8];

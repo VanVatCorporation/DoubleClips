@@ -135,6 +135,7 @@ public final class PreviewEngine {
         this.stretch = stretchToFull;
         this.useProxy = useProxy;
         this.failureListener = failureListener;
+        OpenGLEdit.textMeasurer = TextRasterizer::measure;
 
         glThread = new HandlerThread("Preview-GL");
         glThread.start();
@@ -451,6 +452,14 @@ public final class PreviewEngine {
     }
 
     private boolean drawCommand(OpenGLEdit.DrawCommand cmd, float outputTimeSeconds) {
+        if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
+            int texture = pool.text.texture(cmd.clip);
+            if (texture == 0) return false;
+            imageShader.drawClip(texture, cmd.mvpMatrix, cmd.opacity,
+                    cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                    cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
+            return true;
+        }
         if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
             ImageEntry image = pool.image(cmd.clip);
             if (image == null) return false;
@@ -533,6 +542,7 @@ public final class PreviewEngine {
         private final List<Stream> streams = new ArrayList<>();
         private final Map<String, ImageEntry> images = new LinkedHashMap<>(16, 0.75f, true);
         private final Set<Object> reported = new HashSet<>();
+        final TextTextureCache text = new TextTextureCache();
         private long frameCounter = 0;
 
         private final class Stream {
@@ -702,6 +712,7 @@ public final class PreviewEngine {
             streams.clear();
             for (ImageEntry e : images.values()) GLES20.glDeleteTextures(1, new int[]{e.texture}, 0);
             images.clear();
+            text.closeAll();
         }
     }
 

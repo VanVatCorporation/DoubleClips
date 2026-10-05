@@ -88,6 +88,7 @@ import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificA
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
+import com.vanvatcorporation.doubleclips.TextStyle;
 import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
 import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -1810,6 +1811,13 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 selectedClip.textContent = textEditSpecificAreaScreen.textEditContent.getText().toString();
                 selectedClip.fontSize = ParserHelper.TryParse(textEditSpecificAreaScreen.textSizeContent.getText().toString(), 28f);
+                if (selectedClip.type == ClipType.TEXT) {
+                    selectedClip.textStyle = textEditSpecificAreaScreen.readStyle(selectedClip.textStyle);
+                    if (timelineRenderer != null) {
+                        timelineRenderer.renderNow(currentTime); // GPU preview: show the new text / look
+                        timelineRenderer.refreshGizmo();         // the box follows the new text size
+                    }
+                }
             }
         });
         
@@ -1823,6 +1831,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (selectedClip != null && selectedClip.type == ClipType.TEXT) {
                 textEditSpecificAreaScreen.textEditContent.setText(selectedClip.textContent);
                 textEditSpecificAreaScreen.textSizeContent.setText(String.valueOf(selectedClip.fontSize));
+                textEditSpecificAreaScreen.showStyle(selectedClip.textStyle);
             }
         });
 
@@ -4601,6 +4610,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public float fontSize;    // for TEXT type
         @Expose
+        public TextStyle textStyle; // for TEXT type: colour, outline, font. null = TextStyle.DEFAULT (older projects)
+        @Expose
         public String sceneConfig; // for SCENE_3D type
         @Expose
         public String textureClipName; // for SCENE_3D type
@@ -4711,6 +4722,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 this.textContent = clip.textContent;
                 this.fontSize = clip.fontSize;
+                this.textStyle = clip.textStyle == null ? null : new TextStyle(clip.textStyle);
             }
             if(clip.type == ClipType.EFFECT)
             {

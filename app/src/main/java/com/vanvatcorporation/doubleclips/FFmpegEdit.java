@@ -567,11 +567,15 @@ public class FFmpegEdit {
                             String.valueOf(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.PosY));
 
                     filterComplex.append(transparentLabel)
-                            .append("drawtext=").append("fontfile='/system/fonts/DroidSans.ttf'")
-                            .append(":fontsize=").append(clip.fontSize)
+                            .append("drawtext=").append("fontfile='").append(textFontFile(clip)).append("'")
+                            .append(":fontsize=").append(textFontSize(clip))
+                            .append(":fontcolor=").append(TextStyle.toFfmpegColor(textStyleOf(clip).colorArgb))
+                            .append(textStyleOf(clip).outlineWidth > 0f
+                                    ? ":borderw=" + textStyleOf(clip).outlineWidth + ":bordercolor=" + TextStyle.toFfmpegColor(textStyleOf(clip).outlineColorArgb)
+                                    : "")
                             .append(":text='").append(clip.textContent.replace(":", "\\:").replace("'", "\\'"))
-                            .append("':x=").append("(w-text_w)/2 + ").append(textXExpr)
-                            .append(":y=").append("(h-text_h)/2 + ").append(textYExpr)
+                            .append("':x=").append("(w-text_w)/2 + ").append(textPivotShift(clip, true)).append(" + ").append(textXExpr)
+                            .append(":y=").append("(h-text_h)/2 + ").append(textPivotShift(clip, false)).append(" + ").append(textYExpr)
                             .append(":enable='").append(getConditionThree("t", String.valueOf(clip.startTime), String.valueOf(clip.startTime + clip.duration), "~")).append("'").append(",")
                             .append("fps=").append(templateSettings.settings.getFrameRate())
                             .append(outputLabel).append(";\n");
@@ -783,6 +787,43 @@ public class FFmpegEdit {
      * ClipAnimationFFmpeg.SUPPORTED). Empty = the FFmpeg export plays every animation in full.
      * The OpenGL export supports every channel (see OpenGLEdit.animationFrame).
      */
+    // ---- TEXT clips: style, scale and pivot, so the drawtext export lands where the GL preview/export does ----
+
+    private static TextStyle textStyleOf(EditingActivity.Clip clip) {
+        return clip.textStyle != null ? clip.textStyle : TextStyle.DEFAULT;
+    }
+
+    /** Font file for drawtext: the style's own font if it exists, else the same DroidSans the GL path defaults to. */
+    private static String textFontFile(EditingActivity.Clip clip) {
+        String path = textStyleOf(clip).fontPath;
+        if (path == null || !new java.io.File(path).isFile()) return "/system/fonts/DroidSans.ttf";
+        return path.replace("\\", "/").replace(":", "\\:").replace("'", "\\'");
+    }
+
+    /** The clip's static ScaleY (drawtext can't rotate or scale, so scale is folded into the font size); 1 when unset. */
+    private static float textScale(EditingActivity.Clip clip) {
+        float s = clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
+        return s > 0f ? s : 1f;
+    }
+
+    private static int textFontSize(EditingActivity.Clip clip) {
+        return Math.max(1, Math.round(clip.fontSize * textScale(clip)));
+    }
+
+    /**
+     * The GL path scales text about the clip's pivot (default top-left), drawtext's fontsize grows it about
+     * its centre. This is the x / y shift, as a number times text_w / text_h, that makes the two land
+     * on the same spot: (pivot - 0.5) * (1 - s) / s, from top-left = centred origin + pivot*w*(1 - s).
+     */
+    private static String textPivotShift(EditingActivity.Clip clip, boolean horizontal) {
+        float s = textScale(clip);
+        float pivot = clip.videoProperties.getValue(horizontal
+                ? EditingActivity.VideoProperties.ValueType.PivotX
+                : EditingActivity.VideoProperties.ValueType.PivotY);
+        float k = (pivot - 0.5f) * (1f - s) / s;
+        return "(" + String.format(java.util.Locale.US, "%.5f", k) + ")*" + (horizontal ? "text_w" : "text_h");
+    }
+
     public static List<String> getUnsupportedAnimationFeatures(Context context, EditingActivity.Timeline timeline) {
         java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
         if (timeline == null || timeline.tracks == null) return new ArrayList<>(found);

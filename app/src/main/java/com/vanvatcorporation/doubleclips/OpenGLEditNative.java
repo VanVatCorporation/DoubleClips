@@ -1541,6 +1541,7 @@ public class OpenGLEditNative {
                                 int width, int height, int bitrate, int frameRate, String outputPath,
                                 java.util.Map<EditingActivity.Clip, String> reversedClipPaths, boolean stretchToFull,
                                 ExportListener listener) {
+        OpenGLEdit.textMeasurer = TextRasterizer::measure;
         prepareClipAnimations(timeline, listener);
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();
@@ -1741,6 +1742,10 @@ public class OpenGLEditNative {
                 for (ImageFrameSource source : activeImageSources.values()) {
                     source.release();
                 }
+                if (textCache != null) {
+                    textCache.closeAll();
+                    textCache = null;
+                }
                 if (transitionLayerA != null) transitionLayerA.release();
                 if (transitionLayerB != null) transitionLayerB.release();
                 if (blurScratchA != null) blurScratchA.release();
@@ -1756,12 +1761,24 @@ public class OpenGLEditNative {
      * encoder surface for a normal draw, or an OffscreenTarget for one side of
      * a transition. Returns true if something was actually drawn.
      */
+    /** Rasterised text textures for TEXT clips; created on first use on the GL thread, freed when the export ends. */
+    private TextTextureCache textCache;
+
     private boolean renderDrawCommand(OpenGLEdit.DrawCommand cmd, TransformShader shader, ImageTransformShader imageShader,
                                        java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources,
                                        java.util.Map<EditingActivity.Clip, ImageFrameSource> activeImageSources,
                                        java.util.Set<EditingActivity.Clip> reportedNoFrame,
                                        java.util.Map<EditingActivity.Clip, String> reversedClipPaths,
                                        String projectPath, long timeoutUsPerStep, float outputTimeSeconds, ExportListener listener) {
+        if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
+            if (textCache == null) textCache = new TextTextureCache();
+            int textTexture = textCache.texture(cmd.clip);
+            if (textTexture == 0) return false;
+            imageShader.drawClip(textTexture, cmd.mvpMatrix, cmd.opacity,
+                    cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                    cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
+            return true;
+        }
         if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
             ImageFrameSource imageSource = activeImageSources.get(cmd.clip);
             if (imageSource == null) {

@@ -68,9 +68,6 @@ public class OpenGLEdit {
                     case IMAGE:
                         if (!SUPPORTS_IMAGES) found.add("Image clips");
                         break;
-                    case TEXT:
-                        found.add("Text clips");
-                        break;
                     case EFFECT:
                         found.add("Effect clips");
                         break;
@@ -97,6 +94,17 @@ public class OpenGLEdit {
         }
         return new ArrayList<>(found);
     }
+
+    /**
+     * Sizes a TEXT clip's rasterised text in canvas pixels ({width, height}, or null = nothing to
+     * draw). Injected by the platform (Android: TextRasterizer::measure) so this class stays free of
+     * android.graphics; with none set, text clips simply aren't drawn.
+     */
+    public interface TextMeasurer {
+        int[] measure(EditingActivity.Clip clip);
+    }
+
+    public static volatile TextMeasurer textMeasurer;
 
     /** One clip's contribution to a single output frame. */
     public static class DrawCommand {
@@ -325,8 +333,19 @@ public class OpenGLEdit {
     /** Builds one clip's complete draw info at outputTimeSeconds, or null if its type isn't drawable (audio/text/effect/3D — see getUnsupportedFeatures). */
     private DrawCommand buildDrawCommand(EditingActivity.Clip clip, float outputTimeSeconds,
                                           int canvasWidth, int canvasHeight, boolean stretchToFull, float[] projection) {
-        if (clip.type != EditingActivity.ClipType.VIDEO && clip.type != EditingActivity.ClipType.IMAGE) {
-            return null; // audio has no picture; text/effects/3D: see getUnsupportedFeatures
+        boolean isText = clip.type == EditingActivity.ClipType.TEXT;
+        if (!isText && clip.type != EditingActivity.ClipType.VIDEO && clip.type != EditingActivity.ClipType.IMAGE) {
+            return null; // audio has no picture; effects/3D: see getUnsupportedFeatures
+        }
+        // Text is a quad the size of its rasterised text block (not the clip's own width/height,
+        // which is 0 for text, and never stretched to the canvas).
+        float textW = 0f, textH = 0f;
+        if (isText) {
+            TextMeasurer measurer = textMeasurer;
+            int[] size = measurer == null ? null : measurer.measure(clip);
+            if (size == null) return null; // empty text (or no measurer): nothing to draw
+            textW = size[0];
+            textH = size[1];
         }
 
         // Speed: FFmpeg remaps clip-local time via
@@ -357,7 +376,7 @@ public class OpenGLEdit {
         // allocation), so the overwhelming majority of frames pay nothing for this.
         ClipAnimationFrame anim = animationFrame(clip, outputTimeSeconds);
 
-        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim);
+        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim, textW, textH);
         float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity)
                 * anim.opacity();
         float hue = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue)
@@ -413,7 +432,8 @@ public class OpenGLEdit {
      *   be computed from the expanded bbox to land in the same place FFmpeg would.
      */
     private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection,
-                                  int canvasWidth, int canvasHeight, boolean stretchToFull, ClipAnimationFrame anim) {
+                                  int canvasWidth, int canvasHeight, boolean stretchToFull, ClipAnimationFrame anim,
+                                  float textW, float textH) {
         // The in-animation's scale multiplies the clip's own (about its pivot), its offset is a
         // fraction of the canvas size added to PosX/PosY, its rotation is added to RotInRadians.
         float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX) * anim.scale();
@@ -431,6 +451,14 @@ public class OpenGLEdit {
         // clip's own intrinsic size as the base ScaleX/ScaleY multiplies against.
         float baseW = stretchToFull ? canvasWidth : clip.width;
         float baseH = stretchToFull ? canvasHeight : clip.height;
+        if (textW > 0f) {
+            // TEXT: the text block is centred on the canvas at PosX/PosY = 0 and PosX/PosY offset it,
+            // exactly like the FFmpeg export's drawtext x=(w-text_w)/2+PosX, y=(h-text_h)/2+PosY.
+            baseW = textW;
+            baseH = textH;
+            posX += (canvasWidth - textW) / 2f;
+            posY += (canvasHeight - textH) / 2f;
+        }
         float scaledW = baseW * scaleX;
         float scaledH = baseH * scaleY;
 
