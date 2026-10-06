@@ -25,8 +25,12 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public EditText textEditContent;
     public EditText textSizeContent;
     public EditText colorContent, outlineWidthContent, outlineColorContent;
-    private TextView stylePresetValue, fontValue, unitModeValue, unitOrderValue;
-    private View stylePresetRow, fontRow, unitModeRow, unitOrderRow;
+    private TextView stylePresetValue, fontValue, unitModeValue, unitOrderValue, emphasisValue, alignValue;
+    private View stylePresetRow, fontRow, unitModeRow, unitOrderRow, emphasisRow, alignRow;
+    private boolean bold, italic;
+    /** A preset replaces the whole look, so another platform's extra fields on the old style must not linger under it. */
+    private boolean dropForeignFields;
+    private String alignment = TextStyle.ALIGN_LEFT;
     public EditText staggerContent;
     private String unitMode = "NONE", unitOrder = "FORWARD";
     private String inAnimationId, outAnimationId;
@@ -77,6 +81,12 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         unitOrderRow = findViewById(R.id.unitOrderRow);
         unitOrderValue = findViewById(R.id.unitOrderValue);
         staggerContent = findViewById(R.id.staggerContent);
+        emphasisRow = findViewById(R.id.emphasisRow);
+        emphasisValue = findViewById(R.id.emphasisValue);
+        alignRow = findViewById(R.id.alignRow);
+        alignValue = findViewById(R.id.alignValue);
+        emphasisRow.setOnClickListener(v -> pickEmphasis());
+        alignRow.setOnClickListener(v -> pickAlignment());
         unitModeRow.setOnClickListener(v -> pickUnitMode());
         unitOrderRow.setOnClickListener(v -> pickUnitOrder());
 
@@ -101,6 +111,37 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     private static String labelOf(String[] values, String[] labels, String value) {
         for (int i = 0; i < values.length; i++) if (values[i].equals(value)) return labels[i];
         return labels[0];
+    }
+
+    private static final String[] ALIGNMENTS = {TextStyle.ALIGN_LEFT, TextStyle.ALIGN_CENTER, TextStyle.ALIGN_RIGHT};
+    private static final String[] ALIGNMENT_LABELS = {"Left", "Centre", "Right"};
+
+    private void pickEmphasis() {
+        final boolean[] checked = {bold, italic};
+        new AlertDialog.Builder(getContext()).setTitle("Bold and italic")
+                .setMultiChoiceItems(new String[]{"Bold", "Italic"}, checked, (d, which, isChecked) -> checked[which] = isChecked)
+                .setPositiveButton("OK", (d, w) -> {
+                    bold = checked[0];
+                    italic = checked[1];
+                    styleId = null;
+                    styleName = "Custom";
+                    refreshLabels();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void pickAlignment() {
+        new AlertDialog.Builder(getContext()).setTitle("Align (lines of a multi-line text)").setItems(ALIGNMENT_LABELS, (d, which) -> {
+            alignment = ALIGNMENTS[which];
+            styleId = null;
+            styleName = "Custom";
+            refreshLabels();
+        }).show();
+    }
+
+    private static String emphasisLabel(boolean bold, boolean italic) {
+        return bold && italic ? "Bold italic" : bold ? "Bold" : italic ? "Italic" : "Regular";
     }
 
     private void pickUnitMode() {
@@ -142,6 +183,9 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         styleName = shown.name;
         styleAuthor = shown.author;
         fontPath = shown.fontPath;
+        bold = shown.bold;
+        italic = shown.italic;
+        alignment = shown.alignmentOrDefault();
         supportedEngines = shown.supportedEngines == null ? null : new ArrayList<>(shown.supportedEngines);
         unitMode = shown.unitMode == null ? "NONE" : shown.unitMode;
         unitOrder = shown.order == null ? "FORWARD" : shown.order;
@@ -149,6 +193,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         inAnimationId = shown.inAnimationId;
         outAnimationId = shown.outAnimationId;
         pendingAnimationStyle = null;
+        dropForeignFields = false;
         refreshLabels();
     }
 
@@ -159,7 +204,11 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public TextStyle readStyle(TextStyle previous) {
         TextStyle base = previous != null ? previous : TextStyle.DEFAULT;
         TextStyle result = new TextStyle();
+        if (!dropForeignFields) result.copyUnknownKeysFrom(previous); // another platform's fields on this style survive an edit here
         result.fontPath = fontPath;
+        result.bold = bold;
+        result.italic = italic;
+        result.alignment = alignment;
         result.colorArgb = TextStyle.parseHex(colorContent.getText().toString(), base.colorArgb);
         result.outlineColorArgb = TextStyle.parseHex(outlineColorContent.getText().toString(), base.outlineColorArgb);
         float width = base.outlineWidth;
@@ -219,6 +268,8 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     private void refreshLabels() {
         stylePresetValue.setText(styleName != null ? styleName : "Custom");
         fontValue.setText(TextFonts.labelFor(projectPath, fontPath));
+        emphasisValue.setText(emphasisLabel(bold, italic));
+        alignValue.setText(labelOf(ALIGNMENTS, ALIGNMENT_LABELS, alignment));
         unitModeValue.setText(labelOf(MODES, MODE_LABELS, unitMode));
         unitOrderValue.setText(labelOf(ORDERS, ORDER_LABELS, unitOrder));
     }
@@ -293,12 +344,16 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         outlineWidthContent.setText(String.valueOf(style.outlineWidth));
         outlineColorContent.setText(TextStyle.toHex(style.outlineColorArgb));
         if (style.fontPath != null) fontPath = style.fontPath;
+        bold = style.bold;
+        italic = style.italic;
+        alignment = style.alignmentOrDefault();
         unitMode = style.unitMode == null ? "NONE" : style.unitMode;
         unitOrder = style.order == null ? "FORWARD" : style.order;
         staggerContent.setText(String.valueOf(Math.round(style.stagger * 100f)));
         inAnimationId = style.inAnimationId;
         outAnimationId = style.outAnimationId;
         pendingAnimationStyle = (style.inAnimationId != null || style.outAnimationId != null) ? style : null;
+        dropForeignFields = true;
         styleId = style.id;
         styleName = style.name;
         styleAuthor = style.author;

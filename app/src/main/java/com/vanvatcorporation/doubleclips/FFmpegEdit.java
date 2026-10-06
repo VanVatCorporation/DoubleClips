@@ -795,8 +795,13 @@ public class FFmpegEdit {
 
     /** Font file for drawtext: the style's own font if it exists, else the same DroidSans the GL path defaults to. */
     private static String textFontFile(EditingActivity.Clip clip) {
-        String path = TextRasterizer.resolveFont(textStyleOf(clip));
-        if (path == null) return "/system/fonts/DroidSans.ttf";
+        TextStyle style = textStyleOf(clip);
+        String path = TextRasterizer.resolveFont(style);
+        if (path == null) {
+            // drawtext has no bold switch: with the default font, use its bold face when the device has one.
+            if (style.bold && new java.io.File("/system/fonts/DroidSans-Bold.ttf").isFile()) return "/system/fonts/DroidSans-Bold.ttf";
+            return "/system/fonts/DroidSans.ttf";
+        }
         return path.replace("\\", "/").replace(":", "\\:").replace("'", "\\'");
     }
 
@@ -833,6 +838,7 @@ public class FFmpegEdit {
             for (EditingActivity.Clip clip : track.clips) {
                 if (clip == null) continue;
                 if (clip.type == EditingActivity.ClipType.TEXT) {
+                    collectUnsupportedTextStyle(clip, found);
                     // drawtext can't animate at all: text in / out animations (and per-character ones) are OpenGL-only.
                     if (clip.textStyle != null && clip.textStyle.animatesPerUnit() && hasAnimation(clip)) {
                         found.add("Text animated per " + clip.textStyle.unitMode.toLowerCase() + " (" + (clip.textStyle.name == null ? "custom" : clip.textStyle.name) + ")");
@@ -846,6 +852,16 @@ public class FFmpegEdit {
             }
         }
         return new ArrayList<>(found);
+    }
+
+    /** What of a text clip's look drawtext can't do: it only has the font's own faces, and left-aligned lines. */
+    private static void collectUnsupportedTextStyle(EditingActivity.Clip clip, java.util.Set<String> found) {
+        TextStyle style = textStyleOf(clip);
+        if (style.italic) found.add("Italic text");
+        if (style.bold && TextRasterizer.resolveFont(style) != null) found.add("Bold text in an imported or system font (only the default font has a bold face)");
+        if (!TextStyle.ALIGN_LEFT.equals(style.alignmentOrDefault()) && clip.textContent != null && clip.textContent.contains("\n")) {
+            found.add("Centre / right aligned text on several lines");
+        }
     }
 
     private static boolean hasAnimation(EditingActivity.Clip clip) {

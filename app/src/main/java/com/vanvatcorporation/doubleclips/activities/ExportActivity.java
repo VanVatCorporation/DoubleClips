@@ -443,11 +443,11 @@ public class ExportActivity extends AppCompatActivityImpl {
                 exportClip(exportAsTemplate);
                 return;
             }
-            StringBuilder gapMessage = new StringBuilder("FFmpeg export can't reproduce these animation effects:\n");
+            StringBuilder gapMessage = new StringBuilder("FFmpeg export can't reproduce these:\n");
             for (String gap : animationGaps) gapMessage.append("\n  \u2022 ").append(gap);
             gapMessage.append("\n\nSwitch the render engine to OpenGL to get them, or continue and they will be left out of this export.");
             new AlertDialog.Builder(this)
-                    .setTitle("Some animation effects are not available")
+                    .setTitle("Some effects are not available")
                     .setMessage(gapMessage.toString())
                     .setPositiveButton("Continue with FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
                     .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())

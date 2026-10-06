@@ -1,5 +1,7 @@
 package com.vanvatcorporation.doubleclips;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.annotations.Expose;
 
 import java.io.Serializable;
@@ -15,10 +17,53 @@ import java.util.Locale;
  * values came from (and drive the style browser: name, @author, engine badge). A clip whose values
  * were edited by hand afterwards has a null id ("Custom").
  */
-public class TextStyle implements Serializable {
+public class TextStyle implements Serializable, UnknownKeysHolder {
 
     public static final String ENGINE_FFMPEG = "FFMPEG";
     public static final String ENGINE_OPENGL = "OPENGL";
+
+    public static final String ALIGN_LEFT = "left", ALIGN_CENTER = "center", ALIGN_RIGHT = "right";
+
+    /** Unknown keys of this style's JSON object (another platform's fields), kept across a save. See {@link UnknownKeysHolder}. */
+    private transient JsonObject unknownKeys;
+
+    @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+    @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
+
+    /** {@link #alignment} reduced to one of the three known values. */
+    public String alignmentOrDefault() {
+        if (ALIGN_CENTER.equalsIgnoreCase(alignment)) return ALIGN_CENTER;
+        if (ALIGN_RIGHT.equalsIgnoreCase(alignment)) return ALIGN_RIGHT;
+        return ALIGN_LEFT;
+    }
+
+    @Override
+    public void onLoaded(JsonObject raw) {
+        // The iOS-compatible hex colours win over the old int fields the loader already filled in.
+        colorArgb = hexOf(raw, "colorHex", colorArgb);
+        outlineColorArgb = hexOf(raw, "outlineColorHex", outlineColorArgb);
+        alignment = alignmentOrDefault();
+        // Consumed into the colour fields above (and rewritten from them on save), so they aren't "unknown".
+        if (unknownKeys != null) {
+            unknownKeys.remove("colorHex");
+            unknownKeys.remove("outlineColorHex");
+            if (unknownKeys.size() == 0) unknownKeys = null;
+        }
+    }
+
+    @Override
+    public void onSaving(JsonObject tree) {
+        tree.addProperty("colorHex", toHex(colorArgb));
+        tree.addProperty("outlineColorHex", toHex(outlineColorArgb));
+        // iOS names a font by PostScript name; if this build picked a font file since, that name is stale.
+        if (fontPath != null && !fontPath.isEmpty()) tree.remove("fontName");
+    }
+
+    private static int hexOf(JsonObject raw, String key, int fallback) {
+        JsonElement e = raw.get(key);
+        if (e == null || !e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) return fallback;
+        return parseHex(e.getAsString(), fallback);
+    }
 
     /** Built-in id, or null for custom values. */
     @Expose public String id;
@@ -31,10 +76,25 @@ public class TextStyle implements Serializable {
      * whose font is null leaves the clip's current font alone when it is applied.
      */
     @Expose public String fontPath;
-    @Expose public int colorArgb = 0xFFFFFFFF;
-    @Expose public int outlineColorArgb = 0xFF000000;
+    /**
+     * Fill and outline colour as ARGB ints in memory. On disk they are the iOS-compatible "colorHex" /
+     * "outlineColorHex" ("#RRGGBB" or "#RRGGBBAA", see {@link #onSaving}); these two fields are deliberately NOT
+     * @Expose, but the plain loader still reads an old "colorArgb" / "outlineColorArgb" int (projects saved by
+     * builds before the iOS-compatible layout), and {@link #onLoaded} lets a hex value win when both exist.
+     */
+    public int colorArgb = 0xFFFFFFFF;
+    public int outlineColorArgb = 0xFF000000;
     /** Outline thickness in canvas pixels, around each glyph. 0 = none. */
     @Expose public float outlineWidth = 0f;
+    /** Bold / italic, the same keys the iOS port writes ("bold", "italic"). A font without the weight gets a synthetic one. */
+    @Expose public boolean bold;
+    @Expose public boolean italic;
+    /**
+     * "left", "center" or "right" (the iOS key "alignment"): how the lines of a multi-line text sit inside the block.
+     * Absent in older projects = "left", which is how text was always drawn here; the iOS port writes the key
+     * every time, so its own default of "center" never reaches this build as a missing value.
+     */
+    @Expose public String alignment = ALIGN_LEFT;
     /** Engines this style renders on; null or empty = both. Per-character animation styles list only OPENGL. */
     @Expose public List<String> supportedEngines;
 
@@ -59,6 +119,10 @@ public class TextStyle implements Serializable {
         this.colorArgb = other.colorArgb;
         this.outlineColorArgb = other.outlineColorArgb;
         this.outlineWidth = other.outlineWidth;
+        this.bold = other.bold;
+        this.italic = other.italic;
+        this.alignment = other.alignment;
+        copyUnknownKeysFrom(other);
         this.supportedEngines = other.supportedEngines == null ? null : new ArrayList<>(other.supportedEngines);
         this.unitMode = other.unitMode;
         this.stagger = other.stagger;
@@ -84,6 +148,8 @@ public class TextStyle implements Serializable {
         if (o == null) return false;
         return colorArgb == o.colorArgb && outlineColorArgb == o.outlineColorArgb
                 && Math.abs(outlineWidth - o.outlineWidth) < 1e-3f
+                && bold == o.bold && italic == o.italic
+                && alignmentOrDefault().equals(o.alignmentOrDefault())
                 && (fontPath == null ? o.fontPath == null : fontPath.equals(o.fontPath))
                 && java.util.Objects.equals(normMode(unitMode), normMode(o.unitMode))
                 && Math.abs(stagger - o.stagger) < 1e-3f
@@ -96,7 +162,8 @@ public class TextStyle implements Serializable {
 
     /** Key part for texture / measurement caches: everything that changes the pixels. */
     public String cacheKey() {
-        return fontPath + "|" + colorArgb + "|" + outlineColorArgb + "|" + outlineWidth;
+        return fontPath + "|" + colorArgb + "|" + outlineColorArgb + "|" + outlineWidth
+                + "|" + bold + "|" + italic + "|" + alignmentOrDefault();
     }
 
     // ---- built-in presets ---------------------------------------------------------------

@@ -72,7 +72,7 @@ public final class TextRasterizer {
     private static String key(String text, float fontSize, TextStyle style) {
         String font = resolveFont(style);
         return fontSize + "|" + (font == null ? "" : font) + "|" + style.colorArgb + "|" + style.outlineColorArgb + "|"
-                + style.outlineWidth + "|" + text;
+                + style.outlineWidth + "|" + style.bold + "|" + style.italic + "|" + style.alignmentOrDefault() + "|" + text;
     }
 
     /** Everything that changes the pixels of one unit of text. */
@@ -85,8 +85,8 @@ public final class TextRasterizer {
         return key(textOf(clip), clip.fontSize, styleOf(clip));
     }
 
-    private static synchronized Typeface typeface(String resolvedFontFile) {
-        String k = resolvedFontFile == null ? "" : resolvedFontFile;
+    private static synchronized Typeface typeface(String resolvedFontFile, boolean bold, boolean italic) {
+        String k = (resolvedFontFile == null ? "" : resolvedFontFile) + "|" + bold + "|" + italic;
         Typeface cached = TYPEFACES.get(k);
         if (cached != null) return cached;
         Typeface tf = null;
@@ -97,6 +97,11 @@ public final class TextRasterizer {
             // unreadable font: fall back below
         }
         if (tf == null) tf = Typeface.DEFAULT;
+        if (bold || italic) {
+            // A font file with no bold / italic face gets a synthetic one when drawn.
+            int face = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : Typeface.ITALIC;
+            tf = Typeface.create(tf, face);
+        }
         TYPEFACES.put(k, tf);
         return tf;
     }
@@ -104,7 +109,7 @@ public final class TextRasterizer {
     private static TextPaint paint(float fontSize, TextStyle style) {
         TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         p.setTextSize(Math.max(1f, Math.min(1024f, fontSize)));
-        p.setTypeface(typeface(resolveFont(style)));
+        p.setTypeface(typeface(resolveFont(style), style.bold, style.italic));
         return p;
     }
 
@@ -116,15 +121,27 @@ public final class TextRasterizer {
         return (int) Math.ceil(widest);
     }
 
-    private static StaticLayout layout(String text, TextPaint paint, int width) {
+    private static Layout.Alignment alignmentOf(TextStyle style) {
+        String a = style.alignmentOrDefault();
+        if (TextStyle.ALIGN_CENTER.equals(a)) return Layout.Alignment.ALIGN_CENTER;
+        if (TextStyle.ALIGN_RIGHT.equals(a)) return Layout.Alignment.ALIGN_OPPOSITE; // left-to-right text only
+        return Layout.Alignment.ALIGN_NORMAL;
+    }
+
+    private static StaticLayout layout(String text, TextPaint paint, int width, TextStyle style) {
         return StaticLayout.Builder.obtain(text, 0, text.length(), paint, width)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setAlignment(alignmentOf(style))
                 .setIncludePad(false)
                 .build();
     }
 
     private static int padding(TextStyle style) {
         return (int) Math.ceil(Math.max(0f, style.outlineWidth)) + 2;
+    }
+
+    /** Left / right margin of a whole-text bitmap: the outline, plus room for a synthetic italic's slant. */
+    private static int blockPadX(float fontSize, TextStyle style) {
+        return padding(style) + (style.italic ? (int) Math.ceil(fontSize * 0.15f) : 0);
     }
 
     /** {width, height} in canvas pixels of this clip's text bitmap, or null when there is nothing to draw. */
@@ -141,9 +158,10 @@ public final class TextRasterizer {
         }
         TextPaint p = paint(fontSize, style);
         int width = blockWidth(text, p);
-        int height = layout(text, p, Math.max(1, width)).getHeight();
+        int height = layout(text, p, Math.max(1, width), style).getHeight();
         int pad = padding(style);
-        int[] size = {width + 2 * pad, height + 2 * pad};
+        int padX = blockPadX(fontSize, style);
+        int[] size = {width + 2 * padX, height + 2 * pad};
         if (size[0] > MAX_DIMENSION || size[1] > MAX_DIMENSION || size[0] <= 0 || size[1] <= 0) size = new int[0];
         synchronized (SIZES) { SIZES.put(key, size); }
         return size.length == 0 ? null : size;
@@ -162,7 +180,7 @@ public final class TextRasterizer {
     private static int[] unitSize(String text, float fontSize, TextStyle style) {
         TextPaint p = paint(fontSize, style);
         int advance = (int) Math.ceil(Math.max(1f, p.measureText(text)));
-        StaticLayout one = layout(text, p, advance);
+        StaticLayout one = layout(text, p, advance, style);
         int pad = padding(style);
         return new int[]{advance + 2 * unitPadX(fontSize, style), one.getHeight() + 2 * pad, pad + one.getLineBaseline(0)};
     }
@@ -186,11 +204,11 @@ public final class TextRasterizer {
             stroke.setStrokeJoin(Paint.Join.ROUND);
             stroke.setStrokeWidth(style.outlineWidth * 2f);
             stroke.setColor(style.outlineColorArgb);
-            layout(text, stroke, advance).draw(canvas);
+            layout(text, stroke, advance, style).draw(canvas);
         }
         TextPaint fill = paint(fontSize, style);
         fill.setColor(style.colorArgb);
-        layout(text, fill, advance).draw(canvas);
+        layout(text, fill, advance, style).draw(canvas);
         return bitmap;
     }
 
@@ -210,8 +228,8 @@ public final class TextRasterizer {
 
         TextPaint p = paint(clip.fontSize, style);
         int width = blockWidth(text, p);
-        StaticLayout block = layout(text, p, Math.max(1, width));
-        int pad = padding(style);
+        StaticLayout block = layout(text, p, Math.max(1, width), style);
+        int blockPadX = blockPadX(clip.fontSize, style);
         int padX = unitPadX(clip.fontSize, style);
         List<OpenGLEdit.TextUnit> out = new ArrayList<>();
 
@@ -247,7 +265,7 @@ public final class TextRasterizer {
             // which it never is (the block is sized to its widest line), so a range stays on one line.
             int line = block.getLineForOffset(r[0]);
             int[] size = unitSize(unit, clip.fontSize, style);
-            float x = pad + block.getPrimaryHorizontal(r[0]) - padX;
+            float x = blockPadX + block.getPrimaryHorizontal(r[0]) - padX;
             float y = block.getLineTop(line); // = (pad + lineTop) - pad: the unit bitmap starts one pad above the text
             if (size[0] > MAX_DIMENSION || size[1] > MAX_DIMENSION) continue;
             out.add(new OpenGLEdit.TextUnit(unit, x, y, size[0], size[1]));
@@ -266,11 +284,12 @@ public final class TextRasterizer {
         int[] size = measure(text, fontSize, style);
         if (size == null) return null;
         int pad = padding(style);
-        int blockW = size[0] - 2 * pad;
+        int padX = blockPadX(fontSize, style);
+        int blockW = size[0] - 2 * padX;
 
         Bitmap bitmap = Bitmap.createBitmap(size[0], size[1], Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
-        canvas.translate(pad, pad);
+        canvas.translate(padX, pad);
 
         if (style.outlineWidth > 0f) {
             TextPaint stroke = paint(fontSize, style);
@@ -278,11 +297,11 @@ public final class TextRasterizer {
             stroke.setStrokeJoin(Paint.Join.ROUND);
             stroke.setStrokeWidth(style.outlineWidth * 2f); // half of the stroke is hidden under the fill
             stroke.setColor(style.outlineColorArgb);
-            layout(text, stroke, blockW).draw(canvas);
+            layout(text, stroke, blockW, style).draw(canvas);
         }
         TextPaint fill = paint(fontSize, style);
         fill.setColor(style.colorArgb);
-        layout(text, fill, blockW).draw(canvas);
+        layout(text, fill, blockW, style).draw(canvas);
         return bitmap;
     }
 }

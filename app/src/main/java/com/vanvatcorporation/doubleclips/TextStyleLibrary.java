@@ -2,8 +2,6 @@ package com.vanvatcorporation.doubleclips;
 
 import android.content.Context;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
@@ -36,7 +34,7 @@ public final class TextStyleLibrary {
         File f = file(context);
         if (!f.isFile()) return new ArrayList<>();
         try (Reader reader = new FileReader(f)) {
-            List<TextStyle> list = new Gson().fromJson(reader, LIST_TYPE);
+            List<TextStyle> list = ProjectGson.forLoad().fromJson(reader, LIST_TYPE);
             return list == null ? new ArrayList<>() : list;
         } catch (IOException | RuntimeException e) {
             return new ArrayList<>(); // a damaged file just means no saved styles
@@ -47,7 +45,7 @@ public final class TextStyleLibrary {
         File f = file(context);
         File tmp = new File(f.getParentFile(), FILE_NAME + ".tmp");
         try (Writer writer = new FileWriter(tmp)) {
-            new GsonBuilder().setPrettyPrinting().create().toJson(styles, LIST_TYPE, writer);
+            ProjectGson.forSavePretty().toJson(styles, LIST_TYPE, writer);
         }
         if (f.exists() && !f.delete()) throw new IOException("Couldn't replace the saved styles.");
         if (!tmp.renameTo(f)) throw new IOException("Couldn't save the styles.");

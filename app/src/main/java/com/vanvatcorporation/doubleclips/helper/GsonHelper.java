@@ -19,12 +19,13 @@ public class GsonHelper {
                             throw new JsonParseException("Not a valid object");
                         }
                     }
-                    return new Gson().fromJson(obj, clazz);
+                    return com.vanvatcorporation.doubleclips.ProjectGson.forLoad().fromJson(obj, clazz);
                 })
                 .create();
     }
     public static Gson createExposeOnlyGson()
     {
-        return new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
+        // Same expose-only layout as before, plus keeping the keys this build doesn't know (see ProjectGson).
+        return com.vanvatcorporation.doubleclips.ProjectGson.forSave();
     }
 }

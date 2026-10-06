@@ -90,9 +90,12 @@ import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificA
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
+import com.vanvatcorporation.doubleclips.ProjectGson;
 import com.vanvatcorporation.doubleclips.TextFonts;
 import com.vanvatcorporation.doubleclips.TextRasterizer;
 import com.vanvatcorporation.doubleclips.TextStyle;
+import com.vanvatcorporation.doubleclips.TextStyleInterop;
+import com.vanvatcorporation.doubleclips.UnknownKeysHolder;
 import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
 import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -4256,7 +4259,12 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-    public static class Timeline implements Serializable {
+    public static class Timeline implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         @Expose
         public List<Track> tracks = new ArrayList<>();
         @Expose
@@ -4411,7 +4419,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         public static Timeline loadRawTimeline(Context context, MainAreaScreen.ProjectData data)
         {
             String json = IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_TIMELINE_FILENAME));
-            return new Gson().fromJson(json, Timeline.class);
+            return ProjectGson.forLoad().fromJson(json, Timeline.class);
         }
         public static Timeline loadTimeline(Context context, EditingActivity instance, MainAreaScreen.ProjectData data)
         {
@@ -4472,7 +4480,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
     }
 
-    public static class Track implements Serializable {
+    public static class Track implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         @Expose
         public int timelineIndex;
         @Expose
@@ -4591,7 +4604,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
     }
-        public static class AnimationClip implements Serializable {
+        public static class AnimationClip implements Serializable, UnknownKeysHolder {
+
+            /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+            private transient JsonObject unknownKeys;
+            @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+            @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
             @Expose
             public String type;
             @Expose
@@ -4603,6 +4621,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
 
             public AnimationClip(AnimationClip other) {
+                copyUnknownKeysFrom(other);
                 if (other != null) {
                     this.type = other.type;
                     this.duration = other.duration;
@@ -4613,7 +4632,27 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         }
 
-    public static class Clip implements Serializable {
+    public static class Clip implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
+
+        /**
+         * A TEXT clip last saved by the desktop port has its look in flat keys (textColor, textBold, ...) and no
+         * "textStyle": build the style from them. See TextStyleInterop.
+         */
+        @Override
+        public void onLoaded(JsonObject raw) {
+            if (type == ClipType.TEXT && textStyle == null) textStyle = TextStyleInterop.fromDesktopKeys(raw);
+        }
+
+        /** Writes the desktop port's flat text keys next to "textStyle", so a project saved here still looks right there. */
+        @Override
+        public void onSaving(JsonObject tree) {
+            if (type == ClipType.TEXT) TextStyleInterop.writeDesktopKeys(tree, textStyle != null ? textStyle : TextStyle.DEFAULT);
+        }
         public static final int ELEVATION_HANDLERS = 2;
         public static final int ELEVATION_TRANSITION_KNOT = 1;
 
@@ -4739,6 +4778,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         public Clip(Clip clip) {
+            copyUnknownKeysFrom(clip);
             this.clipName = clip.clipName;
             this.startTime = clip.startTime;
             this.startClipTrim = clip.startClipTrim;
@@ -5551,7 +5591,18 @@ public class EditingActivity extends AppCompatActivityImpl {
         EFFECT,
         SCENE_3D
     }
-    public static class EffectTemplate implements Serializable {
+    public static class EffectTemplate implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
+
+        /** Projects saved by older builds hold "radial " / "circleopen " (trailing space): see FXRegistry.normalizeId. */
+        @Override
+        public void onLoaded(JsonObject raw) {
+            style = FXCommandEmitter.FXRegistry.normalizeId(style);
+        }
         @Expose
         public String type; // "transition", "overlay", etc
         @Expose
@@ -5632,7 +5683,12 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-    public static class VideoSettings implements Serializable {
+    public static class VideoSettings implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         int videoWidth;
         int videoHeight;
         int frameRate;
@@ -5745,7 +5801,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
         public void saveSettings(Context context, MainAreaScreen.ProjectData data) {
-            IOHelper.writeToFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME), new Gson().toJson(this));
+            IOHelper.writeToFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME), ProjectGson.forLoad().toJson(this)); // plain layout like before, plus the keys this build doesn't know
         }
         public void loadSettingsFromProject(Context context, MainAreaScreen.ProjectData data)
         {
@@ -5763,7 +5819,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.renderEngine = loadSettings.renderEngine != null ? loadSettings.renderEngine : "ffmpeg";
         }
         public static VideoSettings loadSettings(Context context, MainAreaScreen.ProjectData data) {
-            return new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME)), VideoSettings.class);
+            return ProjectGson.forLoad().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(data.getProjectPath(), Constants.DEFAULT_VIDEO_SETTINGS_FILENAME)), VideoSettings.class);
         }
 
         /*
@@ -5810,7 +5866,12 @@ frameRate = 60;
         }
 
     }
-    public static class VideoProperties implements Serializable {
+    public static class VideoProperties implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         @Expose
         public float valuePosX;
         @Expose
@@ -5889,6 +5950,7 @@ frameRate = 60;
 
         public VideoProperties(VideoProperties properties)
         {
+            copyUnknownKeysFrom(properties);
             this.valuePosX = properties.valuePosX;
             this.valuePosY = properties.valuePosY;
             this.valueRot = properties.valueRot;
@@ -6017,7 +6079,12 @@ frameRate = 60;
             PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
         }
     }
-    public static class Keyframe implements Serializable {
+    public static class Keyframe implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         @Expose
         private float time; // seconds, in local clip time
         @Expose private long frame; // frames, in local clip frame
@@ -6069,13 +6136,19 @@ frameRate = 60;
             return isExist;
         }
     }
-    public static class AnimatedProperty implements Serializable {
+    public static class AnimatedProperty implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
 
         @Expose
         public List<Keyframe> keyframes = new ArrayList<>();
         public AnimatedProperty() {}
 
         public AnimatedProperty(AnimatedProperty keyframes) {
+            copyUnknownKeysFrom(keyframes);
             this.keyframes.addAll(keyframes.keyframes);
         }
 

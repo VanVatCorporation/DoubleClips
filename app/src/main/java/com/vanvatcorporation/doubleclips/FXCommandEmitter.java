@@ -3,7 +3,7 @@ package com.vanvatcorporation.doubleclips;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class FXCommandEmitter {
@@ -35,7 +35,7 @@ public class FXCommandEmitter {
             case "warp-zoom":
                 tags.storeTag(outputLabel, affectedTags.index);
                 return affectedTags.tag + "zoompan=z='zoom+0.001':d=" + (int)(clip.duration * 30) +
-                        ":x='iw/2':y='ih/2'" + outputLabel + ";";
+                        ":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'" + outputLabel + ";"; // keep the zoom window centred
 
             case "lens-flare-surge":
                 tags.storeTag(outputLabel, affectedTags.index);
@@ -153,50 +153,63 @@ public class FXCommandEmitter {
 //                "spin-burst", "Spinning Burst"
 //        );
 
-        public static Map<String, String> effectsFXMap = Collections.unmodifiableMap(new HashMap<String, String>() {{
+        public static Map<String, String> effectsFXMap = Collections.unmodifiableMap(new LinkedHashMap<String, String>() {{
             put("glitch-pulse", "Glitch Pulse");
             put("warp-zoom", "Warp Zoom");
             put("lens-flare-surge", "Lens Flare Surge");
             put("spin-burst", "Spinning Burst");
         }});
 
-        public static Map<String, String> transitionFXMap = Collections.unmodifiableMap(new HashMap<String, String>() {{
-            put("custom_expose", "Expose [Custom]");
-            put("custom_two-stage-slide", "Two Stage Slide [Custom]");
-            put("custom_radial-shockwave", "Radial Shockwave [Custom]");
-            put("custom_massive-effect", "Massive Effect [Custom]");
-            put("custom_fake-glass-shatter", "Fake Glass Shatter [Custom]");
-
-
+        /**
+         * Transition id -> label. A LinkedHashMap, so the picker always lists them in this order: "none", then the
+         * styles the OpenGL export can draw (OpenGLEdit.SUPPORTED_TRANSITION_STYLES), then the FFmpeg-only ones, then
+         * custom ones. The ids are stored in project files, so they must match FFmpeg's xfade names exactly.
+         */
+        public static Map<String, String> transitionFXMap = Collections.unmodifiableMap(new LinkedHashMap<String, String>() {{
             put("none", "None");
 
             put("fade", "Cross Fade");
             put("dissolve", "Dissolve");
-            put("radial ", "Radial");
-            put("circleopen ", "Circle Open");
+            put("wipeleft", "Wipe Left");
+            put("wiperight", "Wipe Right");
+            put("slideleft", "Slide Left");
+            put("slideright", "Slide Right");
+            put("slideup", "Slide Up");
+            put("slidedown", "Slide Down");
+
+            put("fadeblack", "Fade Black");
+            put("fadewhite", "Fade White");
+            put("fadegrays", "Fade Gray");
+            put("circleopen", "Circle Open");
             put("circleclose", "Circle Close");
+            put("circlecrop", "Circle Crop");
+            put("rectcrop", "Rect Crop");
+            put("radial", "Radial");
             put("pixelize", "Pixelize");
             put("hlslice", "Horizontal Left Slice");
             put("hrslice", "Horizontal Right Slice");
             put("vuslice", "Vertical Up Slice");
             put("vdslice", "Vertical Down Slice");
             put("hblur", "Horizontal Blur");
-            put("fadegrays", "Fade Gray");
-            put("fadeblack", "Fade Black");
-            put("fadewhite", "Fade White");
-            put("rectcrop", "Rect Crop");
-            put("circlecrop", "Circle Crop");
-            put("wipeleft", "Wipe Left");
-            put("wiperight", "Wipe Right");
-            put("slidedown", "Slide Down");
-            put("slideup", "Slide Up");
-            put("slideleft", "Slide Left");
-            put("slideright", "Slide Right");
             put("distance", "Distance");
             put("diagtl", "Diagonal Top-Left Wipe");
             put("diagbl", "Diagonal Bottom-Left Wipe");
             put("revealup", "Reveal Up");
+
+            put("custom_expose", "Expose [Custom]");
+            put("custom_two-stage-slide", "Two Stage Slide [Custom]");
+            put("custom_radial-shockwave", "Radial Shockwave [Custom]");
+            put("custom_massive-effect", "Massive Effect [Custom]");
+            put("custom_fake-glass-shatter", "Fake Glass Shatter [Custom]");
         }});
+
+        /**
+         * Older builds registered "radial" and "circleopen" with a trailing space ("radial ", "circleopen "), and
+         * project files saved by them still carry those ids. This maps any stored id to its current form.
+         */
+        public static String normalizeId(String id) {
+            return id == null ? null : id.trim();
+        }
 
     }
 
