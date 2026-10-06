@@ -6,6 +6,7 @@ import android.graphics.DashPathEffect;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -31,6 +32,10 @@ import java.util.Locale;
  * <ul>
  *   <li>touching a clip selects it; dragging inside the selected clip moves it</li>
  *   <li>the four corner handles scale it uniformly, keeping the opposite corner where it is</li>
+ *   <li>the four edge handles (shown when the edge is long enough to grab) stretch one axis, in the clip's own
+ *       rotated frame, keeping the opposite edge where it is</li>
+ *   <li>moving and scaling snap to the canvas edges / centre and to the edges / centre of the other visible
+ *       clips, within a few screen pixels, with pink guide lines (switch it off in the preview settings)</li>
  *   <li>the round handle above the top edge rotates it around its visual centre, snapping to 90&deg;</li>
  *   <li>a two-finger pinch scales it about its centre</li>
  * </ul>
@@ -75,6 +80,15 @@ public final class PreviewGizmoView extends View {
     private static final float ROTATE_OFFSET_DP = 36f;
     private static final float MIN_SCALE_FACTOR = 0.02f;
     private static final int HANDLE_ROTATE = 100;
+    /** Handle ids: 0-3 are the corners (TL, TR, BR, BL), 4-7 the edge midpoints (top, right, bottom, left). */
+    private static final int H_TOP = GizmoMath.H_TOP;
+    /** Edge handles only appear when the edge is at least this long on screen (they'd sit on the corners otherwise). */
+    private static final float EDGE_MIN_DP = 64f;
+    private static final float EDGE_HIT_DP = 20f;
+    private static final float EDGE_PILL_LENGTH_DP = 20f;
+    private static final float EDGE_PILL_THICKNESS_DP = 7f;
+    /** Snapping pulls within this many SCREEN dp, so it feels the same at any preview zoom. */
+    private static final float SNAP_DP = 8f;
 
     private enum Mode { NONE, MOVE, SCALE, ROTATE }
 
@@ -104,7 +118,7 @@ public final class PreviewGizmoView extends View {
     private int keyIndex = -1;         // keyframe being edited, or -1
     private Snapshot before;
     private float pressCanvasX, pressCanvasY, pressOverlayX, pressOverlayY;
-    private int draggedCorner = -1;
+    private int draggedHandle = -1;
     private double[] startQuad;
     private double startAngle;
     private double[] startCenter;
@@ -113,6 +127,14 @@ public final class PreviewGizmoView extends View {
     private boolean changed;
     private boolean ignoreUntilUp;
     private float pinchFactor = 1f;
+
+    // Snapping: the lines a gesture can snap to (canvas edges/centre + other visible clips), fixed at press,
+    // and the guides currently shown (NaN = none).
+    private boolean snapEnabled = true;
+    private final List<Double> snapXs = new ArrayList<>();
+    private final List<Double> snapYs = new ArrayList<>();
+    private double guideX = Double.NaN, guideY = Double.NaN;
+    private final Paint guidePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public PreviewGizmoView(Context context, Host host, View canvasView, int canvasW, int canvasH, boolean stretch, int frameRate) {
         super(context);
@@ -137,6 +159,9 @@ public final class PreviewGizmoView extends View {
         ring.setStyle(Paint.Style.STROKE);
         ring.setColor(0x99000000);
         ring.setStrokeWidth(1.2f * density);
+        guidePaint.setStyle(Paint.Style.STROKE);
+        guidePaint.setColor(0xFFFF2D95);
+        guidePaint.setStrokeWidth(1.5f * density);
 
         setWillNotDraw(false);
         setClickable(false);
@@ -148,6 +173,7 @@ public final class PreviewGizmoView extends View {
                 if (host.isPlaying() || !isGizmoClip(sel) || !isActive(sel, host.currentTime())) return false;
                 if (mode != Mode.NONE) finishGesture(); // a half-done move becomes its own undo step
                 beginGesture(sel, Mode.SCALE, 0f, 0f, 0f, 0f, -1);
+                clearGuides(); // a pinch doesn't snap
                 pinching = true;
                 pinchFactor = 1f;
                 ignoreUntilUp = true;
@@ -170,6 +196,12 @@ public final class PreviewGizmoView extends View {
                 }
             }
         });
+    }
+
+    /** Snap moves and scales to the canvas and to other clips (preview setting "Snap to guides"). */
+    public void setSnapEnabled(boolean enabled) {
+        this.snapEnabled = enabled;
+        if (!enabled) clearGuides();
     }
 
     /** Call whenever time, selection or layout changes. Cheap: the box is recomputed in onDraw. */
@@ -199,10 +231,14 @@ public final class PreviewGizmoView extends View {
         canvas.drawPath(path, dark);
         canvas.drawPath(path, light);
 
+        if (mode != Mode.NONE) drawGuides(canvas);
+
         float[] h = rotateHandle(s);
         float mx = (s[0] + s[2]) / 2f, my = (s[1] + s[3]) / 2f;
         canvas.drawLine(mx, my, h[0], h[1], dark);
         canvas.drawLine(mx, my, h[0], h[1], solid(light));
+
+        drawEdgePills(canvas, s);
 
         float r = HANDLE_RADIUS_DP * density;
         for (int i = 0; i < 4; i++) {
@@ -211,6 +247,41 @@ public final class PreviewGizmoView extends View {
         }
         canvas.drawCircle(h[0], h[1], r * 1.15f, fill);
         canvas.drawCircle(h[0], h[1], r * 1.15f, ring);
+    }
+
+    /** A short pill on the middle of each edge that is long enough, lying along the edge. */
+    private void drawEdgePills(Canvas canvas, float[] s) {
+        float half = EDGE_PILL_LENGTH_DP * density / 2f, thick = EDGE_PILL_THICKNESS_DP * density / 2f;
+        for (int i = 0; i < 4; i++) {
+            if (!edgeVisible(s, i)) continue;
+            int j = (i + 1) % 4;
+            float mx = (s[i * 2] + s[j * 2]) / 2f, my = (s[i * 2 + 1] + s[j * 2 + 1]) / 2f;
+            float deg = (float) Math.toDegrees(Math.atan2(s[j * 2 + 1] - s[i * 2 + 1], s[j * 2] - s[i * 2]));
+            canvas.save();
+            canvas.translate(mx, my);
+            canvas.rotate(deg);
+            canvas.drawRoundRect(-half, -thick, half, thick, thick, thick, fill);
+            canvas.drawRoundRect(-half, -thick, half, thick, thick, thick, ring);
+            canvas.restore();
+        }
+    }
+
+    /** Edge {@code i} (corner i to corner i+1) is long enough on screen to carry a handle. */
+    private boolean edgeVisible(float[] s, int i) {
+        int j = (i + 1) % 4;
+        return Math.hypot(s[j * 2] - s[i * 2], s[j * 2 + 1] - s[i * 2 + 1]) >= EDGE_MIN_DP * density;
+    }
+
+    /** Snap guides: a line across the whole canvas through the coordinate the gesture is snapped to. */
+    private void drawGuides(Canvas canvas) {
+        if (!Double.isNaN(guideX)) {
+            float[] a = toOverlay(guideX, 0), b = toOverlay(guideX, canvasH);
+            canvas.drawLine(a[0], a[1], b[0], b[1], guidePaint);
+        }
+        if (!Double.isNaN(guideY)) {
+            float[] a = toOverlay(0, guideY), b = toOverlay(canvasW, guideY);
+            canvas.drawLine(a[0], a[1], b[0], b[1], guidePaint);
+        }
     }
 
     private final Paint solidLine = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -321,6 +392,7 @@ public final class PreviewGizmoView extends View {
                 VideoProperties v = new VideoProperties(basis);
                 v.valuePosX = basis.valuePosX + (c[0] - pressCanvasX);
                 v.valuePosY = basis.valuePosY + (c[1] - pressCanvasY);
+                if (snapEnabled) snapMove(v); else clearGuides();
                 show(v);
                 break;
             }
@@ -346,7 +418,7 @@ public final class PreviewGizmoView extends View {
         this.pressCanvasY = canvasY;
         this.pressOverlayX = overlayX;
         this.pressOverlayY = overlayY;
-        this.draggedCorner = corner;
+        this.draggedHandle = corner;
         this.changed = false;
         this.pastSlop = false;
         this.before = Snapshot.of(clip);
@@ -367,6 +439,8 @@ public final class PreviewGizmoView extends View {
         }
         live = new VideoProperties(basis);
 
+        clearGuides();
+        if (snapEnabled) collectSnapLines(clip);
         startQuad = quadFor(clip, resolved);
         if (startQuad != null) {
             startCenter = new double[]{(startQuad[0] + startQuad[4]) / 2, (startQuad[1] + startQuad[5]) / 2};
@@ -425,7 +499,8 @@ public final class PreviewGizmoView extends View {
         mode = Mode.NONE;
         target = null;
         live = null;
-        draggedCorner = -1;
+        draggedHandle = -1;
+        clearGuides();
         host.showInfo("");
 
         if (!wasChanged) {
@@ -452,6 +527,7 @@ public final class PreviewGizmoView extends View {
         live = null;
         pinching = false;
         start.restore(clip, host);
+        clearGuides();
         host.showInfo("");
         host.clipChanged(clip);
         invalidate();
@@ -461,21 +537,28 @@ public final class PreviewGizmoView extends View {
     //  Transform maths
     // ======================================================================
 
-    /** Uniform scale from a corner handle; the opposite corner stays put. */
+    /**
+     * Scale from a handle. A corner scales both axes uniformly; an edge handle stretches just that edge's axis
+     * (in the clip's own rotated frame). The opposite handle stays where it is. Every case is one formula: the
+     * grabbed handle moves along anchor + f * (grabbed - anchor).
+     */
     private void scaleTo(float cx, float cy) {
-        if (startQuad == null || draggedCorner < 0) return;
-        int opposite = (draggedCorner + 2) % 4;
-        double ox = startQuad[opposite * 2], oy = startQuad[opposite * 2 + 1];
-        double dx0 = startQuad[draggedCorner * 2] - ox, dy0 = startQuad[draggedCorner * 2 + 1] - oy;
-        double len2 = dx0 * dx0 + dy0 * dy0;
-        if (len2 < 1e-3) return;
-        double f = ((cx - ox) * dx0 + (cy - oy) * dy0) / len2; // projection onto the start diagonal
+        if (startQuad == null || draggedHandle < 0) return;
+        int opposite = GizmoMath.oppositeHandle(draggedHandle);
+        double[] grabbed = GizmoMath.handlePoint(startQuad, draggedHandle);
+        double[] anchor = GizmoMath.handlePoint(startQuad, opposite);
+        // How far along anchor -> grabbed handle the finger is: 1 = unchanged, 2 = twice as big.
+        double f = GizmoMath.projectFactor(anchor, grabbed, cx, cy);
+        if (Double.isNaN(f)) return;
         f = Math.max(MIN_SCALE_FACTOR, f);
+        if (snapEnabled) f = Math.max(MIN_SCALE_FACTOR, snapAlong(anchor, grabbed, f));
+        else clearGuides();
 
+        boolean[] axes = GizmoMath.scaleAxes(draggedHandle); // a corner scales both axes, an edge just its own
         VideoProperties v = new VideoProperties(basis);
-        v.valueScaleX = basis.valueScaleX * (float) f;
-        v.valueScaleY = basis.valueScaleY * (float) f;
-        anchorPoint(v, opposite, ox, oy);
+        if (axes[0]) v.valueScaleX = basis.valueScaleX * (float) f;
+        if (axes[1]) v.valueScaleY = basis.valueScaleY * (float) f;
+        anchorPoint(v, opposite, anchor[0], anchor[1]);
         show(v);
     }
 
@@ -493,12 +576,85 @@ public final class PreviewGizmoView extends View {
         show(v);
     }
 
-    /** Shifts PosX/PosY so that corner {@code corner} of the new quad lands on (ax, ay). */
-    private void anchorPoint(VideoProperties v, int corner, double ax, double ay) {
+    /** Shifts PosX/PosY so that handle {@code handle} (corner or edge midpoint) of the new quad lands on (ax, ay). */
+    private void anchorPoint(VideoProperties v, int handle, double ax, double ay) {
         double[] q = quadFor(target, v);
         if (q == null) return;
-        v.valuePosX += (float) (ax - q[corner * 2]);
-        v.valuePosY += (float) (ay - q[corner * 2 + 1]);
+        double[] at = handlePoint(q, handle);
+        v.valuePosX += (float) (ax - at[0]);
+        v.valuePosY += (float) (ay - at[1]);
+    }
+
+    // ---- handles ----
+
+    private static double[] handlePoint(double[] q, int h) { return GizmoMath.handlePoint(q, h); }
+
+    // ---- snapping ----
+
+    private void clearGuides() {
+        guideX = Double.NaN;
+        guideY = Double.NaN;
+    }
+
+    /** Shows these guides; a guide that newly appears (or jumps to another line) gives a light tick. */
+    private void setGuides(double gx, double gy) {
+        boolean fresh = (!Double.isNaN(gx) && gx != guideX) || (!Double.isNaN(gy) && gy != guideY);
+        guideX = gx;
+        guideY = gy;
+        if (fresh) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+    }
+
+    /** On-screen pixels per canvas pixel (the preview is scaled to fit its pane). */
+    private double screenScale() {
+        float[] v = {1f, 0f};
+        canvasView.getMatrix().mapVectors(v);
+        double d = Math.hypot(v[0], v[1]);
+        return d > 1e-6 ? d : 1;
+    }
+
+    /** The lines a gesture can snap to: the canvas edges and centre, plus every other visible clip's edges and centre. */
+    private void collectSnapLines(Clip exclude) {
+        snapXs.clear();
+        snapYs.clear();
+        snapXs.add(0.0);
+        snapXs.add(canvasW / 2.0);
+        snapXs.add((double) canvasW);
+        snapYs.add(0.0);
+        snapYs.add(canvasH / 2.0);
+        snapYs.add((double) canvasH);
+
+        EditingActivity.Timeline tl = host.timeline();
+        float t = host.currentTime();
+        if (tl == null) return;
+        for (Track track : tl.tracks) {
+            if (track == null) continue;
+            for (Clip clip : track.clips) {
+                if (clip == null || clip == exclude || !isGizmoClip(clip) || !isActive(clip, t)) continue;
+                double[] q = quadFor(clip, resolve(clip, t));
+                if (q != null) GizmoMath.addBoxLines(q, snapXs, snapYs);
+            }
+        }
+    }
+
+    /**
+     * Moving: nudges PosX/PosY so the clip's left/centre/right (and top/centre/bottom) land on a snap line
+     * when within a few screen pixels.
+     */
+    private void snapMove(VideoProperties v) {
+        double[] q = quadFor(target, v);
+        if (q == null) return;
+        GizmoMath.MoveSnap m = GizmoMath.snapMove(q, snapXs, snapYs, SNAP_DP * density / screenScale());
+        v.valuePosX += (float) m.dx;
+        v.valuePosY += (float) m.dy;
+        setGuides(m.lineX, m.lineY);
+    }
+
+    /** Scaling: the factor (near {@code f}) that puts the grabbed handle exactly on a snap line, with that guide shown. */
+    private double snapAlong(double[] anchor, double[] grabbed, double f) {
+        GizmoMath.AlongSnap r = GizmoMath.snapAlong(snapXs, snapYs, anchor[0], anchor[1],
+                grabbed[0] - anchor[0], grabbed[1] - anchor[1], f, SNAP_DP * density / screenScale(), MIN_SCALE_FACTOR);
+        setGuides(r.lineX, r.lineY);
+        return r.factor;
     }
 
     /** Rotation about the clip's visual centre (the pivot is left alone), with 90-degree snapping. */
@@ -583,22 +739,8 @@ public final class PreviewGizmoView extends View {
             originX = (canvasW - baseW) / 2.0;
             originY = (canvasH - baseH) / 2.0;
         }
-        double scaledW = baseW * p.valueScaleX;
-        double scaledH = baseH * p.valueScaleY;
-        double px = p.valuePivotX, py = p.valuePivotY;
-        double pivotX = p.valuePosX + originX + px * baseW;
-        double pivotY = p.valuePosY + originY + py * baseH;
-        double theta = Math.toRadians(p.valueRot);
-        double c = Math.cos(theta), s = Math.sin(theta);
-        double[] out = new double[8];
-        double[][] uv = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-        for (int i = 0; i < 4; i++) {
-            double x = (uv[i][0] - px) * scaledW;
-            double y = (uv[i][1] - py) * scaledH;
-            out[i * 2] = pivotX + x * c - y * s;
-            out[i * 2 + 1] = pivotY + x * s + y * c;
-        }
-        return out;
+        return GizmoMath.quad(baseW, baseH, originX, originY, p.valuePosX, p.valuePosY,
+                p.valuePivotX, p.valuePivotY, p.valueScaleX, p.valueScaleY, p.valueRot);
     }
 
     /** Convex-quad hit test (works for mirrored and negative scales too). */
@@ -639,7 +781,7 @@ public final class PreviewGizmoView extends View {
         return hits;
     }
 
-    /** Which handle of {@code clip} is under an overlay point: 0-3 a corner, HANDLE_ROTATE, or -1. Nearest wins. */
+    /** Which handle of {@code clip} is under an overlay point: 0-3 a corner, 4-7 an edge, HANDLE_ROTATE, or -1. Nearest wins. */
     private int handleAt(Clip clip, float ox, float oy) {
         double[] quad = quadFor(clip, resolve(clip, host.currentTime()));
         if (quad == null) return -1;
@@ -653,6 +795,13 @@ public final class PreviewGizmoView extends View {
         for (int i = 0; i < 4; i++) {
             d = Math.hypot(ox - s[i * 2], oy - s[i * 2 + 1]);
             if (d <= bestDist) { bestDist = d; best = i; }
+        }
+        float edgeHit = EDGE_HIT_DP * density;
+        for (int i = 0; i < 4; i++) {
+            if (!edgeVisible(s, i)) continue;
+            int j = (i + 1) % 4;
+            d = Math.hypot(ox - (s[i * 2] + s[j * 2]) / 2f, oy - (s[i * 2 + 1] + s[j * 2 + 1]) / 2f);
+            if (d <= edgeHit && d < bestDist) { bestDist = d; best = H_TOP + i; }
         }
         return best;
     }
@@ -672,6 +821,14 @@ public final class PreviewGizmoView extends View {
             out[i * 2 + 1] = pt[1] + canvasView.getTop() - getTop();
         }
         return out;
+    }
+
+    /** Canvas pixels -> overlay pixels. */
+    private float[] toOverlay(double x, double y) {
+        pt[0] = (float) x;
+        pt[1] = (float) y;
+        canvasView.getMatrix().mapPoints(pt);
+        return new float[]{pt[0] + canvasView.getLeft() - getLeft(), pt[1] + canvasView.getTop() - getTop()};
     }
 
     /** Overlay point -> canvas pixels, or null if the pane's matrix can't be inverted. */

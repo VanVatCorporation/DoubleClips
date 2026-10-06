@@ -23,7 +23,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
     public SwitchMaterial reversePlaybackCheckbox; // Playback
     public SwitchMaterial keepPlaybackWhenClipSelectedCheckbox; // Playback
     public EditText audioBarWidthField, audioBarGapField;
-    public SwitchMaterial gpuPreviewCheckbox, useProxyPreviewCheckbox; // Preview section
+    public SwitchMaterial gpuPreviewCheckbox, useProxyPreviewCheckbox, snapGuidesCheckbox; // Preview section
 
     public VideoPropertiesEditSpecificAreaScreen(Context context) {
         super(context);
@@ -77,6 +77,7 @@ public class VideoPropertiesEditSpecificAreaScreen extends BaseEditSpecificAreaS
         audioBarGapField = findViewById(R.id.audioBarGapField);
         gpuPreviewCheckbox = findViewById(R.id.gpuPreviewCheckbox);
         useProxyPreviewCheckbox = findViewById(R.id.useProxyPreviewCheckbox);
+        snapGuidesCheckbox = findViewById(R.id.snapGuidesCheckbox);
 
         // Wire toggle: gray out SW-only or HW-only controls based on state
         hardwareAccelCheckbox.setOnCheckedChangeListener((buttonView, isChecked) ->

@@ -2255,6 +2255,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             settings.legacyPreview = legacyNow;
             boolean proxyPreviewChanged = settings.useProxyPreview != videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
             settings.useProxyPreview = videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
+            settings.noSnapGuides = !videoPropertiesEditSpecificAreaScreen.snapGuidesCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
 
@@ -2280,6 +2281,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             // Update ruler with new fps
             updateRuler(timeline.duration, currentRulerInterval);
 
+            if (timelineRenderer != null) timelineRenderer.setSnapGuides(settings.isSnapGuides());
+
             // Preview engine changed: rebuild. Proxy/original only: the live engine switches by itself.
             if (gpuPreviewChanged) {
                 if (isPlaying) stopPlayback(true);
@@ -2302,6 +2305,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             videoPropertiesEditSpecificAreaScreen.updateHardwareAccelState(settings.isUseHardwareAccel());
             videoPropertiesEditSpecificAreaScreen.gpuPreviewCheckbox.setChecked(!settings.isLegacyPreview());
             videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.setChecked(settings.isUseProxyPreview());
+            videoPropertiesEditSpecificAreaScreen.snapGuidesCheckbox.setChecked(settings.isSnapGuides());
 
             float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
             videoPropertiesEditSpecificAreaScreen.previewFpsField.setText(String.format(java.util.Locale.US, "%.1f", activeFps));
@@ -5709,6 +5713,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         boolean legacyPreview;
         // GPU preview only: decode the lightweight proxies instead of the original clips.
         boolean useProxyPreview;
+        // On-canvas gizmo: true switches the snapping to canvas edges / other clips off. Stored inverted so
+        // that settings files from before this existed (field absent -> false) keep snapping on.
+        boolean noSnapGuides;
+        public boolean isSnapGuides() { return !noSnapGuides; }
         public boolean isLegacyPreview() { return legacyPreview; }
         public boolean isUseProxyPreview() { return useProxyPreview; }
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune, boolean isStretchToFull)
@@ -7630,9 +7638,15 @@ frameRate = 60;
             };
             gizmo = new PreviewGizmoView(context, host, pane, settings.videoWidth, settings.videoHeight,
                     settings.isStretchToFull(), settings.frameRate);
+            gizmo.setSnapEnabled(settings.isSnapGuides());
             // Directly above the canvas pane, below any alert panels that follow it.
             outer.addView(gizmo, outer.indexOfChild(pane) + 1,
                     new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+
+        /** On-canvas gizmo snapping on/off, live. */
+        public void setSnapGuides(boolean on) {
+            if (gizmo != null) gizmo.setSnapEnabled(on);
         }
 
         /** Proxy vs original clips for the GPU preview; no effect on the legacy preview. */
