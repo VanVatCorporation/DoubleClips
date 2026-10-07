@@ -27,6 +27,7 @@ import com.vanvatcorporation.doubleclips.AdsHandler;
 import com.vanvatcorporation.doubleclips.BuildConfig;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
+import com.vanvatcorporation.doubleclips.ProjectZip;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
@@ -44,6 +45,7 @@ import com.vanvatcorporation.doubleclips.popups.CompressionPopup;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -196,100 +198,79 @@ public class MainActivity extends AppCompatActivityImpl {
         homeAreaScreen.filePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        Uri uri = result.getData().getData();
+                    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+                    Uri uri = result.getData().getData();
+                    if (uri == null) return;
 
-
-                        CompressionPopup dialog = new CompressionPopup(this, getString(R.string.alert_processing_decompression), "Extracting project...");
-                        ExecutorService executor = Executors.newSingleThreadExecutor();
-                        executor.execute(() -> {
-                            ProgressCompressionHelper.unzipFolder(this, getContentResolver(), uri, Constants.DEFAULT_PROJECT_DIRECTORY(this),
-                                    new ProgressCompressionHelper.UnzipProgressListener() {
-
-                                        @Override
-                                        public void onProgress(long bytesExtracted, long totalBytes, String name) {
-                                            int percent = (int) ((bytesExtracted * 100) / totalBytes);
-
-                                            dialog.previewProgressBar.post(() -> {
-                                                dialog.previewProgressBar.setMax(100);
-                                                dialog.previewProgressBar.setProgress(percent);
-                                                dialog.processingPercent.setText(percent + "%");
-                                                dialog.descriptionText.setText("Extracting project... " + name);
-                                            });
-                                        }
-
-                                        @Override
-                                        public void onCompleted() {
-                                            dialog.dialog.dismiss();
-
-                                            MainActivity.this.runOnUiThread(() -> {
-
-                                                // TODO: Find a way to get the directory of the exact extracted path.
-//                                            File directory = new File(IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(MainActivity.this), EditingActivity.getFileName(getContentResolver(), uri)));
-//                                            if(directory.isDirectory())
-//                                            {
-//                                                MainAreaScreen.ProjectData data = MainAreaScreen.ProjectData.loadProperties(MainActivity.this, directory.getAbsolutePath());
-//
-//                                                if(data != null)
-//                                                {
-//                                                    homeAreaScreen.projectList.add(data);
-//                                                    homeAreaScreen.projectAdapter.notifyItemInserted(homeAreaScreen.projectList.size() - 1);
-//                                                }
-//                                            }
-                                                homeAreaScreen.reloadingProject();
-                                            });
-                                        }
-
-                                        @Override
-                                        public void onError(Exception e) {
-
-                                        }
-                                    });
-                        });
-
-                    }
+                    final int[] imported = {0};
+                    runArchiveJob(getString(R.string.alert_processing_decompression), "Extracting project...",
+                            (listener, cancel) -> imported[0] = ProgressCompressionHelper.importProject(
+                                    this, uri, new File(Constants.DEFAULT_PROJECT_DIRECTORY(this)), listener, cancel).size(),
+                            () -> {
+                                homeAreaScreen.reloadingProject();
+                                LoggingManager.LogToToast(this, imported[0] == 1 ? "Project imported" : imported[0] + " projects imported");
+                            });
                 }
         );
 
         homeAreaScreen.fileCreatorLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                        Uri uri = result.getData().getData();
+                    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+                    Uri uri = result.getData().getData();
+                    MainAreaScreen.ProjectData project = homeAreaScreen.currentExportingProject;
+                    if (uri == null || project == null) return;
+                    homeAreaScreen.currentExportingProject = null;
 
-                        CompressionPopup dialog = new CompressionPopup(this, getString(R.string.alert_processing_compression), "Compressing project...");
-                        ExecutorService executor = Executors.newSingleThreadExecutor();
-                        executor.execute(() -> {
-                            if (homeAreaScreen.currentExportingProject == null) return;
-                            ProgressCompressionHelper.zipFolder(this, homeAreaScreen.currentExportingProject.getProjectPath(), getContentResolver(), uri, new ProgressCompressionHelper.ZipProgressListener() {
-                                @Override
-                                public void onProgress(long bytesWritten, long totalBytes, String name) {
-                                    int percent = (int) ((bytesWritten * 100) / totalBytes);
-
-                                    dialog.previewProgressBar.post(() -> {
-                                        dialog.previewProgressBar.setMax(100);
-                                        dialog.previewProgressBar.setProgress(percent);
-                                        dialog.processingPercent.setText(percent + "%");
-                                        dialog.descriptionText.setText("Compressing project... " + name);
-                                    });
-                                }
-
-                                @Override
-                                public void onCompleted() {
-                                    dialog.dialog.dismiss();
-                                }
-
-                                @Override
-                                public void onError(Exception e) {
-
-                                }
-                            });
-                            homeAreaScreen.currentExportingProject = null;
-                        });
-
-                    }
+                    runArchiveJob(getString(R.string.alert_processing_compression), "Compressing project...",
+                            (listener, cancel) -> ProgressCompressionHelper.exportProject(
+                                    this, new File(project.getProjectPath()), uri, listener, cancel),
+                            () -> LoggingManager.LogToToast(this, "Project exported"));
                 }
         );
+    }
+
+    /** What an export or import does; runs on a worker thread. */
+    private interface ArchiveJob {
+        void run(ProjectZip.Listener progress, ProjectZip.Cancellation cancel) throws Exception;
+    }
+
+    /**
+     * Runs an export / import behind the progress dialog: progress and Cancel are wired up, the dialog is always
+     * closed (also after a failure, which used to leave it stuck on screen), and the outcome is reported.
+     */
+    private void runArchiveJob(String title, String description, ArchiveJob job, Runnable onSuccess) {
+        CompressionPopup popup = new CompressionPopup(this, title, description);
+        ProjectZip.Cancellation cancel = new ProjectZip.Cancellation();
+        popup.setOnCancel(cancel::cancel);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            try {
+                job.run(popup::update, cancel);
+                runOnUiThread(() -> {
+                    popup.dismissSafely();
+                    onSuccess.run();
+                });
+            } catch (ProjectZip.CancelledException e) {
+                runOnUiThread(() -> {
+                    popup.dismissSafely();
+                    LoggingManager.LogToToast(this, "Cancelled");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    popup.dismissSafely();
+                    new android.app.AlertDialog.Builder(this)
+                            .setTitle(title.replace("…", ""))
+                            .setMessage("It didn't finish: " + ProgressCompressionHelper.describe(e))
+                            .setPositiveButton(R.string.ok, null)
+                            .show();
+                    LoggingManager.LogExceptionToNoteOverlay(this, e);
+                });
+            } finally {
+                executor.shutdown();
+            }
+        });
     }
 
 

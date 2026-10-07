@@ -15,7 +15,7 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="175dp"
+        android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center"
         android:layout_marginTop="16dp">
@@ -24,6 +24,8 @@
             android:id="@+id/processingDescription"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:ellipsize="middle"
             android:hint="@string/processing"/>
 
         <ProgressBar
@@ -42,6 +44,16 @@
             android:hint="32%"/>
 
     </RelativeLayout>
+
+    <Button
+        android:id="@+id/cancelButton"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="8dp"
+        android:text="@string/cancel"
+        android:visibility="gone" />
 
 
 </LinearLayout>
