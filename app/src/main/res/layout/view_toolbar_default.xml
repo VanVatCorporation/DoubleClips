@@ -24,6 +24,13 @@
             app:navText="Add" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/reorderTracksButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/baseline_sort_24"
+            app:navText="Order" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/deleteMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"

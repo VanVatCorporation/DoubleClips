@@ -97,12 +97,15 @@ import com.vanvatcorporation.doubleclips.TextStyle;
 import com.vanvatcorporation.doubleclips.TextStyleInterop;
 import com.vanvatcorporation.doubleclips.UnknownKeysHolder;
 import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
+import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
+import com.vanvatcorporation.doubleclips.impl.TrackReorderController;
 import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
 import com.vanvatcorporation.doubleclips.commands.AddClipCommand;
 import com.vanvatcorporation.doubleclips.commands.AddClipsCommand;
 import com.vanvatcorporation.doubleclips.commands.DeleteClipsCommand;
+import com.vanvatcorporation.doubleclips.commands.MoveTrackCommand;
 import com.vanvatcorporation.doubleclips.commands.MoveClipsCommand;
 import com.vanvatcorporation.doubleclips.commands.DeleteClipCommand;
 import com.vanvatcorporation.doubleclips.commands.SplitClipCommand;
@@ -1465,6 +1468,14 @@ public class EditingActivity extends AppCompatActivityImpl {
             Track track = addNewTrack();
             track.viewRef.trackInfo = track;
         });
+        trackReorder = new TrackReorderController(trackInfoLayout, timelineTracksContainer, TRACK_HEIGHT,
+                getResources().getDisplayMetrics().density, new TrackReorderController.Host() {
+            @Override public int trackCount() { return timeline.tracks.size(); }
+            @Override public void onDragStart() { if (isPlaying) stopPlayback(false); }
+            @Override public void move(int from, int to) { executeCommand(new MoveTrackCommand(EditingActivity.this, from, to)); }
+        });
+        reorderTracksButton = toolbarDefault.findViewById(R.id.reorderTracksButton);
+        reorderTracksButton.setOnClickListener(v -> toggleTrackReorder());
         toolbarDefault.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
             List<Clip> affectedClips = timeline.getClipsAtCurrentTime(currentTime);
             if(selectedClip != null && affectedClips.contains(selectedClip)) {
@@ -2624,6 +2635,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         track.viewRef.trackInfo = track;
         for (Clip clip : track.clips) {
             clip.trackIndex = track.timelineIndex;
+            // Projects saved after the old (unsynced) track swap can hold a stale transition track number.
+            if (clip.endTransition != null) clip.endTransition.trackIndex = track.timelineIndex;
             clip.filterNullAfterLoad();
             addClipToTrackUi(track.viewRef, clip);
         }
@@ -2677,12 +2690,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             popup.setOnMenuItemClickListener(item -> {
                 if(item.getItemId() == R.id.action_move_up)
                 {
-                    timeline.moveTrackUp(this, timeline.tracks.get(finalTrackIndex));
+                    moveTrackByOne(finalTrackIndex, -1);
                     return true;
                 }
                 if(item.getItemId() == R.id.action_move_down)
                 {
-                    timeline.moveTrackDown(this, timeline.tracks.get(finalTrackIndex));
+                    moveTrackByOne(finalTrackIndex, +1);
                     return true;
                 }
                 return false;
@@ -2703,8 +2716,63 @@ public class EditingActivity extends AppCompatActivityImpl {
         trackInfoLayout.addView(addNewTrackButton);
 
         handleTrackInteraction(track);
+        if (trackReorder != null) trackReorder.refresh(); // reorder mode: the new label gets a grip too
 
         return track;
+    }
+
+    // ------------------------------------  track reorder  ------------------------------------
+
+    private TrackReorderController trackReorder;
+    private NavigationIconLayout reorderTracksButton;
+
+    /** The menu's "Move up / down": one row (towards the first row = underneath, towards the last = on top). */
+    private void moveTrackByOne(int position, int delta) {
+        int to = position + delta;
+        if (position < 0 || position >= timeline.tracks.size()) return;
+        if (to < 0) { LoggingManager.LogToToast(this, "This is already the first track"); return; }
+        if (to >= timeline.tracks.size()) { LoggingManager.LogToToast(this, "This is already the last track"); return; }
+        executeCommand(new MoveTrackCommand(this, position, to));
+    }
+
+    /**
+     * Puts the track at position {@code from} at position {@code to}: the model, every number that points at a track
+     * (tracks, clips, transitions), the rows, and the preview. Track order is layer order, so what covers what changes.
+     * Called by {@link MoveTrackCommand} for both do and undo.
+     */
+    public void moveTrackUi(int from, int to) {
+        int n = timeline.tracks.size();
+        if (from == to || from < 0 || to < 0 || from >= n || to >= n) return;
+        Track moved = timeline.tracks.remove(from);
+        timeline.tracks.add(to, moved);
+        timeline.reloadTrackIndex();
+
+        // The rows are the first n children of the container (the blank spacer is last), in track order.
+        if (moved.viewRef != null && moved.viewRef.getParent() == timelineTracksContainer) {
+            timelineTracksContainer.removeView(moved.viewRef);
+            timelineTracksContainer.addView(moved.viewRef, to);
+        }
+        timeline.recalculateDuration();
+        afterGroupEdit();
+        if (timelineRenderer != null) {
+            if (timelineRenderer.hasGpuPreview()) timelineRenderer.renderNow(currentTime); // reads the live order
+            else regeneratingTimelineRenderer();                                           // legacy views stack in build order
+            timelineRenderer.refreshGizmo();
+        }
+    }
+
+    private void toggleTrackReorder() {
+        if (trackReorder == null) return;
+        boolean on = !trackReorder.isEnabled();
+        if (on && timeline.tracks.size() < 2) {
+            LoggingManager.LogToToast(this, "Add a second track to reorder them");
+            return;
+        }
+        trackReorder.setEnabled(on);
+        if (reorderTracksButton != null) {
+            reorderTracksButton.runAnimation(on ? NavigationIconLayout.AnimationType.SELECTED : NavigationIconLayout.AnimationType.UNSELECTED);
+        }
+        if (on) LoggingManager.LogToToast(this, "Drag ≡ to reorder. Lower tracks cover the ones above.");
     }
 
     /**
@@ -3053,6 +3121,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         Track last = timeline.tracks.get(timeline.tracks.size() - 1);
         if (selectedTrack == last) selectedTrack = null;
         last.delete(timeline, timelineTracksContainer, trackInfoLayout, this);
+        if (trackReorder != null) {
+            if (timeline.tracks.size() < 2) { trackReorder.setEnabled(false); if (reorderTracksButton != null) reorderTracksButton.runAnimation(NavigationIconLayout.AnimationType.UNSELECTED); }
+            else trackReorder.refresh();
+        }
     }
 
     private static void detachView(View v) {
@@ -4289,6 +4361,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                 tracks.get(i).timelineIndex = i;
                 for (Clip clip : tracks.get(i).clips) {
                     clip.trackIndex = i;
+                    // The transition at the end of a clip carries its own copy of the track number, and the
+                    // knot code finds its track by it: keep it in step, or a reorder points knots at the wrong track.
+                    if (clip.endTransition != null) clip.endTransition.trackIndex = i;
                 }
             }
         }
@@ -4301,52 +4376,6 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             for (Track track : tracks) {
                 track.reassignClips(framePerSecond);
-            }
-        }
-        public void moveTrackUp(Context context, Track track) {
-            if(track != null)
-            {
-                if(track.timelineIndex > 0)
-                {
-                    Track upperTrack = tracks.get(track.timelineIndex - 1);
-                    tracks.set(track.timelineIndex - 1, track);
-                    tracks.set(track.timelineIndex, upperTrack);
-
-                    ViewParent vf = track.viewRef.getParent();
-                    if(vf instanceof ViewGroup)
-                    {
-                        ((ViewGroup) vf).removeView(track.viewRef);
-                        ((ViewGroup) vf).addView(track.viewRef, track.timelineIndex - 1);
-                    }
-
-                    reloadTrackIndex();
-                }
-                else {
-                    LoggingManager.LogToToast(context, "Track already on top");
-                }
-            }
-        }
-        public void moveTrackDown(Context context, Track track) {
-            if(track != null)
-            {
-                if(track.timelineIndex < tracks.size() - 1)
-                {
-                    Track lowerTrack = tracks.get(track.timelineIndex + 1);
-                    tracks.set(track.timelineIndex + 1, track);
-                    tracks.set(track.timelineIndex, lowerTrack);
-
-                    ViewParent vf = track.viewRef.getParent();
-                    if(vf instanceof ViewGroup)
-                    {
-                        ((ViewGroup) vf).removeView(track.viewRef);
-                        ((ViewGroup) vf).addView(track.viewRef, track.timelineIndex + 1);
-                    }
-
-                    reloadTrackIndex();
-                }
-                else {
-                    LoggingManager.LogToToast(context, "Track already on bottom");
-                }
             }
         }
 
@@ -7499,6 +7528,11 @@ frameRate = 60;
         /** Redraws the gizmo box (selection / time / layout changed). */
         public void refreshGizmo() {
             if (gizmo != null) gizmo.refresh();
+        }
+
+        /** True when the GPU preview engine is running (false: the legacy per-clip views are in use). */
+        public boolean hasGpuPreview() {
+            return engine != null;
         }
 
         /** Re-renders the GPU preview at {@code time} without touching the legacy per-clip views. */

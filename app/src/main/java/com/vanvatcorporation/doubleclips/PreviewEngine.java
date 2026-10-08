@@ -866,6 +866,7 @@ public final class PreviewEngine {
          * Returns false only if no frame has ever been decoded.
          */
         boolean advanceToTime(long targetUs, BooleanSupplier abort) {
+            feedInput(MAX_FEED_PER_CALL); // keep the decoder's pipeline full before we wait on it
             int candidateIndex = -1;
             long candidatePts = NONE;
 
@@ -897,7 +898,27 @@ public final class PreviewEngine {
                     acceptFirst = false;
                 }
             }
+            feedInput(MAX_FEED_PER_CALL); // the decoder works on the next frames while we draw this one
             return hasLatched;
+        }
+
+        /** Input buffers fed per call: a hardware decoder wants several frames in flight, not one. */
+        private static final int MAX_FEED_PER_CALL = 8;
+
+        private void feedInput(int max) {
+            for (int i = 0; i < max && !sawInputEos; i++) {
+                int in = decoder.dequeueInputBuffer(0);
+                if (in < 0) return; // every input buffer is in flight: the pipeline is full
+                ByteBuffer buf = decoder.getInputBuffer(in);
+                int size = extractor.readSampleData(buf, 0);
+                if (size < 0) {
+                    decoder.queueInputBuffer(in, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    sawInputEos = true;
+                    return;
+                }
+                decoder.queueInputBuffer(in, 0, size, extractor.getSampleTime(), 0);
+                extractor.advance();
+            }
         }
 
         float[] texMatrix() { return matrix; }
@@ -906,20 +927,7 @@ public final class PreviewEngine {
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
             int idleSpins = 0;
             while (pendingIndex < 0 && !sawOutputEos) {
-                if (!sawInputEos) {
-                    int in = decoder.dequeueInputBuffer(0);
-                    if (in >= 0) {
-                        ByteBuffer buf = decoder.getInputBuffer(in);
-                        int size = extractor.readSampleData(buf, 0);
-                        if (size < 0) {
-                            decoder.queueInputBuffer(in, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                            sawInputEos = true;
-                        } else {
-                            decoder.queueInputBuffer(in, 0, size, extractor.getSampleTime(), 0);
-                            extractor.advance();
-                        }
-                    }
-                }
+                feedInput(MAX_FEED_PER_CALL);
                 int out = decoder.dequeueOutputBuffer(info, STEP_TIMEOUT_US);
                 if (out >= 0) {
                     idleSpins = 0;

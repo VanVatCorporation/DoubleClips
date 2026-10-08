@@ -6,4 +6,5 @@
     <item name="transition_knot_tag" type="id" />
     <item name="keyframe_knot_tag" type="id" />
     <item name="clip_knot_tag" type="id" />
+    <item name="trackReorderOriginalText" type="id"/>
 </resources>

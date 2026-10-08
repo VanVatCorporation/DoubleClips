@@ -215,6 +215,18 @@ public class OpenGLEditNative {
      * current output frame (see step 4, multi-track scheduling, for how many
      * of these are alive at once).
      */
+    /**
+     * Tells a codec this is an offline job, not real-time playback or recording: best-effort priority and the
+     * highest operating rate, so it can run as fast as the hardware allows. Codecs that don't know the keys ignore
+     * them; one that rejects them makes the caller retry without (see the callers).
+     */
+    static void applyThroughputHints(MediaFormat format) {
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            format.setInteger(MediaFormat.KEY_PRIORITY, 1);                    // 0 = real time, 1 = best effort
+            format.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE); // "as fast as possible"
+        }
+    }
+
     public class ClipFrameSource {
 
         private final String clipPath;
@@ -266,8 +278,18 @@ public class OpenGLEditNative {
             }, callbackHandler);
             decoderSurface = new Surface(surfaceTexture);
 
-            decoder = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME));
-            decoder.configure(format, decoderSurface, null, 0);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            decoder = MediaCodec.createDecoderByType(mime);
+            try {
+                // Exporting is not playback: let the codec run as fast as it can instead of pacing itself.
+                MediaFormat hinted = new MediaFormat(format);
+                applyThroughputHints(hinted);
+                decoder.configure(hinted, decoderSurface, null, 0);
+            } catch (RuntimeException hintsRejected) {
+                decoder.release(); // a codec that refuses the hints: plain configuration, as before
+                decoder = MediaCodec.createDecoderByType(mime);
+                decoder.configure(format, decoderSurface, null, 0);
+            }
             decoder.start();
         }
 
@@ -320,6 +342,9 @@ public class OpenGLEditNative {
                 }
             }
 
+            // Keep the decoder's input queue full before and while we wait on it (see feedInput).
+            feedInput(MAX_FEED_PER_CALL);
+
             int candidateIndex = -1; // best frame so far (pts <= target), unreleased
 
             while (true) {
@@ -348,7 +373,34 @@ public class OpenGLEditNative {
                 surfaceTexture.updateTexImage();
                 hasLatchedFrame = true;
             }
+            // Refill right now, before the caller draws and encodes this frame: the decoder then works on the
+            // next frames in parallel with us instead of sitting idle until we ask for them.
+            feedInput(MAX_FEED_PER_CALL);
             return hasLatchedFrame;
+        }
+
+        /** Input buffers fed per call. A hardware decoder wants several frames in flight (it reorders and pipelines). */
+        private static final int MAX_FEED_PER_CALL = 8;
+
+        /**
+         * Queues compressed samples into every free decoder input buffer, up to {@code max}. The old code fed ONE per
+         * loop and then waited for output, so the decoder's pipeline never filled: each frame paid the decoder's whole
+         * latency, and nothing was fed while the GPU drew or the encoder ran.
+         */
+        private void feedInput(int max) {
+            for (int i = 0; i < max && !sawInputEos; i++) {
+                int inputIndex = decoder.dequeueInputBuffer(0);
+                if (inputIndex < 0) return; // all buffers are in flight already: the pipeline is full
+                java.nio.ByteBuffer inputBuffer = decoder.getInputBuffer(inputIndex);
+                int sampleSize = extractor.readSampleData(inputBuffer, 0);
+                if (sampleSize < 0) {
+                    decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    sawInputEos = true;
+                    return;
+                }
+                decoder.queueInputBuffer(inputIndex, 0, sampleSize, extractor.getSampleTime(), 0);
+                extractor.advance();
+            }
         }
 
         /** Feeds input and dequeues output until one decoded frame is pending, or the stream ends. */
@@ -356,20 +408,7 @@ public class OpenGLEditNative {
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
             int idleSpins = 0;
             while (pendingIndex < 0 && !sawOutputEos) {
-                if (!sawInputEos) {
-                    int inputIndex = decoder.dequeueInputBuffer(0);
-                    if (inputIndex >= 0) {
-                        java.nio.ByteBuffer inputBuffer = decoder.getInputBuffer(inputIndex);
-                        int sampleSize = extractor.readSampleData(inputBuffer, 0);
-                        if (sampleSize < 0) {
-                            decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                            sawInputEos = true;
-                        } else {
-                            decoder.queueInputBuffer(inputIndex, 0, sampleSize, extractor.getSampleTime(), 0);
-                            extractor.advance();
-                        }
-                    }
-                }
+                feedInput(MAX_FEED_PER_CALL);
 
                 int outputIndex = decoder.dequeueOutputBuffer(info, timeoutUsPerStep);
                 if (outputIndex >= 0) {
@@ -551,7 +590,15 @@ public class OpenGLEditNative {
             format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameIntervalSeconds);
 
             encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            try {
+                MediaFormat hinted = new MediaFormat(format);
+                applyThroughputHints(hinted);
+                encoder.configure(hinted, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            } catch (RuntimeException hintsRejected) {
+                encoder.release(); // plain configuration, as before
+                encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+                encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            }
 
             Surface inputSurface = encoder.createInputSurface();
             encoder.start();
@@ -599,7 +646,10 @@ public class OpenGLEditNative {
             }
 
             while (true) {
-                int outputIndex = encoder.dequeueOutputBuffer(bufferInfo, 10_000);
+                // Mid-export: take only what is ready and carry on. Waiting here made every frame idle for up to
+                // 10 ms (the frame just submitted is never ready yet), which alone caps the export near 100 fps.
+                // The input surface blocks eglSwapBuffers if the encoder falls behind, so nothing can pile up.
+                int outputIndex = encoder.dequeueOutputBuffer(bufferInfo, endOfStream ? 10_000 : 0);
 
                 if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                     if (!endOfStream) break; // nothing ready yet, come back on the next frame
@@ -1613,6 +1663,7 @@ public class OpenGLEditNative {
                 watchdogTotalFrames.set(totalFrames);
 
                 report(listener, "OpenGL: compositing " + totalFrames + " frames at " + width + "x" + height + " @" + frameRate + "fps");
+                profiler = new FrameProfiler(60, System::nanoTime, line -> report(listener, "OpenGL: " + line));
 
                 int frameIndex = 0;
                 for (; frameIndex < totalFrames; frameIndex++) {
@@ -1622,6 +1673,7 @@ public class OpenGLEditNative {
                     }
                     watchdogFrameIndex.set(frameIndex);
                     watchdogFrameStartMs.set(System.currentTimeMillis());
+                    profiler.frameStart();
 
                     long outputTimeUs = Math.round(frameIndex * 1_000_000.0 / frameRate);
                     float outputTimeSeconds = (float) (outputTimeUs / 1_000_000.0);
@@ -1722,7 +1774,10 @@ public class OpenGLEditNative {
                                 transition.progress, TransitionBlendShader.styleToId(transition.style));
                     }
 
+                    profiler.begin(FrameProfiler.ENCODE);
                     encoder.swapAndPresent(outputTimeUs * 1000L);
+                    profiler.end(FrameProfiler.ENCODE);
+                    profiler.frameEnd();
 
                     if (listener != null) {
                         if (frameIndex % 5 == 0) listener.onProgress(frameIndex, totalFrames);
@@ -1733,6 +1788,7 @@ public class OpenGLEditNative {
                 }
 
                 if (listener != null) listener.onProgress(frameIndex, totalFrames);
+                report(listener, "OpenGL: " + profiler.summary());
                 report(listener, "OpenGL: timeline export finished, " + frameIndex + " frames -> " + outputPath);
             } catch (IOException e) {
                 LoggingManager.LogExceptionToNoteOverlay(context, e);
@@ -1765,6 +1821,9 @@ public class OpenGLEditNative {
      */
     /** Rasterised text textures for TEXT clips; created on first use on the GL thread, freed when the export ends. */
     private TextTextureCache textCache;
+
+    /** Where the export's time goes; printed to the export log every 60 frames and once at the end. */
+    private FrameProfiler profiler;
 
     private boolean renderDrawCommand(OpenGLEdit.DrawCommand cmd, TransformShader shader, ImageTransformShader imageShader,
                                        java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources,
@@ -1818,7 +1877,10 @@ public class OpenGLEditNative {
         }
 
         long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
-        if (!source.advanceToTime(localSourceTimeUs, timeoutUsPerStep)) {
+        if (profiler != null) profiler.begin(FrameProfiler.DECODE);
+        boolean gotFrame = source.advanceToTime(localSourceTimeUs, timeoutUsPerStep);
+        if (profiler != null) profiler.end(FrameProfiler.DECODE);
+        if (!gotFrame) {
             // Only when the decoder never produced a single frame.
             // Reported once per clip, not once per frame.
             if (reportedNoFrame.add(cmd.clip)) {
