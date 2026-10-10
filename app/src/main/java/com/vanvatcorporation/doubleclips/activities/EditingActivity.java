@@ -2268,8 +2268,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             boolean legacyNow = !videoPropertiesEditSpecificAreaScreen.gpuPreviewCheckbox.isChecked();
             boolean gpuPreviewChanged = settings.legacyPreview != legacyNow;
             settings.legacyPreview = legacyNow;
-            boolean proxyPreviewChanged = settings.useProxyPreview != videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
-            settings.useProxyPreview = videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
+            boolean proxyPreviewChanged = settings.isUseProxyPreview() != videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
+            settings.noProxyPreview = !videoPropertiesEditSpecificAreaScreen.useProxyPreviewCheckbox.isChecked();
             settings.noSnapGuides = !videoPropertiesEditSpecificAreaScreen.snapGuidesCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
@@ -2294,7 +2294,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (isPlaying) stopPlayback(true);
                 else regeneratingTimelineRenderer();
             } else if (proxyPreviewChanged) {
-                timelineRenderer.setUseProxyPreview(settings.useProxyPreview);
+                timelineRenderer.setUseProxyPreview(settings.isUseProxyPreview());
             }
         });
         videoPropertiesEditSpecificAreaScreen.onOpen.add(() -> {
@@ -5762,14 +5762,16 @@ public class EditingActivity extends AppCompatActivityImpl {
         // Preview engine. false (default, and for old project.settings files that lack the field) =
         // GPU preview (PreviewEngine); true = the legacy per-clip-view preview.
         boolean legacyPreview;
-        // GPU preview only: decode the lightweight proxies instead of the original clips.
-        boolean useProxyPreview;
+        // GPU preview only: true switches from the lightweight proxies to the original clips. Stored inverted
+        // so that proxies are ON by default, including for project.settings files written before this field
+        // existed (field absent -> false -> proxy on). The old "useProxyPreview" key is no longer read.
+        boolean noProxyPreview;
         // On-canvas gizmo: true switches the snapping to canvas edges / other clips off. Stored inverted so
         // that settings files from before this existed (field absent -> false) keep snapping on.
         boolean noSnapGuides;
         public boolean isSnapGuides() { return !noSnapGuides; }
         public boolean isLegacyPreview() { return legacyPreview; }
-        public boolean isUseProxyPreview() { return useProxyPreview; }
+        public boolean isUseProxyPreview() { return !noProxyPreview; }
         public VideoSettings(int videoWidth, int videoHeight, int frameRate, int crf, int clipCap, String preset, String tune, boolean isStretchToFull)
         {
             this.videoWidth = videoWidth;
