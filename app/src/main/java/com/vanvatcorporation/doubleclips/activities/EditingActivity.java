@@ -2445,21 +2445,48 @@ public class EditingActivity extends AppCompatActivityImpl {
     /** Scales the canvas view (laid out at the project resolution) to fit the available area, keeping the project's aspect ratio. */
     private void fitPreviewCanvas() {
         if (outerPreviewViewGroup == null || previewViewGroup == null) return;
-        previewAvailableWidth = outerPreviewViewGroup.getWidth();
-        previewAvailableHeight = outerPreviewViewGroup.getHeight();
-        if (previewAvailableWidth <= 0 || previewAvailableHeight <= 0 || settings.videoWidth <= 0 || settings.videoHeight <= 0) return;
 
-        float ratioX = (float) previewAvailableWidth / settings.videoWidth;
-        float ratioY = (float) previewAvailableHeight / settings.videoHeight;
-        float rScale = Math.min(ratioX, ratioY);
-        previewViewGroup.setScaleX(rScale);
-        previewViewGroup.setScaleY(rScale);
+        int previewAvailableWidth = outerPreviewViewGroup.getWidth();
+        int previewAvailableHeight = outerPreviewViewGroup.getHeight();
+
+        if (previewAvailableWidth <= 0 || previewAvailableHeight <= 0 || settings.videoWidth <= 0 || settings.videoHeight <= 0) {
+            return;
+        }
+
+        // Calculate aspect ratios
+        float videoAspect = (float) settings.videoWidth / settings.videoHeight;
+        float containerAspect = (float) previewAvailableWidth / previewAvailableHeight;
+
+        int targetWidth;
+        int targetHeight;
+
+        // Determine whether to fit by width or by height to maximize space
+        if (videoAspect > containerAspect) {
+            // Video is wider relative to container -> fit to width
+            targetWidth = previewAvailableWidth;
+            targetHeight = Math.round(previewAvailableWidth / videoAspect);
+        } else {
+            // Video is taller relative to container -> fit to height
+            targetHeight = previewAvailableHeight;
+            targetWidth = Math.round(previewAvailableHeight * videoAspect);
+        }
+
+        // Apply the correct dimensions to the ViewGroup's LayoutParams
+        ViewGroup.LayoutParams params = previewViewGroup.getLayoutParams();
+        if (params != null) {
+            params.width = targetWidth;
+            params.height = targetHeight;
+            previewViewGroup.setLayoutParams(params);
+        }
+
+        // Optional: Reset scale just in case it was scaled previously
+        previewViewGroup.setScaleX(1f);
+        previewViewGroup.setScaleY(1f);
+
         android.util.Log.i("PreviewCanvas", "project " + settings.videoWidth + "x" + settings.videoHeight
                 + ", available " + previewAvailableWidth + "x" + previewAvailableHeight
-                + ", scale " + rScale + ", canvas view " + previewViewGroup.getWidth() + "x" + previewViewGroup.getHeight()
-                + " -> on screen " + Math.round(previewViewGroup.getWidth() * rScale) + "x" + Math.round(previewViewGroup.getHeight() * rScale));
+                + ", target layout size -> " + targetWidth + "x" + targetHeight);
     }
-
     private void startPlayback() {
 
 

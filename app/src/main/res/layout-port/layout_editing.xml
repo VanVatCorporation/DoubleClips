@@ -19,11 +19,16 @@
             android:layout_below="@id/top_bar"
             android:layout_above="@id/controller_bar"
             android:gravity="center">
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@color/gray"/>
 
             <FrameLayout
                 android:id="@+id/previewViewGroup"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:layout_centerInParent="true"
                 android:clipChildren="false"
                 android:clipToPadding="false">
             </FrameLayout>
@@ -32,10 +37,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone">
-                <ImageView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:src="@color/gray"/>
                 <TextView
                     android:id="@+id/pausedCanvasAlertPanelTitle"
                     android:layout_width="wrap_content"
