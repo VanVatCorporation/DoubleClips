@@ -19,10 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   "description": "...",            // optional, 256 characters at most
  *   "author": "...",                 // optional
  *   "defaultDuration": 1.1,          // optional, seconds, (0, 30]; default 0.5
- *   "cut": 0.76,                     // where A is replaced by B, 0.05 .. 0.95 of the window (default 0.5)
+ *   "mode": "cut",                   // optional: cut (default) | layers (both drawn, B over A) | mask (B revealed through "mask")
+ *   "cut": 0.76,                     // where A is replaced by B, 0.05 .. 0.95 of the window (default 0.5); cut mode only
+ *   "mask": { "shape": "wipe", "reveal": { ... }, "angle": 180 },  // mode mask only, shapes in EffectFilterSpecs
  *   "referenceFrames": 100,          // only needed by "frames" knots
- *   "from": { "channels": { ... } }, // the look of A, curves over the WHOLE window (p = 0..1)
- *   "to":   { "channels": { ... } }  // the look of B, same p
+ *   "from": { "channels": { ... } }, // the look of A, curves over the WHOLE window (p = 0..1); optional in mask mode
+ *   "to":   { "channels": { ... } }  // the look of B, same p; optional in mask mode
  * }
  * </pre>
  *
@@ -93,7 +95,7 @@ public final class TransitionStyleLoader {
     // ---- parse + validate --------------------------------------------------------------
 
     private static final String[] TOP_KEYS = {
-            "schema", "id", "name", "description", "author", "defaultDuration", "cut", "referenceFrames", "from", "to"
+            "schema", "id", "name", "description", "author", "defaultDuration", "cut", "mode", "referenceFrames", "from", "to", "mask"
     };
 
     private static TransitionStyle parseInternal(String json) throws ClipAnimationLoader.FormatException {
@@ -130,6 +132,12 @@ public final class TransitionStyleLoader {
                 throw new ClipAnimationLoader.FormatException("$.cut: must be between 0.05 and 0.95");
             }
         }
+        TransitionStyle.Mode mode = TransitionStyle.Mode.CUT;
+        if (top.containsKey("mode")) {
+            String word = ClipAnimationLoader.reqString(top, "mode", "$", 16);
+            mode = TransitionStyle.Mode.fromJson(word);
+            if (mode == null) throw new ClipAnimationLoader.FormatException("$.mode: must be \"cut\", \"layers\" or \"mask\"");
+        }
         int referenceFrames = 0;
         if (top.containsKey("referenceFrames")) {
             double rf = ClipAnimationLoader.reqNumber(top, "referenceFrames", "$");
@@ -139,16 +147,34 @@ public final class TransitionStyleLoader {
             referenceFrames = (int) rf;
         }
 
-        ClipAnimation from = side(top, "from", ClipAnimation.Direction.OUT, id, name, (float) duration, referenceFrames);
-        ClipAnimation to = side(top, "to", ClipAnimation.Direction.IN, id, name, (float) duration, referenceFrames);
-        return new TransitionStyle(id, name, description, author, (float) duration, cut, from, to);
+        EffectFilterOps.Filter mask = null;
+        if (top.containsKey("mask")) {
+            if (mode != TransitionStyle.Mode.MASK) {
+                throw new ClipAnimationLoader.FormatException("$.mask: only allowed with \"mode\": \"mask\"");
+            }
+            mask = EffectFilterOps.parseMask(top.get("mask"), "$.mask");
+        } else if (mode == TransitionStyle.Mode.MASK) {
+            throw new ClipAnimationLoader.FormatException("$.mask: required when \"mode\" is \"mask\"");
+        }
+
+        boolean sidesOptional = mode == TransitionStyle.Mode.MASK;
+        ClipAnimation from = side(top, "from", ClipAnimation.Direction.OUT, id, name, (float) duration, referenceFrames, sidesOptional);
+        ClipAnimation to = side(top, "to", ClipAnimation.Direction.IN, id, name, (float) duration, referenceFrames, sidesOptional);
+        return new TransitionStyle(id, name, description, author, (float) duration, cut, from, to, mode, mask);
     }
 
     private static ClipAnimation side(Map<String, Object> top, String key, ClipAnimation.Direction direction,
-                                      String id, String name, float duration, int referenceFrames)
+                                      String id, String name, float duration, int referenceFrames, boolean optional)
             throws ClipAnimationLoader.FormatException {
         String path = "$." + key;
-        if (!top.containsKey(key)) throw new ClipAnimationLoader.FormatException(path + ": required object");
+        if (!top.containsKey(key)) {
+            // Mask styles may leave a side out: that clip is drawn as it is (no channels = neutral).
+            if (optional) {
+                return new ClipAnimation(id + "." + key, name, direction, duration,
+                        new EnumMap<ClipAnimation.Channel, ClipAnimation.Curve>(ClipAnimation.Channel.class), false, referenceFrames);
+            }
+            throw new ClipAnimationLoader.FormatException(path + ": required object");
+        }
         Map<String, Object> object = ClipAnimationLoader.asObject(top.get(key), path);
         ClipAnimationLoader.allowKeys(object, path, "channels");
         Map<String, Object> channelObjects = ClipAnimationLoader.asObject(object.get("channels"), path + ".channels");

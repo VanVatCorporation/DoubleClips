@@ -1,0 +1,13 @@
+{
+ "schema": 1,
+ "id": "glow",
+ "name": "Dream Glow",
+ "description": "A soft bloom around the bright parts. Strength scales the radius and the intensity.",
+ "filters": [
+  {
+   "op": "bloom",
+   "radius": 0.025,
+   "intensity": 1.0
+  }
+ ]
+}

@@ -1,0 +1,32 @@
+{
+ "schema": 1,
+ "id": "kaleidoscope",
+ "name": "Kaleidoscope",
+ "description": "Six mirrored segments that keep turning (for the first minute of the effect, then they hold). Strength is the turning speed.",
+ "intensity": {
+  "label": "Speed",
+  "min": 0.2,
+  "max": 4
+ },
+ "span": 60,
+ "filters": [
+  {
+   "op": "kaleidoscope",
+   "count": 6,
+   "angle": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      30
+     ]
+    ]
+   }
+  }
+ ]
+}

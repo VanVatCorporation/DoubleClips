@@ -1,0 +1,28 @@
+{
+ "schema": 1,
+ "id": "vintage",
+ "name": "Vintage",
+ "description": "Sepia, slightly flat colour and a vignette. Strength blends it in over the original.",
+ "intensity": {
+  "label": "Strength",
+  "min": 0.2,
+  "max": 1
+ },
+ "filters": [
+  {
+   "op": "sepia",
+   "intensity": 0.85
+  },
+  {
+   "op": "colorControls",
+   "saturation": 0.9,
+   "contrast": 1.06
+  },
+  {
+   "op": "vignette",
+   "intensity": 0.9,
+   "radius": 1.5
+  }
+ ],
+ "filterStrength": "mix"
+}

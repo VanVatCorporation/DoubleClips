@@ -1,0 +1,22 @@
+{
+ "schema": 1,
+ "id": "lens-flare-surge",
+ "name": "Lens Flare Surge",
+ "description": "Cross-process colour grade (Android's curves=cross_process plus contrast 1.5 and saturation 1.2). Strength scales and blends it.",
+ "intensity": {
+  "label": "Strength",
+  "min": 0.2,
+  "max": 2
+ },
+ "filters": [
+  {
+   "op": "crossProcess"
+  },
+  {
+   "op": "colorControls",
+   "contrast": 1.5,
+   "saturation": 1.2
+  }
+ ],
+ "filterStrength": "both"
+}

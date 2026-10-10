@@ -1,0 +1,22 @@
+{
+ "schema": 1,
+ "id": "fade-in",
+ "name": "Fade In",
+ "description": "Fades up from black over the whole effect.",
+ "channels": {
+  "exposure": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  }
+ }
+}

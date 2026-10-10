@@ -1,0 +1,18 @@
+{
+ "schema": 1,
+ "id": "vignette",
+ "name": "Vignette",
+ "description": "Darkened corners. Strength scales how dark.",
+ "intensity": {
+  "label": "Strength",
+  "min": 0.2,
+  "max": 2
+ },
+ "filters": [
+  {
+   "op": "vignette",
+   "intensity": 1.2,
+   "radius": 1.4
+  }
+ ]
+}

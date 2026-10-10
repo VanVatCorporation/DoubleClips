@@ -1,0 +1,14 @@
+{
+ "schema": 1,
+ "id": "halftone",
+ "name": "Halftone",
+ "description": "A dot screen like a printed comic. Strength scales the dot size.",
+ "filters": [
+  {
+   "op": "dotScreen",
+   "width": 0.006,
+   "angle": 0.5,
+   "sharpness": 0.7
+  }
+ ]
+}

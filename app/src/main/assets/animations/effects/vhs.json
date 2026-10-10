@@ -1,0 +1,12 @@
+{
+ "schema": 1,
+ "id": "vhs",
+ "name": "VHS Tape",
+ "description": "Worn tape: flat colour, soft picture, colour fringing, tracking tears, scanlines and grain. Strength scales it (up to 2).",
+ "filters": [
+  {
+   "op": "vhs",
+   "amount": 1
+  }
+ ]
+}

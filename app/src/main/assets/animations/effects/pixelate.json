@@ -1,0 +1,12 @@
+{
+ "schema": 1,
+ "id": "pixelate",
+ "name": "Pixelate",
+ "description": "Chunky pixels, sized from the canvas height. Strength scales the pixel size.",
+ "filters": [
+  {
+   "op": "pixellate",
+   "scale": 0.012
+  }
+ ]
+}

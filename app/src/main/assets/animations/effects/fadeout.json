@@ -1,0 +1,22 @@
+{
+ "schema": 1,
+ "id": "fade-out",
+ "name": "Fade Out",
+ "description": "Fades down to black over the whole effect.",
+ "channels": {
+  "exposure": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ]
+   ]
+  }
+ }
+}

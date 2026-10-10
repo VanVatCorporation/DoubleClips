@@ -70,7 +70,9 @@ public final class ClipAnimation {
         /** Like EDGE_SLIDE, vertical (fraction of canvas height, + = down). */
         EDGE_SLIDE_Y("edgeSlideY", 0, -2, 2),
         /** Red colour cast, 0 = none .. 1 = strong (same json name and range as iOS; used by effect styles). */
-        RED_TINT("redTint", 0, 0, 1);
+        RED_TINT("redTint", 0, 0, 1),
+        /** Wash-out toward white, 0 = none .. 1 = all white (colours lerp toward white, alpha untouched): Fade White. */
+        WHITE_MIX("whiteMix", 0, 0, 1);
 
         public final String json;
         public final double neutral;

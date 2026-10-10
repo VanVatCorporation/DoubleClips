@@ -1,0 +1,12 @@
+{
+ "schema": 1,
+ "id": "blur",
+ "name": "Soft Blur",
+ "description": "A soft Gaussian blur over the whole picture. The radius follows the canvas height. Strength scales it.",
+ "filters": [
+  {
+   "op": "blur",
+   "radius": 0.014
+  }
+ ]
+}

@@ -1,0 +1,18 @@
+{
+ "schema": 1,
+ "id": "noir",
+ "name": "Noir",
+ "description": "High-contrast black and white. Strength blends it in over the original.",
+ "intensity": {
+  "label": "Strength",
+  "min": 0.2,
+  "max": 1
+ },
+ "filters": [
+  {
+   "op": "photoEffect",
+   "name": "noir"
+  }
+ ],
+ "filterStrength": "mix"
+}

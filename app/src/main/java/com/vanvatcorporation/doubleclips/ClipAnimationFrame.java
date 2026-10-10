@@ -82,6 +82,8 @@ public final class ClipAnimationFrame {
     public boolean edgeFill() { return get(ClipAnimation.Channel.EDGE_FILL) > 0.5f; }
     /** Red colour cast, 0 = none .. 1 = strong. */
     public float redTint() { return get(ClipAnimation.Channel.RED_TINT); }
+    /** Wash-out toward white, 0 = none .. 1 = all white. */
+    public float whiteMix() { return get(ClipAnimation.Channel.WHITE_MIX); }
 
     /**
      * This frame combined with {@code other} (a transition style's side) the way the two combine with a clip's own
@@ -98,7 +100,7 @@ public final class ClipAnimationFrame {
             double x = get(c), y = other.get(c), r;
             switch (c) {
                 case OFFSET_X: case OFFSET_Y: case ROTATION: case HUE: case BRIGHTNESS: case TEMPERATURE:
-                case EDGE_SLIDE: case EDGE_SLIDE_Y: case MOTION_BLUR: case BLUR: case RED_TINT:
+                case EDGE_SLIDE: case EDGE_SLIDE_Y: case MOTION_BLUR: case BLUR: case RED_TINT: case WHITE_MIX:
                     r = x + y;
                     break;
                 case BLUR_ANGLE:

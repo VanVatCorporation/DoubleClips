@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,11 +24,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *   "period": 1.0,                    // optional, seconds, (0, 60]: the curves loop, p = (t mod period) / period
  *   "span": 30,                       // optional, seconds, (0, 3600]: p = t / span, held at 1; not with "period"
  *   "referenceFrames": 60,            // only needed by "frames" knots
- *   "channels": { ... }               // the clip-animation channels and curve kinds
+ *   "channels": { ... },              // the clip-animation channels and curve kinds
+ *   "filters": [ { "op": "vignette", "intensity": 1.2 } ],   // optional, applied after the channels
+ *   "filterStrength": "scale"         // optional: scale (default) | mix | both | none
  * }
  * </pre>
  *
- * Without "period" and "span" the curves run once across the effect clip. The strength slider pushes every channel away
+ * "filters" lists whitelisted ops run after the channels (see {@link EffectFilterOps}) and "filterStrength" says what the
+ * strength slider does to them; a style needs channels and/or filters. Without "period" and "span" the curves (and the
+ * filters' parameter curves) run once across the effect clip. The strength slider pushes every channel away
  * from its neutral value ({@link ClipAnimationFrame#scaledDeviation}). Validation is the clip-animation one: strict
  * JSON, bounded size, unknown keys / channels rejected, values inside the channel's range; a bad file throws
  * {@link ClipAnimationLoader.FormatException} and registers nothing. Nothing in a file can execute anything.
@@ -51,7 +56,7 @@ public final class EffectStyleLoader {
 
     /** The data-driven style stored under this key (see {@link #normalize}), or null. */
     public static EffectStyle get(String style) {
-        String id = normalize(style);
+        String id = canonical(style);
         return id.isEmpty() ? null : REGISTRY.get(id);
     }
 
@@ -72,6 +77,15 @@ public final class EffectStyleLoader {
     /** The key form of a style string: trimmed, lower case. Same rule as iOS. */
     public static String normalize(String style) {
         return style == null ? "" : style.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * {@link #normalize}, plus the one legacy alias iOS keeps: older projects store "shake" (the noise shake iOS used to
+     * hard-code), which plays as Camera Shake now. Use this for every lookup of a stored style key.
+     */
+    public static String canonical(String style) {
+        String key = normalize(style);
+        return "shake".equals(key) ? "camera-shake" : key;
     }
 
     // ---- registering -------------------------------------------------------------------
@@ -98,7 +112,8 @@ public final class EffectStyleLoader {
     // ---- parse + validate --------------------------------------------------------------
 
     private static final String[] TOP_KEYS = {
-            "schema", "id", "name", "description", "author", "intensity", "period", "span", "referenceFrames", "channels"
+            "schema", "id", "name", "description", "author", "intensity", "period", "span", "referenceFrames", "channels",
+            "filters", "filterStrength"
     };
 
     private static EffectStyle parseInternal(String json) throws ClipAnimationLoader.FormatException {
@@ -167,9 +182,22 @@ public final class EffectStyleLoader {
             referenceFrames = (int) rf;
         }
 
-        Map<String, Object> channelObjects = ClipAnimationLoader.asObject(top.get("channels"), "$.channels");
-        if (channelObjects.isEmpty()) {
-            throw new ClipAnimationLoader.FormatException("$.channels: at least one channel is required");
+        List<EffectFilterOps.Filter> filters = new ArrayList<>();
+        if (top.containsKey("filters")) filters = EffectFilterOps.parse(top.get("filters"), "$.filters");
+        EffectFilterOps.Strength filterStrength = EffectFilterOps.Strength.SCALE;
+        if (top.containsKey("filterStrength")) {
+            String word = ClipAnimationLoader.reqString(top, "filterStrength", "$", 16);
+            filterStrength = EffectFilterOps.Strength.fromJson(word);
+            if (filterStrength == null) {
+                throw new ClipAnimationLoader.FormatException("$.filterStrength: must be scale, mix, both or none");
+            }
+        }
+
+        Map<String, Object> channelObjects = top.containsKey("channels")
+                ? ClipAnimationLoader.asObject(top.get("channels"), "$.channels")
+                : new LinkedHashMap<String, Object>();
+        if (channelObjects.isEmpty() && filters.isEmpty()) {
+            throw new ClipAnimationLoader.FormatException("$: needs \"channels\" and/or \"filters\"");
         }
         EnumMap<ClipAnimation.Channel, ClipAnimation.Curve> curves = new EnumMap<>(ClipAnimation.Channel.class);
         for (Map.Entry<String, Object> e : channelObjects.entrySet()) {
@@ -180,7 +208,7 @@ public final class EffectStyleLoader {
                     ClipAnimationLoader.asObject(e.getValue(), path), channel, referenceFrames, path));
         }
         ClipAnimation animation = new ClipAnimation(id, name, ClipAnimation.Direction.IN, 1f, curves, false, referenceFrames);
-        return new EffectStyle(id, name, description, author, label, lo, hi, period, span, animation);
+        return new EffectStyle(id, name, description, author, label, lo, hi, period, span, animation, filters, filterStrength);
     }
 
     private static String fmt(double d) {
