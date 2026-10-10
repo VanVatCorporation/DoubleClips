@@ -37,6 +37,7 @@ import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
+import android.view.Choreographer;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -268,6 +269,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private static int thumbnailAudioBarWidth = 1, thumbnailAudioBarGap = 0;
     private Handler playbackHandler = new Handler(Looper.getMainLooper());
     private Runnable playbackLoop;
+    /** The running playback tick (display-refresh driven). Null when not playing. */
+    private Choreographer.FrameCallback playbackFrameCallback;
 
 
 
@@ -1203,15 +1206,10 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         outerPreviewViewGroup = findViewById(R.id.outerPreviewViewGroup);
 
-        outerPreviewViewGroup.post(() -> {
-            previewAvailableWidth = outerPreviewViewGroup.getWidth();
-            previewAvailableHeight = outerPreviewViewGroup.getHeight();
-            
-            float ratioX = (float) previewAvailableWidth / settings.videoWidth;
-            float ratioY = (float) previewAvailableHeight / settings.videoHeight;
-            float rScale = Math.min(ratioX, ratioY);
-            previewViewGroup.setScaleX(rScale);
-            previewViewGroup.setScaleY(rScale);
+        outerPreviewViewGroup.post(this::fitPreviewCanvas);
+        // The first fit can run before the final layout; refit whenever the available area changes.
+        outerPreviewViewGroup.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, orr, ob) -> {
+            if (r - l != orr - ol || b - t != ob - ot) v.post(this::fitPreviewCanvas);
         });
 
         pausedCanvasAlertPanel = findViewById(R.id.pausedCanvasAlertPanel);
@@ -1339,17 +1337,23 @@ public class EditingActivity extends AppCompatActivityImpl {
         });
         timelineScroll.getViewTreeObserver().addOnScrollChangedListener(() -> {
             rulerScroll.scrollTo(timelineScroll.getScrollX(), 0);
+            // While playing, the playback tick scrolls the timeline every frame, which fires this every frame. The
+            // selection follow-up and the time label don't need 60 updates a second (that is UI-thread time the
+            // preview wants); a user scroll, or a paused one, still does everything every time.
+            long nowMs = System.nanoTime() / 1_000_000L;
+            boolean heavyDue = !isPlaying || nowMs - lastHeavyScrollWorkMs >= HEAVY_SCROLL_WORK_INTERVAL_MS;
+            if (heavyDue) lastHeavyScrollWorkMs = nowMs;
             if(selectedClip != null) {
                 selectedClip.movePropertiesLayoutAlong(timelineScroll.getScrollX());
 
 
-                if(selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration)
+                if(heavyDue && (selectedClip.startTime > currentTime || currentTime > selectedClip.startTime + selectedClip.duration))
                 {
                     deselectingClip();
                     selectedClip = null;
                 }
             }
-            else if (selectedTrack != null && selectedClips.isEmpty())
+            else if (heavyDue && selectedTrack != null && selectedClips.isEmpty())
             {
                 List<Clip> listClip = selectedTrack.getClipsAtCurrentTime(currentTime);
                 if(!listClip.isEmpty())
@@ -1361,7 +1365,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             // Get time (- centerOffset mean remove the start spacer)
             //float totalSeconds = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
-            currentTimePosText.post(() -> currentTimePosText.setText(DateHelper.convertTimestampToMMSSFormat((long) (currentTime * 1000L)) + String.format(".%02d", ((long)((currentTime % 1) * 100)))));
+            if (heavyDue) currentTimePosText.post(() -> currentTimePosText.setText(DateHelper.convertTimestampToMMSSFormat((long) (currentTime * 1000L)) + String.format(".%02d", ((long)((currentTime % 1) * 100)))));
 
             if(isPlayingInReverse || !isPlaying || previewFpsRuntime != settings.frameRate) {
                 timelineRenderer.updateTime(currentTime, true);
@@ -2277,16 +2281,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             previewViewGroupParams.height = settings.videoHeight;
             previewViewGroup.setLayoutParams(previewViewGroupParams);
 
-            outerPreviewViewGroup.post(() -> {
-                previewAvailableWidth = outerPreviewViewGroup.getWidth();
-                previewAvailableHeight = outerPreviewViewGroup.getHeight();
-                
-                float ratioX = (float) previewAvailableWidth / settings.videoWidth;
-                float ratioY = (float) previewAvailableHeight / settings.videoHeight;
-                float rScale = Math.min(ratioX, ratioY);
-                previewViewGroup.setScaleX(rScale);
-                previewViewGroup.setScaleY(rScale);
-            });
+            outerPreviewViewGroup.post(this::fitPreviewCanvas);
 
 
             // Update ruler with new fps
@@ -2447,6 +2442,24 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     }
 
+    /** Scales the canvas view (laid out at the project resolution) to fit the available area, keeping the project's aspect ratio. */
+    private void fitPreviewCanvas() {
+        if (outerPreviewViewGroup == null || previewViewGroup == null) return;
+        previewAvailableWidth = outerPreviewViewGroup.getWidth();
+        previewAvailableHeight = outerPreviewViewGroup.getHeight();
+        if (previewAvailableWidth <= 0 || previewAvailableHeight <= 0 || settings.videoWidth <= 0 || settings.videoHeight <= 0) return;
+
+        float ratioX = (float) previewAvailableWidth / settings.videoWidth;
+        float ratioY = (float) previewAvailableHeight / settings.videoHeight;
+        float rScale = Math.min(ratioX, ratioY);
+        previewViewGroup.setScaleX(rScale);
+        previewViewGroup.setScaleY(rScale);
+        android.util.Log.i("PreviewCanvas", "project " + settings.videoWidth + "x" + settings.videoHeight
+                + ", available " + previewAvailableWidth + "x" + previewAvailableHeight
+                + ", scale " + rScale + ", canvas view " + previewViewGroup.getWidth() + "x" + previewViewGroup.getHeight()
+                + " -> on screen " + Math.round(previewViewGroup.getWidth() * rScale) + "x" + Math.round(previewViewGroup.getHeight() * rScale));
+    }
+
     private void startPlayback() {
 
 
@@ -2458,36 +2471,39 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         timelineRenderer.startPlayAt(currentTime);
-        playbackLoop = new Runnable() {
-            private long lastFrameTime = -1;
+        // Driven by the display refresh (Choreographer) instead of Handler.postDelayed: the old loop waited a whole
+        // frame interval AFTER its work (and measured "time spent" before the heavy part), so at 30 fps it ticked
+        // about 27 times a second and never lined up with the screen. Now every vsync advances the playhead by the
+        // real elapsed time and scrolls the timeline; the preview frame is requested at the project/preview fps,
+        // on a vsync boundary.
+        final Choreographer choreographer = Choreographer.getInstance();
+        playbackFrameCallback = new Choreographer.FrameCallback() {
+            private long lastVsyncNanos = -1;
+            private long lastRenderNanos = -1;
 
             @Override
-            public void run() {
-                if (!isPlaying) return;
+            public void doFrame(long frameTimeNanos) {
+                if (!isPlaying || playbackFrameCallback != this) return;
 
-                long now = System.nanoTime();
                 float activeFps = previewFpsRuntime > 0 ? previewFpsRuntime : settings.frameRate;
                 float playbackSpeed = activeFps / settings.frameRate;
-                long targetIntervalMs = (long)(1000f / activeFps);
+                long targetIntervalNanos = (long) (1_000_000_000f / activeFps);
 
-                // First frame: just record time and schedule next
-                if (lastFrameTime < 0) {
-                    lastFrameTime = now;
-                } else {
-                    // Use ACTUAL elapsed time instead of fixed frameInterval
-                    float elapsed = (now - lastFrameTime) / 1_000_000_000f;
-                    lastFrameTime = now;
-
+                if (lastVsyncNanos >= 0) {
+                    float elapsed = (frameTimeNanos - lastVsyncNanos) / 1_000_000_000f;
                     currentTime += (isPlayingInReverse ? -elapsed : elapsed) * playbackSpeed;
                 }
+                lastVsyncNanos = frameTimeNanos;
 
-                // Compensate: subtract time already spent in this callback
-                long spent = (System.nanoTime() - now) / 1_000_000;
-                long nextDelay = Math.max(0, targetIntervalMs - spent);
+                // A frame is due when a full interval has passed, less half a refresh so 30 fps on a 60 Hz screen
+                // lands on every second vsync instead of drifting to every third.
+                boolean renderDue = lastRenderNanos < 0 || frameTimeNanos - lastRenderNanos >= targetIntervalNanos - 8_000_000L;
+                if (renderDue) {
+                    lastRenderNanos = frameTimeNanos;
+                    timelineRenderer.updateTime(currentTime, false);
+                }
 
-                timelineRenderer.updateTime(currentTime, false);
-
-                int newScrollX = (int)(currentTime * pixelsPerSecond);
+                int newScrollX = (int) (currentTime * pixelsPerSecond);
                 timelineScroll.scrollTo(newScrollX, 0);
 
                 if (selectedClip != null) {
@@ -2505,18 +2521,20 @@ public class EditingActivity extends AppCompatActivityImpl {
                     return; // avoid scheduling after stop
                 }
 
-                playbackHandler.postDelayed(this, nextDelay);
+                choreographer.postFrameCallback(this);
             }
         };
-
-// Reset lastFrameTime before posting (use a wrapper or reset field on play start)
-        playbackHandler.post(playbackLoop);
+        choreographer.postFrameCallback(playbackFrameCallback);
     }
 
     private void stopPlayback(boolean recreateTimeline) {
         isPlaying = false;
 
-        playbackHandler.removeCallbacks(playbackLoop);
+        if (playbackFrameCallback != null) {
+            Choreographer.getInstance().removeFrameCallback(playbackFrameCallback);
+            playbackFrameCallback = null;
+        }
+        if (playbackLoop != null) playbackHandler.removeCallbacks(playbackLoop);
         playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
 
         timelineRenderer.updateTime(currentTime, true); // To stop audio playback
@@ -2722,6 +2740,10 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
     // ------------------------------------  track reorder  ------------------------------------
+
+    /** The timeline's scroll listener runs every frame during playback; its selection / label work is done this often then. */
+    private static final long HEAVY_SCROLL_WORK_INTERVAL_MS = 66;
+    private long lastHeavyScrollWorkMs;
 
     private TrackReorderController trackReorder;
     private NavigationIconLayout reorderTracksButton;

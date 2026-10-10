@@ -220,6 +220,14 @@
 
         </LinearLayout>
 
+        <!-- Template timeline: the template's clips under a red playhead; drag to scrub the preview -->
+        <com.vanvatcorporation.doubleclips.TemplateTimelineStripView
+            android:id="@+id/templateStrip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp" />
+
         <!-- Use Template Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/useTemplateButton"

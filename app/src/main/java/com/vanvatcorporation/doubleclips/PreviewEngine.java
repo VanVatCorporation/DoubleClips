@@ -72,7 +72,13 @@ public final class PreviewEngine {
     static final int MAX_IMAGES = 12;
     static final long FORWARD_WINDOW_US = 1_500_000L;
     static final long IDLE_CLOSE_NANOS = 4_000_000_000L;
-    private static final float PREFETCH_SECONDS = 0.75f;
+    private static final float PREFETCH_SECONDS = 1.5f;
+    /** Time the GL thread may spend per frame, after drawing, decoding toward a clip that hasn't started yet. */
+    private static final long PREROLL_BUDGET_NANOS = 5_000_000L;
+    /** While playing, the prefetch list is recomputed at most this often (it looks 1.5 s ahead, so it barely changes). */
+    private static final long PREFETCH_REFRESH_NANOS = 250_000_000L;
+    /** While playing, a request this many frames BEHIND the shown frame holds it instead of flushing the decoder. */
+    static final int PLAYING_BACKWARD_TOLERANCE_FRAMES = 3;
 
     /** Called on the GL thread when the engine can't continue (the caller should fall back to the legacy preview). */
     public interface FailureListener {
@@ -96,6 +102,25 @@ public final class PreviewEngine {
     private final int canvasW, canvasH, previewW, previewH;
     private final boolean stretch;
     private final OpenGLEdit edit = new OpenGLEdit();
+
+    // ---- diagnostics (logcat tag PreviewEngine, filter "preview"): where does playback time go, and why do decoders restart?
+    private final FrameProfiler profiler = new FrameProfiler(120, System::nanoTime, this::onProfilerLine, "decode", "swap")
+            .idleReset(500_000_000L);
+    private final java.util.concurrent.atomic.AtomicInteger supersededRequests = new java.util.concurrent.atomic.AtomicInteger();
+    private int restartsBackward, restartsAhead, restartsFresh, restartLogged;
+    private final java.util.concurrent.atomic.AtomicLong uiComputeNanos = new java.util.concurrent.atomic.AtomicLong(); // UI thread: time spent computing a frame (render())
+    private final java.util.concurrent.atomic.AtomicInteger uiComputeCount = new java.util.concurrent.atomic.AtomicInteger();
+    private List<OpenGLEdit.DrawCommand> cachedPrefetch; private long cachedPrefetchAtNanos;
+
+    private void onProfilerLine(String line) {
+        Log.i(TAG, "preview " + line);
+        long uiNanos = uiComputeNanos.getAndSet(0);
+        int uiCount = uiComputeCount.getAndSet(0);
+        Log.i(TAG, "preview since last line: " + supersededRequests.getAndSet(0) + " requests skipped (a newer one arrived first), "
+                + "decoder restarts: " + restartsBackward + " backwards, " + restartsAhead + " far ahead, " + restartsFresh + " not positioned yet"
+                + (uiCount > 0 ? ", UI thread frame computation " + String.format(java.util.Locale.US, "%.2f", uiNanos / 1e6 / uiCount) + " ms avg" : ""));
+        restartsBackward = restartsAhead = restartsFresh = 0;
+    }
     private final FailureListener failureListener;
 
     private volatile boolean useProxy;
@@ -217,18 +242,28 @@ public final class PreviewEngine {
         if (closed) return;
         List<OpenGLEdit.FrameLayer> layers = Collections.emptyList();
         List<OpenGLEdit.DrawCommand> prefetch = null;
+        long computeStart = System.nanoTime();
         try {
             synchronized (edit) {
                 layers = edit.computeFrameForTimestamp(timeline, timeSeconds, canvasW, canvasH, stretch);
                 if (playing) {
-                    prefetch = new ArrayList<>();
-                    for (OpenGLEdit.FrameLayer layer : edit.computeFrameForTimestamp(timeline, timeSeconds + PREFETCH_SECONDS, canvasW, canvasH, stretch)) {
-                        if (layer.simpleDraw != null) prefetch.add(layer.simpleDraw);
-                        else {
-                            prefetch.add(layer.transition.clipACommand);
-                            prefetch.add(layer.transition.clipBCommand);
+                    // Looking 1.5 s ahead barely changes from one frame to the next: recompute it a few times a
+                    // second, not 60 (this runs on the UI thread, and the whole frame used to be computed twice per tick).
+                    if (cachedPrefetch == null || computeStart - cachedPrefetchAtNanos > PREFETCH_REFRESH_NANOS) {
+                        List<OpenGLEdit.DrawCommand> fresh = new ArrayList<>();
+                        for (OpenGLEdit.FrameLayer layer : edit.computeFrameForTimestamp(timeline, timeSeconds + PREFETCH_SECONDS, canvasW, canvasH, stretch)) {
+                            if (layer.simpleDraw != null) fresh.add(layer.simpleDraw);
+                            else {
+                                fresh.add(layer.transition.clipACommand);
+                                fresh.add(layer.transition.clipBCommand);
+                            }
                         }
+                        cachedPrefetch = fresh;
+                        cachedPrefetchAtNanos = computeStart;
                     }
+                    prefetch = cachedPrefetch;
+                } else {
+                    cachedPrefetch = null; // scrubbing / paused: the next playback starts with a fresh look-ahead
                 }
             }
         } catch (RuntimeException e) {
@@ -237,7 +272,9 @@ public final class PreviewEngine {
                 Log.w(TAG, "Could not compute the frame at t=" + timeSeconds, e);
             }
         }
-        pending.set(new Request(layers, prefetch, timeSeconds));
+        uiComputeNanos.addAndGet(System.nanoTime() - computeStart);
+        uiComputeCount.incrementAndGet();
+        if (pending.getAndSet(new Request(layers, prefetch, timeSeconds)) != null) supersededRequests.incrementAndGet();
         if (drainScheduled.compareAndSet(false, true)) post(this::drain);
     }
 
@@ -385,7 +422,8 @@ public final class PreviewEngine {
             return;
         }
 
-        pool.beginFrame();
+        profiler.frameStart();
+        pool.beginFrame(r.prefetch != null);
         shader.beginFrame(previewW, previewH); // viewport + clear + blending
         float blurScale = previewW / (float) canvasW;
 
@@ -419,16 +457,20 @@ public final class PreviewEngine {
             blendShader.draw(layerA.texture, layerB.texture, t.progress, OpenGLEditNative.TransitionBlendShader.styleToId(t.style));
         }
 
+        profiler.begin(FrameProfiler.ENCODE); // "swap" in the preview's report
         if (!EGL14.eglSwapBuffers(eglDisplay, windowSurface)) {
             int error = EGL14.eglGetError();
             if (error == EGL14.EGL_BAD_SURFACE || error == EGL14.EGL_BAD_NATIVE_WINDOW) destroyWindowSurface();
         }
+        profiler.end(FrameProfiler.ENCODE);
 
         // After the frame is on its way: warm what the playhead is about to need, drop what it left.
         if (r.prefetch != null) {
-            for (OpenGLEdit.DrawCommand cmd : r.prefetch) pool.prefetch(cmd);
+            long deadline = System.nanoTime() + PREROLL_BUDGET_NANOS; // shared by every upcoming clip this frame
+            for (OpenGLEdit.DrawCommand cmd : r.prefetch) pool.prefetch(cmd, r.timeSeconds, deadline);
         }
         pool.trimIdle();
+        profiler.frameEnd();
     }
 
     private void bindScreen() {
@@ -558,7 +600,12 @@ public final class PreviewEngine {
             }
         }
 
-        void beginFrame() { frameCounter++; }
+        private boolean playing;
+
+        void beginFrame(boolean playing) {
+            frameCounter++;
+            this.playing = playing;
+        }
 
         PreviewDecoder video(EditingActivity.Clip clip, OpenGLEdit.DrawCommand cmd, boolean forDraw) {
             String path = videoPath(clip);
@@ -575,12 +622,18 @@ public final class PreviewEngine {
             stream.lastUsedFrame = frameCounter;
             stream.lastUsedNanos = System.nanoTime();
             boolean ok;
+            profiler.begin(FrameProfiler.DECODE);
             try {
-                ok = stream.decoder.advanceToTime(wantedUs, PreviewEngine.this::hasNewerRequest);
+                // A frame before the clip's in-point belongs to another part of the file (a keyframe the decoder started
+                // from): never show it. iOS gets this from its composition segments; here it is the floor below.
+                long inPointFloorUs = clip.isReverse() ? Long.MIN_VALUE
+                        : Math.round(clip.startClipTrim * 1_000_000.0) - stream.decoder.frameDurationUs();
+                ok = stream.decoder.advanceToTime(wantedUs, PreviewEngine.this::hasNewerRequest, inPointFloorUs);
             } catch (RuntimeException e) {
                 ok = false;
                 if (reported.add(clip)) Log.w(TAG, "Decoder failed in preview: " + e);
             }
+            profiler.end(FrameProfiler.DECODE);
             if (!ok) {
                 if (reported.add("noframe:" + clip.hashCode())) Log.w(TAG, "A clip produced no frames in preview: " + path);
                 return null;
@@ -588,12 +641,25 @@ public final class PreviewEngine {
             return stream.decoder;
         }
 
-        /** Opens / repositions the stream a clip will need shortly WITHOUT reading from it. */
-        void prefetch(OpenGLEdit.DrawCommand cmd) {
+        /**
+         * Gets the stream a clip will need shortly ready. A clip that has not started yet is positioned at its FIRST
+         * frame (not at where the look-ahead time falls inside it: that is later, and the real first request would then
+         * be "behind the start position" and flush the decoder a second time), and the decoder is run toward that frame
+         * in small slices, so the keyframe-to-first-frame decode is paid before the clip arrives, not when it does.
+         * A clip that is already playing is only kept open.
+         */
+        void prefetch(OpenGLEdit.DrawCommand cmd, float nowSeconds, long deadlineNanos) {
             if (cmd.clip.type != EditingActivity.ClipType.VIDEO) return;
             try {
                 String path = videoPath(cmd.clip);
-                acquire(path, Math.max(0L, Math.round(sourceTimeSeconds(cmd.clip, cmd) * 1_000_000.0)));
+                double sourceSeconds = sourceTimeSeconds(cmd.clip, cmd);
+                boolean notStarted = cmd.clip.startTime > nowSeconds && !cmd.clip.isReverse();
+                if (notStarted) sourceSeconds = Math.min(sourceSeconds, cmd.clip.startClipTrim);
+                long wantedUs = Math.max(0L, Math.round(sourceSeconds * 1_000_000.0));
+                Stream stream = acquire(path, wantedUs);
+                if (notStarted && System.nanoTime() < deadlineNanos) {
+                    stream.decoder.preRoll(wantedUs, deadlineNanos);
+                }
             } catch (IOException | RuntimeException ignored) {
                 // reported properly if the clip is actually drawn
             }
@@ -627,7 +693,7 @@ public final class PreviewEngine {
             Stream best = null;
             long bestDistance = Long.MAX_VALUE;
             for (Stream s : streams) {
-                if (!s.path.equals(path) || !s.decoder.canServe(wantedUs)) continue;
+                if (!s.path.equals(path) || !s.decoder.canServe(wantedUs, playing)) continue;
                 long distance = wantedUs - s.decoder.positionUs();
                 if (distance < bestDistance) {
                     bestDistance = distance;
@@ -643,6 +709,7 @@ public final class PreviewEngine {
                 if (idle == null || s.lastUsedNanos < idle.lastUsedNanos) idle = s;
             }
             if (idle != null) {
+                noteRestart(idle, wantedUs);
                 idle.decoder.restartAt(wantedUs);
                 idle.lastUsedNanos = System.nanoTime();
                 return idle;
@@ -669,6 +736,19 @@ public final class PreviewEngine {
             Stream created = new Stream(path, decoder);
             streams.add(created);
             return created;
+        }
+
+        /** Counts why a decoder is about to be flushed, and logs the first few with the numbers (rate-limited). */
+        private void noteRestart(Stream s, long wantedUs) {
+            String why = s.decoder.refusalReason(wantedUs, playing);
+            if (why.startsWith("behind")) restartsBackward++;
+            else if (why.startsWith("ahead")) restartsAhead++;
+            else restartsFresh++;
+            restartLogged++;
+            if (restartLogged <= 12 || restartLogged % 50 == 0) {
+                Log.i(TAG, "preview restart #" + restartLogged + " (flushes the decoder): " + new File(s.path).getName()
+                        + " wanted " + wantedUs / 1000 + " ms, " + why + ", " + (playing ? "playing" : "scrubbing / paused"));
+            }
         }
 
         void trimIdle() {
@@ -832,14 +912,29 @@ public final class PreviewEngine {
         }
 
         /** True when advancing forward from the current position reaches {@code wantedUs} cheaply. */
-        boolean canServe(long wantedUs) {
+        boolean canServe(long wantedUs, boolean playing) {
+            return refusalReason(wantedUs, playing) == null;
+        }
+
+        /**
+         * Why this stream can't serve {@code wantedUs} cheaply (so it would have to flush and seek), or null when it can.
+         * While playing, a request a few frames BEHIND the shown frame (timing jitter) is served by holding that frame:
+         * a flush throws away every decoded frame in flight and costs far more than a briefly repeated picture.
+         * Scrubbing and paused seeks stay frame-exact.
+         */
+        String refusalReason(long wantedUs, boolean playing) {
             if (latchedPtsUs == NONE && consumedPtsUs == NONE) {
                 // positioned (opened / restarted) but nothing consumed yet
-                return wantedUs >= anchorUs - frameDurationUs && wantedUs - anchorUs <= FORWARD_WINDOW_US;
+                if (wantedUs < anchorUs - frameDurationUs) return "behind the start position by " + (anchorUs - wantedUs) / 1000 + " ms";
+                if (wantedUs - anchorUs > FORWARD_WINDOW_US) return "ahead of the start position by " + (wantedUs - anchorUs) / 1000 + " ms";
+                return null;
             }
-            if (latchedPtsUs != NONE && wantedUs < latchedPtsUs - frameDurationUs / 2) return false; // backwards
-            if (wantedUs - positionUs() > FORWARD_WINDOW_US) return false;                          // far ahead: seek instead
-            return true;
+            long tolerance = playing ? PLAYING_BACKWARD_TOLERANCE_FRAMES * frameDurationUs : frameDurationUs / 2;
+            if (latchedPtsUs != NONE && wantedUs < latchedPtsUs - tolerance) {
+                return "behind the shown frame by " + (latchedPtsUs - wantedUs) / 1000 + " ms";
+            }
+            if (wantedUs - positionUs() > FORWARD_WINDOW_US) return "ahead of the decoder by " + (wantedUs - positionUs()) / 1000 + " ms";
+            return null;
         }
 
         /** Flush and jump to the keyframe at/before {@code wantedUs}; the next advanceToTime decodes up to it. */
@@ -865,7 +960,12 @@ public final class PreviewEngine {
          * decode-through-the-GOP short (the frame found so far is still shown).
          * Returns false only if no frame has ever been decoded.
          */
-        boolean advanceToTime(long targetUs, BooleanSupplier abort) {
+        long frameDurationUs() { return frameDurationUs; }
+
+        boolean advanceToTime(long targetUs, BooleanSupplier abort) { return advanceToTime(targetUs, abort, Long.MIN_VALUE); }
+
+        /** {@code floorUs}: a candidate frame with a pts below it is dropped instead of shown (see the caller). */
+        boolean advanceToTime(long targetUs, BooleanSupplier abort, long floorUs) {
             feedInput(MAX_FEED_PER_CALL); // keep the decoder's pipeline full before we wait on it
             int candidateIndex = -1;
             long candidatePts = NONE;
@@ -887,7 +987,9 @@ public final class PreviewEngine {
                 }
             }
 
-            if (candidateIndex >= 0) {
+            if (candidateIndex >= 0 && candidatePts < floorUs) {
+                decoder.releaseOutputBuffer(candidateIndex, false); // before the clip starts: keep whatever is shown
+            } else if (candidateIndex >= 0) {
                 synchronized (frameLock) { frameAvailable = false; }
                 decoder.releaseOutputBuffer(candidateIndex, true); // render this one only
                 if (waitForFrame()) {
@@ -900,6 +1002,28 @@ public final class PreviewEngine {
             }
             feedInput(MAX_FEED_PER_CALL); // the decoder works on the next frames while we draw this one
             return hasLatched;
+        }
+
+        /**
+         * Decodes toward {@code targetUs} WITHOUT showing anything, until the deadline: frames before the target are
+         * dropped, the last two are left for the real draw. Only for a stream that has not shown a frame yet (a clip
+         * about to start). Returns true when it has caught up (or the stream ended), false when time ran out.
+         */
+        boolean preRoll(long targetUs, long deadlineNanos) {
+            if (latchedPtsUs != NONE) return true;
+            long stopBeforeUs = targetUs - 2 * frameDurationUs;
+            while (System.nanoTime() < deadlineNanos) {
+                feedInput(MAX_FEED_PER_CALL);
+                if (pendingIndex < 0) {
+                    fillPending();
+                    if (pendingIndex < 0) return true; // stream ended (or stalled)
+                }
+                if (pendingPtsUs >= stopBeforeUs) return true; // close enough: keep this frame for the real draw
+                decoder.releaseOutputBuffer(pendingIndex, false);
+                consumedPtsUs = pendingPtsUs;
+                pendingIndex = -1;
+            }
+            return false;
         }
 
         /** Input buffers fed per call: a hardware decoder wants several frames in flight, not one. */

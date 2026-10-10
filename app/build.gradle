@@ -11,7 +11,7 @@ android {
         minSdk 24
         targetSdk 37
         versionCode 33
-        versionName "29.09.2026-build-1-v1.4.5"
+        versionName "09.10.2026-build-1-v1.5.0-beta.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 

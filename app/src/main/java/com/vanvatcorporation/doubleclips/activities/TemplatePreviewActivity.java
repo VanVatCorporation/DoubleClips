@@ -61,6 +61,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
+import com.vanvatcorporation.doubleclips.TemplateTimelineStripView;
+import com.vanvatcorporation.doubleclips.TemplateTimelineLoader;
+import com.vanvatcorporation.doubleclips.TemplateTimelineInfo;
+import android.os.Looper;
+import android.os.Handler;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -93,6 +98,45 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
 
     OkHttpClient httpsClient = new OkHttpClient();
+
+    // ===========================       TEMPLATE STRIP       ====================================
+    /** The strip of the page that is on screen; follows the player's clock. */
+    private TemplateTimelineStripView activeStrip;
+    private final Handler stripHandler = new Handler(Looper.getMainLooper());
+    private boolean stripScrubbing, resumeAfterScrub;
+    private final Runnable stripTicker = new Runnable() {
+        @Override public void run() {
+            if (activeStrip != null && exoPlayer != null && exoPlayer.getExoPlayer() != null && !stripScrubbing) {
+                activeStrip.setCurrentTime(exoPlayer.getExoPlayer().getCurrentPosition() / 1000.0);
+            }
+            stripHandler.postDelayed(this, 33);
+        }
+    };
+
+    private void bindActiveStrip(TemplateTimelineStripView strip) {
+        activeStrip = strip;
+        stripScrubbing = false;
+        if (strip == null) return;
+        strip.setListener(new TemplateTimelineStripView.Listener() {
+            @Override public void onScrub(double timeSeconds) {
+                if (exoPlayer == null || exoPlayer.getExoPlayer() == null) return;
+                if (!stripScrubbing) {
+                    stripScrubbing = true;
+                    resumeAfterScrub = exoPlayer.getExoPlayer().isPlaying();
+                    exoPlayer.getExoPlayer().pause();
+                }
+                exoPlayer.getExoPlayer().seekTo((long) (timeSeconds * 1000));
+            }
+            @Override public void onScrubEnd() {
+                stripScrubbing = false;
+                if (resumeAfterScrub && exoPlayer != null && exoPlayer.getExoPlayer() != null) exoPlayer.getExoPlayer().play();
+            }
+        });
+        stripHandler.removeCallbacks(stripTicker);
+        stripHandler.post(stripTicker);
+    }
+
+    // ===========================       TEMPLATE STRIP       ====================================
 
 
 
@@ -213,6 +257,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             SurfaceView surfaceView = view.findViewById(R.id.previewSurfaceView);
             ImageView thumbnailView = view.findViewById(R.id.thumbnailView);
             TextView durationClipCount = view.findViewById(R.id.durationClipCount);
+            bindActiveStrip(view.findViewById(R.id.templateStrip));
 
             SurfaceView previousSurfaceView = exoPlayer.getVideoSurfaceView();
             if(previousSurfaceView != null) {
@@ -256,6 +301,10 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                         // Player is ready to start playback
                         durationClipCount.setText(DateHelper.convertTimestampToMMSSFormat(exoPlayer.getExoPlayer().getDuration()));
                         dataList.get(position).setTemplateDuration(exoPlayer.getExoPlayer().getDuration());
+                        TemplateTimelineStripView page = view.findViewById(R.id.templateStrip);
+                        if (page != null && (page.getInfo() == null || page.getInfo().timeline == null) && !dataList.get(position).hasTimeline()) {
+                            page.setInfo(TemplateTimelineInfo.legacy(dataList.get(position), exoPlayer.getExoPlayer().getDuration() / 1000.0));
+                        }
 
                         mediaLoadingIcon.setVisibility(View.GONE);
                         mediaPlaybackErrorIcon.setVisibility(View.GONE);
@@ -332,6 +381,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     @Override
     public void finish() {
         super.finish();
+        stripHandler.removeCallbacks(stripTicker);
+        activeStrip = null;
 
         if (exoPlayer.getExoPlayer() != null) {
             exoPlayer.release();
@@ -359,12 +410,14 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     @Override
     protected void onPause() {
         super.onPause();
+        stripHandler.removeCallbacks(stripTicker);
         pausePlayer();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        if (activeStrip != null) { stripHandler.removeCallbacks(stripTicker); stripHandler.post(stripTicker); }
         resumePlayer();
     }
 
@@ -589,6 +642,28 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             });
 
 
+
+            // The template's timeline for the strip: drawn from the clip count first, replaced when the real one arrives.
+            TemplateTimelineStripView strip = holder.itemView.findViewById(R.id.templateStrip);
+            if (strip != null) {
+                strip.setInfo(TemplateTimelineInfo.legacy(data, 0));
+                if (data.hasTimeline()) {
+                    final android.content.Context appContext = holder.itemView.getContext().getApplicationContext();
+                    Executors.newSingleThreadExecutor().execute(() -> {
+                        try {
+                            TemplateTimelineInfo info = TemplateTimelineLoader.load(appContext, data);
+                            holder.itemView.post(() -> {
+                                if (holder.getAdapterPosition() != position) return; // the page was recycled
+                                strip.setInfo(info);
+                                holder.replacementClipCount.setText(info.slots.size() + " clips");
+                            });
+                        } catch (java.io.IOException | RuntimeException e) {
+                            // keep the clip-count strip; the template still works as an old one
+                            android.util.Log.w("TemplateStrip", "timeline not loaded: " + e.getMessage());
+                        }
+                    });
+                }
+            }
 
             holder.itemView.findViewById(R.id.useTemplateButton).setOnClickListener(v -> {
                 Intent intent = new Intent(holder.itemView.getContext(), TemplateExportActivity.class);

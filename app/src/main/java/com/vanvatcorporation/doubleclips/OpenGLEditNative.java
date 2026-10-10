@@ -254,6 +254,11 @@ public class OpenGLEditNative {
         private boolean hasLatchedFrame = false;
         private boolean seekedToStart = false;
 
+        // Diagnostics only (export log): what the source is and what its first frame cost.
+        String diagFormat = "";
+        boolean diagSeeked = false;
+        boolean diagFirstFrameLogged = false;
+
         public ClipFrameSource(String clipPath) {
             this.clipPath = clipPath;
         }
@@ -291,6 +296,12 @@ public class OpenGLEditNative {
                 decoder.configure(format, decoderSurface, null, 0);
             }
             decoder.start();
+            try {
+                diagFormat = mime + " " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" + format.getInteger(MediaFormat.KEY_HEIGHT)
+                        + (format.containsKey(MediaFormat.KEY_FRAME_RATE) ? " @" + format.getInteger(MediaFormat.KEY_FRAME_RATE) + "fps" : "")
+                        + (format.containsKey(MediaFormat.KEY_BIT_RATE) ? " " + format.getInteger(MediaFormat.KEY_BIT_RATE) / 1000 + "kbps" : "")
+                        + ", decoder " + decoder.getName();
+            } catch (RuntimeException ignored) { diagFormat = mime; }
         }
 
         private int selectVideoTrack(MediaExtractor extractor) {
@@ -339,6 +350,7 @@ public class OpenGLEditNative {
                 // nothing has been fed to the decoder yet.
                 if (targetTimeUs > 1_000_000L) {
                     extractor.seekTo(targetTimeUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                    diagSeeked = true;
                 }
             }
 
@@ -620,7 +632,15 @@ public class OpenGLEditNative {
             if (!EGL14.eglMakeCurrent(eglDisplay, encoderEglSurface, encoderEglSurface, eglContext)) {
                 throw new RuntimeException("Unable to make encoder EGL surface current");
             }
+            if (!swapIntervalSet) {
+                // EGL's default is one swap per display refresh. An encoder surface has no display, but some GPU
+                // drivers still pace it like one, which would cap an export at the screen's 60 Hz.
+                EGL14.eglSwapInterval(eglDisplay, 0);
+                swapIntervalSet = true;
+            }
         }
+
+        private boolean swapIntervalSet;
 
         /**
          * Call after drawing one composited frame into the encoder surface.
@@ -1865,8 +1885,12 @@ public class OpenGLEditNative {
             String overridePath = reversedClipPaths != null ? reversedClipPaths.get(cmd.clip) : null;
             String sourcePath = overridePath != null ? overridePath : cmd.clip.getAbsolutePath(projectPath);
             source = new ClipFrameSource(sourcePath);
+            long diagOpenStart = System.nanoTime();
             try {
                 source.open();
+                report(listener, "OpenGL: opened " + new java.io.File(sourcePath).getName() + " at output t="
+                        + String.format(java.util.Locale.US, "%.2f", outputTimeSeconds) + "s in "
+                        + (System.nanoTime() - diagOpenStart) / 1_000_000L + " ms (" + source.diagFormat + ")");
             } catch (IOException | RuntimeException e) {
                 if (reportedNoFrame.add(cmd.clip)) {
                     report(listener, "OpenGL: could not open a clip, it will be missing from the export: " + e.getMessage());
@@ -1878,8 +1902,20 @@ public class OpenGLEditNative {
 
         long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
         if (profiler != null) profiler.begin(FrameProfiler.DECODE);
+        long diagAdvanceStart = System.nanoTime();
         boolean gotFrame = source.advanceToTime(localSourceTimeUs, timeoutUsPerStep);
+        long diagAdvanceMs = (System.nanoTime() - diagAdvanceStart) / 1_000_000L;
         if (profiler != null) profiler.end(FrameProfiler.DECODE);
+        if (!source.diagFirstFrameLogged) {
+            source.diagFirstFrameLogged = true;
+            report(listener, "OpenGL: first frame of " + new java.io.File(cmd.clip.getAbsolutePath(projectPath)).getName()
+                    + " took " + diagAdvanceMs + " ms (source time " + localSourceTimeUs / 1000 + " ms"
+                    + (source.diagSeeked ? ", jumped to the keyframe before it" : ", from the start") + ")");
+        } else if (diagAdvanceMs >= 80) {
+            report(listener, "OpenGL: slow decode " + diagAdvanceMs + " ms at output t="
+                    + String.format(java.util.Locale.US, "%.2f", outputTimeSeconds) + "s, source time " + localSourceTimeUs / 1000
+                    + " ms (" + new java.io.File(cmd.clip.getAbsolutePath(projectPath)).getName() + ")");
+        }
         if (!gotFrame) {
             // Only when the decoder never produced a single frame.
             // Reported once per clip, not once per frame.
