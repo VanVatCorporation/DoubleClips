@@ -64,4 +64,20 @@ public final class ClipAnimationFrame {
     public float warpBottomWidth() { return get(ClipAnimation.Channel.WARP_BOTTOM_WIDTH); }
     /** Height of the squish (top edge fixed), 1 = unchanged. */
     public float warpHeight() { return get(ClipAnimation.Channel.WARP_HEIGHT); }
+    /** Motion-blur streak length as a fraction of the canvas WIDTH (0 = none). */
+    public float motionBlurWidthFraction() { return get(ClipAnimation.Channel.MOTION_BLUR); }
+    /** Horizontal edge slide as a fraction of the canvas WIDTH (+ = right). */
+    public float edgeSlideFraction() { return get(ClipAnimation.Channel.EDGE_SLIDE); }
+    /** Vertical edge slide as a fraction of the canvas HEIGHT (+ = down). */
+    public float edgeSlideYFraction() { return get(ClipAnimation.Channel.EDGE_SLIDE_Y); }
+    /** Brightness multiplier, 1 = unchanged. */
+    public float exposure() { return get(ClipAnimation.Channel.EXPOSURE); }
+    /** Motion-blur direction in degrees (0 = horizontal). */
+    public float blurAngleDegrees() { return get(ClipAnimation.Channel.BLUR_ANGLE); }
+    /** Horizontal squeeze factor, 1 = unchanged. */
+    public float squeezeX() { return get(ClipAnimation.Channel.SQUEEZE_X); }
+    /** Squeeze anchor, 0 = left edge, 1 = right edge. */
+    public float squeezeAnchor() { return get(ClipAnimation.Channel.SQUEEZE_ANCHOR); }
+    /** True when the picture's edge pixels should fill the whole canvas. */
+    public boolean edgeFill() { return get(ClipAnimation.Channel.EDGE_FILL) > 0.5f; }
 }

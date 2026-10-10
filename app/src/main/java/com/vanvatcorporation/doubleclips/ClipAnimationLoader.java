@@ -261,7 +261,7 @@ public final class ClipAnimationLoader {
         return new ClipAnimation(id, name, direction, (float) duration, curves, false, referenceFrames);
     }
 
-    private static ClipAnimation.Curve parseCurve(Map<String, Object> m, ClipAnimation.Channel ch,
+    static ClipAnimation.Curve parseCurve(Map<String, Object> m, ClipAnimation.Channel ch,
                                                   int referenceFrames, String path) throws FormatException {
         String kind = reqString(m, "kind", path, 16);
         if ("constant".equals(kind)) {

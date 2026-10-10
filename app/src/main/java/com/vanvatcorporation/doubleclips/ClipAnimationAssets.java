@@ -65,6 +65,7 @@ public final class ClipAnimationAssets {
     public static synchronized List<String> loadBuiltIns(Context context) {
         List<String> errors = new ArrayList<>();
         if (builtInsLoaded) return errors;
+        errors.addAll(loadTransitionStyles(context));
 
         AssetManager assets = context.getAssets();
         List<Pending> pending = new ArrayList<>();
@@ -123,6 +124,40 @@ public final class ClipAnimationAssets {
         for (Pending p : pending) errors.add(p.label + ": its \"mirrorOf\" animation was never loaded");
 
         builtInsLoaded = true;
+        return errors;
+    }
+
+    private static boolean transitionStylesLoaded = false;
+
+    /**
+     * Loads the bundled data-driven transition styles ({@code assets/animations/transitions/*.json}) into
+     * {@link TransitionStyleLoader}. Idempotent; a bad file is reported and skipped, never fatal.
+     */
+    public static synchronized List<String> loadTransitionStyles(Context context) {
+        List<String> errors = new ArrayList<>();
+        if (transitionStylesLoaded) return errors;
+        AssetManager assets = context.getAssets();
+        String folder = ASSET_DIR + "/" + TransitionStyleLoader.ASSET_FOLDER;
+        try {
+            String[] names = assets.list(folder);
+            if (names != null) {
+                Arrays.sort(names);
+                for (String n : names) {
+                    if (!n.endsWith(".json")) continue;
+                    String label = TransitionStyleLoader.ASSET_FOLDER + "/" + n;
+                    try {
+                        TransitionStyleLoader.register(readAsset(assets, folder + "/" + n), label);
+                    } catch (ClipAnimationLoader.FormatException e) {
+                        errors.add(e.getMessage());
+                    } catch (IOException e) {
+                        errors.add(label + ": can't read file: " + e.getMessage());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            errors.add("can't list assets/" + folder + ": " + e.getMessage());
+        }
+        transitionStylesLoaded = true;
         return errors;
     }
 

@@ -50,7 +50,25 @@ public final class ClipAnimation {
         BLUR("blur", 0, 0, 0.05),
         WARP_TOP_WIDTH("warp.topWidth", 1, 0.1, 2),
         WARP_BOTTOM_WIDTH("warp.bottomWidth", 1, 0.1, 2),
-        WARP_HEIGHT("warp.height", 1, 0.1, 2);
+        WARP_HEIGHT("warp.height", 1, 0.1, 2),
+        // Added to match iOS (transition styles such as Glitch Blur use them). Same json names and ranges as iOS.
+        // The OpenGL renderer has to implement them; FFmpeg never does (see ClipAnimationFFmpeg.SUPPORTED).
+        /** Streak length as a fraction of the canvas WIDTH. */
+        MOTION_BLUR("motionBlur", 0, 0, 1),
+        /** Picture slides inside its own box horizontally (fraction of canvas width, + = right); edge pixels fill the gap. */
+        EDGE_SLIDE("edgeSlide", 0, -2, 2),
+        /** Brightness MULTIPLIER (1 = unchanged). */
+        EXPOSURE("exposure", 1, 0, 4),
+        /** Direction of the motion-blur streak in degrees (0 = horizontal). */
+        BLUR_ANGLE("blurAngle", 0, -180, 180),
+        /** Horizontal squeeze toward SQUEEZE_ANCHOR, 1 = unchanged. */
+        SQUEEZE_X("squeezeX", 1, 0.02, 2),
+        /** Where SQUEEZE_X pulls toward: 0 = left edge, 1 = right edge. */
+        SQUEEZE_ANCHOR("squeezeAnchor", 0.5, 0, 1),
+        /** > 0.5: the picture's edge pixels cover the whole canvas, so shrinking it leaves no margin. */
+        EDGE_FILL("edgeFill", 0, 0, 1),
+        /** Like EDGE_SLIDE, vertical (fraction of canvas height, + = down). */
+        EDGE_SLIDE_Y("edgeSlideY", 0, -2, 2);
 
         public final String json;
         public final double neutral;
