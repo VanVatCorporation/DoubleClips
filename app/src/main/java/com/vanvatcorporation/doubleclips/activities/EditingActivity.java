@@ -1944,7 +1944,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     if(clip == selectedKnot)
                     {
                         clip.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
-                        clip.effect.style = (String) FXCommandEmitter.FXRegistry.transitionFXMap.keySet().toArray()[transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition()];
+                        clip.effect.style = transitionEditSpecificAreaScreen.styleIdAt(transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition(), clip.effect.style);
                         clip.effect.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
                         clip.mode = TransitionClip.TransitionMode.values()[transitionEditSpecificAreaScreen.transitionModeEditContent.getSelectedItemPosition()];
 //
@@ -1965,7 +1965,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     TransitionClip clip = timeline.tracks.get(selectedKnot.trackIndex).clips.get(i).endTransition;
                     if(clip == null) continue;
                     clip.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
-                    clip.effect.style = (String) FXCommandEmitter.FXRegistry.transitionFXMap.keySet().toArray()[transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition()];
+                    clip.effect.style = transitionEditSpecificAreaScreen.styleIdAt(transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition(), clip.effect.style);
                     clip.effect.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
                     clip.mode = TransitionClip.TransitionMode.values()[transitionEditSpecificAreaScreen.transitionModeEditContent.getSelectedItemPosition()];
                 }
@@ -1976,8 +1976,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         });
         transitionEditSpecificAreaScreen.onOpen.add(() -> {
-            List<String> stringTransition = Arrays.asList(FXCommandEmitter.FXRegistry.transitionFXMap.values().toArray(new String[0]));
-            transitionEditSpecificAreaScreen.transitionEditContent.setSelection(stringTransition.indexOf(FXCommandEmitter.FXRegistry.transitionFXMap.get(selectedKnot.effect.style)));
+            transitionEditSpecificAreaScreen.refreshStyles(selectedKnot.effect.style);
             transitionEditSpecificAreaScreen.transitionDurationContent.setText(String.valueOf(selectedKnot.effect.duration));
             transitionEditSpecificAreaScreen.transitionModeEditContent.setSelection(selectedKnot.mode.ordinal());
         });

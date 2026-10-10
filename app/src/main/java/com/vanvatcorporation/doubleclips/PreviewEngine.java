@@ -140,6 +140,7 @@ public final class PreviewEngine {
     private OpenGLEditNative.ImageTransformShader imageShader;
     private OpenGLEditNative.TransitionBlendShader blendShader;
     private OpenGLEditNative.GaussianBlurShader blurShader;
+    private OpenGLEditNative.PostFxShader postShader; // exposure / edge fill / slide / squeeze / motion blur (transition styles)
     private Offscreen layerA, layerB, blurA, blurB;
     private Pool pool;
     private Request lastRequest;
@@ -429,17 +430,31 @@ public final class PreviewEngine {
 
         for (OpenGLEdit.FrameLayer layer : r.layers) {
             if (layer.simpleDraw != null) {
-                if (layer.simpleDraw.blurSigmaPixels > 0f) {
+                boolean hasBlur = layer.simpleDraw.blurSigmaPixels > 0f;
+                boolean hasPost = layer.simpleDraw.post != null;
+                if (hasBlur || hasPost) {
                     ensureBlur();
                     blurA.bind();
                     blurA.clearTransparent();
                     drawCommand(layer.simpleDraw, r.timeSeconds);
-                    float sigma = layer.simpleDraw.blurSigmaPixels * blurScale;
-                    blurB.bind();
-                    blurB.clearTransparent();
-                    blurShader.draw(blurA.texture, 1f, 0f, previewW, previewH, sigma);
-                    bindScreen();
-                    blurShader.draw(blurB.texture, 0f, 1f, previewW, previewH, sigma);
+                    Offscreen source = blurA, other = blurB;
+                    if (hasPost && hasBlur) {
+                        other.bind();
+                        other.clearTransparent();
+                        postShader.draw(source.texture, layer.simpleDraw.post, previewW, previewH);
+                        Offscreen swap = source; source = other; other = swap;
+                    }
+                    if (hasBlur) {
+                        float sigma = layer.simpleDraw.blurSigmaPixels * blurScale;
+                        other.bind();
+                        other.clearTransparent();
+                        blurShader.draw(source.texture, 1f, 0f, previewW, previewH, sigma);
+                        bindScreen();
+                        blurShader.draw(other.texture, 0f, 1f, previewW, previewH, sigma);
+                    } else {
+                        bindScreen();
+                        postShader.draw(source.texture, layer.simpleDraw.post, previewW, previewH);
+                    }
                 } else {
                     drawCommand(layer.simpleDraw, r.timeSeconds);
                 }
@@ -492,6 +507,8 @@ public final class PreviewEngine {
         blurB = new Offscreen(previewW, previewH);
         blurShader = new OpenGLEditNative.GaussianBlurShader();
         blurShader.init();
+        postShader = new OpenGLEditNative.PostFxShader();
+        postShader.init();
     }
 
     private boolean drawCommand(OpenGLEdit.DrawCommand cmd, float outputTimeSeconds) {

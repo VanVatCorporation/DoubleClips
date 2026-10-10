@@ -99,6 +99,28 @@ public class FXCommandEmitter {
                 break;
 
         }
+        // Data-driven styles (TransitionStyleLoader, e.g. Glitch Blur) are OpenGL-only: xfade has no such name and would
+        // make the whole export fail. FFmpeg gets a hard cut at the style's own cut point (no look on either side);
+        // the export screen warns about it (FFmpegEdit.getUnsupportedAnimationFeatures).
+        TransitionStyle dataDriven = TransitionStyleLoader.get(transition.effect.style);
+        if(dataDriven != null)
+        {
+            String cutExpression = "if(lt(P," + String.format(java.util.Locale.US, "%.4f", dataDriven.getCut()) + "),A,B)";
+            tags.storeTag(mergedClip, outputLabel, fromTag.index);
+            return fromTag.tag + toTag.tag +
+                    "xfade=transition=custom:duration=" + transition.duration + ":offset=" +
+                    transitionOffset +
+                    ":expr='" + cutExpression + "'"
+                    + outputLabel + ";\n";
+        }
+        // A style id that neither xfade nor a style file knows (a project from a build that had more styles) would
+        // make FFmpeg fail on an unknown transition name: cross-fade instead.
+        String xfadeName = transition.effect.style;
+        if(!transition.effect.style.contains("custom_")
+                && !FXRegistry.transitionFXMap.containsKey(FXRegistry.normalizeId(transition.effect.style)))
+        {
+            xfadeName = "fade";
+        }
         if(transition.effect.style.contains("custom_"))
         {
             String customStyle = transition.effect.style.replace("custom_", "");
@@ -136,7 +158,7 @@ public class FXCommandEmitter {
         else {
             tags.storeTag(mergedClip, outputLabel, fromTag.index);
             return fromTag.tag + toTag.tag +
-                    "xfade=transition=" + transition.effect.style + ":duration=" + transition.duration + ":offset=" +
+                    "xfade=transition=" + xfadeName.trim() + ":duration=" + transition.duration + ":offset=" +
                     transitionOffset
                     + outputLabel + ";\n";
         }

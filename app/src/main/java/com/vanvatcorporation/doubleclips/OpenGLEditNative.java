@@ -1581,6 +1581,189 @@ public class OpenGLEditNative {
     }
 
 
+    // ---- whole-picture effects (data-driven transition channels) -------------------
+    // One pass over a canvas-sized layer that already holds the finished clip (transform, colour, warp applied):
+    // exposure, edge fill, edge slide, horizontal squeeze and motion blur, in the order the iOS compositor applies
+    // them (fill -> slide -> squeeze -> streak, then the Gaussian blur as a separate pass). Done as ONE inverse mapping:
+    // for every output pixel work out where in the layer it comes from, clamping to the picture's box at every step,
+    // which is what Core Image's clampedToExtent / cropped(to:) do. Fixed tap count (at most 31), no unbounded loops.
+    // Texture space: u right, v UP (the layers are rendered with the canvas top at v = 1, same as GaussianBlurShader).
+    // With fx == null it is an identity copy, which is how the layer gets onto the frame when only blur is wanted.
+
+    public static class PostFxShader {
+        private static final int MAX_TAPS = 31;
+
+        private static final String VERTEX_SHADER =
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTexCoord;\n" +
+                "varying vec2 vTexCoord;\n" +
+                "void main() {\n" +
+                "    gl_Position = aPosition;\n" +
+                "    vTexCoord = aTexCoord;\n" +
+                "}\n";
+
+        private static final String FRAGMENT_SHADER =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "precision highp float;\n" +
+                "#else\n" +
+                "precision mediump float;\n" +
+                "#endif\n" +
+                "varying vec2 vTexCoord;\n" +
+                "uniform sampler2D uTexture;\n" +
+                "uniform float uExposure;\n" +
+                "uniform vec4 uBox;\n" +        // the picture's own bounding box (minU, minV, maxU, maxV), inside the canvas
+                "uniform float uEdgeFill;\n" +  // 1: the picture's edge pixels cover the whole canvas
+                "uniform vec2 uSlide;\n" +      // picture offset in canvas fractions (+u right, +v up)
+                "uniform float uSqueeze;\n" +   // horizontal squeeze, 1 = none
+                "uniform float uAnchor;\n" +    // 0 = squeeze toward the box's left edge, 1 = right edge
+                "uniform vec2 uStreak;\n" +     // half-length of the motion-blur line (du, dv)
+                "uniform float uTaps;\n" +      // samples along the streak, 1 = none
+                "uniform vec2 uHalfTexel;\n" +
+                "vec2 clampTo(vec2 p, vec4 box) { return clamp(p, box.xy, box.zw); }\n" +
+                "void main() {\n" +
+                "    vec4 box1 = uEdgeFill > 0.5 ? vec4(0.0, 0.0, 1.0, 1.0) : uBox;\n" +
+                "    vec2 p = vTexCoord;\n" +
+                // cropped(to: box): nothing outside the picture's box (the whole canvas with edge fill)
+                "    if (p.x < box1.x || p.y < box1.y || p.x > box1.z || p.y > box1.w) { gl_FragColor = vec4(0.0); return; }\n" +
+                "    float anchorU = box1.x + uAnchor * (box1.z - box1.x);\n" +
+                "    float n = max(uTaps, 1.0);\n" +
+                "    vec4 sum = vec4(0.0);\n" +
+                "    for (int i = 0; i < " + MAX_TAPS + "; i++) {\n" +
+                "        if (float(i) >= n) break;\n" +
+                "        float k = n > 1.0 ? (float(i) / (n - 1.0) - 0.5) * 2.0 : 0.0;\n" +
+                "        vec2 r = clampTo(p + uStreak * k, box1);\n" +                          // streak (clamped to the extent)
+                "        vec2 q = vec2(anchorU + (r.x - anchorU) / max(uSqueeze, 0.02), r.y);\n" + // inverse squeeze
+                "        q = clampTo(q, box1);\n" +
+                "        vec2 u = clampTo(q - uSlide, box1);\n" +                               // inverse slide
+                "        vec2 v = uEdgeFill > 0.5 ? clamp(u, uBox.xy + uHalfTexel, uBox.zw - uHalfTexel) : u;\n" + // edge fill
+                "        sum += texture2D(uTexture, v);\n" +
+                "    }\n" +
+                "    sum /= n;\n" +
+                "    gl_FragColor = vec4(sum.rgb * uExposure, sum.a);\n" +
+                "}\n";
+
+        private static final float[] QUAD_VERTICES = {
+                -1f, -1f,     0f, 0f,
+                 1f, -1f,     1f, 0f,
+                -1f,  1f,     0f, 1f,
+                 1f,  1f,     1f, 1f,
+        };
+
+        private int program;
+        private int aPositionLoc, aTexCoordLoc, uTextureLoc, uExposureLoc, uBoxLoc, uEdgeFillLoc, uSlideLoc,
+                uSqueezeLoc, uAnchorLoc, uStreakLoc, uTapsLoc, uHalfTexelLoc;
+        private java.nio.FloatBuffer vertexBuffer;
+
+        public void init() {
+            program = buildSharedProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            aPositionLoc = GLES20.glGetAttribLocation(program, "aPosition");
+            aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
+            uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
+            uExposureLoc = GLES20.glGetUniformLocation(program, "uExposure");
+            uBoxLoc = GLES20.glGetUniformLocation(program, "uBox");
+            uEdgeFillLoc = GLES20.glGetUniformLocation(program, "uEdgeFill");
+            uSlideLoc = GLES20.glGetUniformLocation(program, "uSlide");
+            uSqueezeLoc = GLES20.glGetUniformLocation(program, "uSqueeze");
+            uAnchorLoc = GLES20.glGetUniformLocation(program, "uAnchor");
+            uStreakLoc = GLES20.glGetUniformLocation(program, "uStreak");
+            uTapsLoc = GLES20.glGetUniformLocation(program, "uTaps");
+            uHalfTexelLoc = GLES20.glGetUniformLocation(program, "uHalfTexel");
+
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
+            bb.order(java.nio.ByteOrder.nativeOrder());
+            vertexBuffer = bb.asFloatBuffer();
+            vertexBuffer.put(QUAD_VERTICES);
+            vertexBuffer.position(0);
+        }
+
+        /** Draws the layer into whatever framebuffer is currently bound. {@code fx} null = plain copy. */
+        public void draw(int textureId, OpenGLEdit.PostFx fx, int targetWidth, int targetHeight) {
+            GLES20.glUseProgram(program);
+
+            vertexBuffer.position(0);
+            GLES20.glVertexAttribPointer(aPositionLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aPositionLoc);
+            vertexBuffer.position(2);
+            GLES20.glVertexAttribPointer(aTexCoordLoc, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer);
+            GLES20.glEnableVertexAttribArray(aTexCoordLoc);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+            GLES20.glUniform1i(uTextureLoc, 0);
+            GLES20.glUniform2f(uHalfTexelLoc, 0.5f / targetWidth, 0.5f / targetHeight);
+
+            if (fx == null) {
+                GLES20.glUniform1f(uExposureLoc, 1f);
+                GLES20.glUniform4f(uBoxLoc, 0f, 0f, 1f, 1f);
+                GLES20.glUniform1f(uEdgeFillLoc, 0f);
+                GLES20.glUniform2f(uSlideLoc, 0f, 0f);
+                GLES20.glUniform1f(uSqueezeLoc, 1f);
+                GLES20.glUniform1f(uAnchorLoc, 0.5f);
+                GLES20.glUniform2f(uStreakLoc, 0f, 0f);
+                GLES20.glUniform1f(uTapsLoc, 1f);
+            } else {
+                // The box can poke out of the canvas (a clip bigger than the frame); the layer only holds the canvas.
+                float minU = Math.max(0f, fx.boxMinU), minV = Math.max(0f, fx.boxMinV);
+                float maxU = Math.min(1f, fx.boxMaxU), maxV = Math.min(1f, fx.boxMaxV);
+                GLES20.glUniform1f(uExposureLoc, fx.exposure);
+                GLES20.glUniform4f(uBoxLoc, minU, minV, Math.max(minU, maxU), Math.max(minV, maxV));
+                GLES20.glUniform1f(uEdgeFillLoc, fx.edgeFill ? 1f : 0f);
+                GLES20.glUniform2f(uSlideLoc, fx.slideU, fx.slideV);
+                GLES20.glUniform1f(uSqueezeLoc, fx.squeezeX);
+                GLES20.glUniform1f(uAnchorLoc, fx.squeezeAnchor);
+                GLES20.glUniform2f(uStreakLoc, fx.streakU, fx.streakV);
+                GLES20.glUniform1f(uTapsLoc, tapsFor(fx.streakLengthFraction * targetWidth));
+            }
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+            GLES20.glDisableVertexAttribArray(aPositionLoc);
+            GLES20.glDisableVertexAttribArray(aTexCoordLoc);
+        }
+
+        /** Odd tap count for a streak of this many pixels: about one tap per 1.5 px, 1 when there is no streak. */
+        static float tapsFor(float streakLengthPixels) {
+            if (streakLengthPixels < 1.5f) return 1f;
+            int taps = (int) (streakLengthPixels / 1.5f) | 1;
+            return Math.max(3, Math.min(MAX_TAPS, taps));
+        }
+
+        private int buildSharedProgram(String vertexSrc, String fragmentSrc) {
+            int vertexShader = compileSharedShader(GLES20.GL_VERTEX_SHADER, vertexSrc);
+            int fragmentShader = compileSharedShader(GLES20.GL_FRAGMENT_SHADER, fragmentSrc);
+
+            int prog = GLES20.glCreateProgram();
+            GLES20.glAttachShader(prog, vertexShader);
+            GLES20.glAttachShader(prog, fragmentShader);
+            GLES20.glLinkProgram(prog);
+
+            int[] linkStatus = new int[1];
+            GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, linkStatus, 0);
+            if (linkStatus[0] == 0) {
+                String log = GLES20.glGetProgramInfoLog(prog);
+                GLES20.glDeleteProgram(prog);
+                throw new RuntimeException("Shader program link failed: " + log);
+            }
+            return prog;
+        }
+
+        private int compileSharedShader(int type, String src) {
+            int shader = GLES20.glCreateShader(type);
+            GLES20.glShaderSource(shader, src);
+            GLES20.glCompileShader(shader);
+
+            int[] compileStatus = new int[1];
+            GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0);
+            if (compileStatus[0] == 0) {
+                String log = GLES20.glGetShaderInfoLog(shader);
+                GLES20.glDeleteShader(shader);
+                throw new RuntimeException("Shader compile failed: " + log);
+            }
+            return shader;
+        }
+    }
+
+
     // ---- Step 4: multi-clip/multi-track timeline export ------------------------
 
     /**
@@ -1634,6 +1817,7 @@ public class OpenGLEditNative {
             OffscreenTarget blurScratchA = null;
             OffscreenTarget blurScratchB = null;
             GaussianBlurShader blurShader = null;
+            PostFxShader postFxShader = null; // whole-picture effects (data-driven transition channels), same lazy pattern
             ExportEncoder encoder = new ExportEncoder();
 
             // Frame watchdog: if a single frame's rendering (decode + draw +
@@ -1724,12 +1908,13 @@ public class OpenGLEditNative {
                     // be grouped into two passes (see OpenGLEdit.computeFrameForTimestamp).
                     for (OpenGLEdit.FrameLayer layer : layers) {
                         if (layer.simpleDraw != null) {
-                            if (layer.simpleDraw.blurSigmaPixels > 0f) {
-                                // in-animation blur: render the clip into a
-                                // scratch layer, blur it in two passes (H then V),
-                                // with the vertical pass compositing straight onto
-                                // the main frame (it's just another textured quad
-                                // draw — blending is already enabled from
+                            boolean hasBlur = layer.simpleDraw.blurSigmaPixels > 0f;
+                            boolean hasPost = layer.simpleDraw.post != null;
+                            if (hasBlur || hasPost) {
+                                // Whole-picture effects and / or in-animation blur: render the clip into a scratch layer,
+                                // run the post pass (exposure, edge fill / slide, squeeze, motion blur) over it, then the
+                                // blur in two passes (H then V). The LAST pass composites straight onto the main frame
+                                // (it's just another textured quad draw - blending is already enabled from
                                 // shader.beginFrame above, no separate blit needed).
                                 if (blurScratchA == null) {
                                     blurScratchA = new OffscreenTarget();
@@ -1738,6 +1923,8 @@ public class OpenGLEditNative {
                                     blurScratchB.create(width, height);
                                     blurShader = new GaussianBlurShader();
                                     blurShader.init();
+                                    postFxShader = new PostFxShader();
+                                    postFxShader.init();
                                 }
 
                                 blurScratchA.bindForDrawing();
@@ -1745,13 +1932,26 @@ public class OpenGLEditNative {
                                 renderDrawCommand(layer.simpleDraw, shader, imageShader, activeSources, activeImageSources,
                                         reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
 
-                                blurScratchB.bindForDrawing();
-                                blurScratchB.clearTransparent();
-                                blurShader.draw(blurScratchA.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurSigmaPixels);
+                                OffscreenTarget source = blurScratchA, other = blurScratchB;
+                                if (hasPost && hasBlur) {
+                                    other.bindForDrawing();
+                                    other.clearTransparent();
+                                    postFxShader.draw(source.getTextureId(), layer.simpleDraw.post, width, height);
+                                    OffscreenTarget swap = source; source = other; other = swap;
+                                }
+                                if (hasBlur) {
+                                    other.bindForDrawing();
+                                    other.clearTransparent();
+                                    blurShader.draw(source.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurSigmaPixels);
 
-                                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-                                GLES20.glViewport(0, 0, width, height);
-                                blurShader.draw(blurScratchB.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurSigmaPixels);
+                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                                    GLES20.glViewport(0, 0, width, height);
+                                    blurShader.draw(other.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurSigmaPixels);
+                                } else {
+                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                                    GLES20.glViewport(0, 0, width, height);
+                                    postFxShader.draw(source.getTextureId(), layer.simpleDraw.post, width, height);
+                                }
                             } else {
                                 renderDrawCommand(layer.simpleDraw, shader, imageShader, activeSources, activeImageSources,
                                         reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);

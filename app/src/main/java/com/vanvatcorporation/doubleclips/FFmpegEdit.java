@@ -837,6 +837,12 @@ public class FFmpegEdit {
             if (track == null || track.clips == null) continue;
             for (EditingActivity.Clip clip : track.clips) {
                 if (clip == null) continue;
+                if (clip.isEndTransitionEnabled() && clip.endTransition != null && clip.endTransition.effect != null) {
+                    TransitionStyle dataDriven = TransitionStyleLoader.get(clip.endTransition.effect.style);
+                    if (dataDriven != null) {
+                        found.add("The '" + dataDriven.getName() + "' transition style (OpenGL only: FFmpeg just cuts from one clip to the next)");
+                    }
+                }
                 if (clip.type == EditingActivity.ClipType.TEXT) {
                     collectUnsupportedTextStyle(clip, found);
                     // drawtext can't animate at all: text in / out animations (and per-character ones) are OpenGL-only.

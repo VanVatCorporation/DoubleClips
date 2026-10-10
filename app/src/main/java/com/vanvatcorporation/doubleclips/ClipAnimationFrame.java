@@ -80,4 +80,40 @@ public final class ClipAnimationFrame {
     public float squeezeAnchor() { return get(ClipAnimation.Channel.SQUEEZE_ANCHOR); }
     /** True when the picture's edge pixels should fill the whole canvas. */
     public boolean edgeFill() { return get(ClipAnimation.Channel.EDGE_FILL) > 0.5f; }
+
+    /**
+     * This frame combined with {@code other} (a transition style's side) the way the two combine with a clip's own
+     * properties, same rules as iOS: additive channels add, multiplicative ones multiply (all clamped to their range),
+     * the streak angle follows the longer streak, the squeeze anchor follows the stronger squeeze, edge fill takes
+     * the larger. Returns {@code this} / {@code other} unchanged when the other one is neutral.
+     */
+    public ClipAnimationFrame merged(ClipAnimationFrame other) {
+        if (other == null || other.isNeutral()) return this;
+        if (isNeutral()) return other;
+        ClipAnimation.Channel[] channels = ClipAnimation.Channel.values();
+        float[] out = new float[channels.length];
+        for (ClipAnimation.Channel c : channels) {
+            double x = get(c), y = other.get(c), r;
+            switch (c) {
+                case OFFSET_X: case OFFSET_Y: case ROTATION: case HUE: case BRIGHTNESS: case TEMPERATURE:
+                case EDGE_SLIDE: case EDGE_SLIDE_Y: case MOTION_BLUR: case BLUR:
+                    r = x + y;
+                    break;
+                case BLUR_ANGLE:
+                    r = motionBlurWidthFraction() >= other.motionBlurWidthFraction() ? x : y;
+                    break;
+                case SQUEEZE_ANCHOR:
+                    r = Math.abs(squeezeX() - 1f) >= Math.abs(other.squeezeX() - 1f) ? x : y;
+                    break;
+                case EDGE_FILL:
+                    r = Math.max(x, y);
+                    break;
+                default: // opacity, scale, saturation, contrast, exposure, warp.*, squeezeX
+                    r = x * y;
+                    break;
+            }
+            out[c.ordinal()] = (float) Math.min(Math.max(r, c.min), c.max);
+        }
+        return new ClipAnimationFrame(out);
+    }
 }

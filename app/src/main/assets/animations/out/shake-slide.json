@@ -1,0 +1,184 @@
+{
+ "schema": 1,
+ "id": "shake-slide",
+ "name": "Shake Slide",
+ "description": "The picture's pixels swerve up and left into a growing streak blur, then are dragged straight left, the edge pixels stretching into the gap, and it thins out toward transparent like smoke. Read off CapCut's Shake Slide (60 fps).",
+ "direction": "out",
+ "defaultDuration": 1.6,
+ "channels": {
+  "motionBlur": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.06,
+     0.01
+    ],
+    [
+     0.12,
+     0.045
+    ],
+    [
+     0.25,
+     0.08
+    ],
+    [
+     0.38,
+     0.13
+    ],
+    [
+     0.5,
+     0.2
+    ],
+    [
+     0.63,
+     0.33
+    ],
+    [
+     0.76,
+     0.52
+    ],
+    [
+     0.89,
+     0.75
+    ],
+    [
+     1,
+     0.9
+    ]
+   ]
+  },
+  "blurAngle": {
+   "kind": "knots",
+   "interp": "smooth",
+   "points": [
+    [
+     0,
+     165
+    ],
+    [
+     0.4,
+     168
+    ],
+    [
+     0.7,
+     178
+    ],
+    [
+     1,
+     180
+    ]
+   ]
+  },
+  "edgeSlide": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.06,
+     -0.012
+    ],
+    [
+     0.12,
+     -0.035
+    ],
+    [
+     0.25,
+     -0.07
+    ],
+    [
+     0.38,
+     -0.1
+    ],
+    [
+     0.5,
+     -0.15
+    ],
+    [
+     0.63,
+     -0.22
+    ],
+    [
+     0.76,
+     -0.34
+    ],
+    [
+     0.9,
+     -0.5
+    ],
+    [
+     1,
+     -0.62
+    ]
+   ]
+  },
+  "edgeSlideY": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     0.06,
+     -0.006
+    ],
+    [
+     0.12,
+     -0.018
+    ],
+    [
+     0.25,
+     -0.034
+    ],
+    [
+     0.38,
+     -0.042
+    ],
+    [
+     0.5,
+     -0.048
+    ],
+    [
+     0.8,
+     -0.058
+    ],
+    [
+     1,
+     -0.065
+    ]
+   ]
+  },
+  "opacity": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     1
+    ],
+    [
+     0.6,
+     1
+    ],
+    [
+     0.8,
+     0.7
+    ],
+    [
+     1,
+     0.2
+    ]
+   ]
+  }
+ }
+}
