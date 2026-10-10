@@ -68,7 +68,9 @@ public final class ClipAnimation {
         /** > 0.5: the picture's edge pixels cover the whole canvas, so shrinking it leaves no margin. */
         EDGE_FILL("edgeFill", 0, 0, 1),
         /** Like EDGE_SLIDE, vertical (fraction of canvas height, + = down). */
-        EDGE_SLIDE_Y("edgeSlideY", 0, -2, 2);
+        EDGE_SLIDE_Y("edgeSlideY", 0, -2, 2),
+        /** Red colour cast, 0 = none .. 1 = strong (same json name and range as iOS; used by effect styles). */
+        RED_TINT("redTint", 0, 0, 1);
 
         public final String json;
         public final double neutral;

@@ -1,0 +1,1 @@
+{"schema":1,"id":"slow-push","name":"Slow Push","description":"A slow push-in toward the centre across the whole effect. Strength scales how far it pushes.","intensity":{"label":"Push","min":0.2,"max":4},"channels":{"scale":{"kind":"knots","interp":"linear","points":[[0,1],[1,1.12]]}}}

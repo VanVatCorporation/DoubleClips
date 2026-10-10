@@ -1,0 +1,1 @@
+{"schema":1,"id":"spin-burst","name":"Spinning Burst","description":"One clockwise turn across the clip, corners black. Strength is the number of turns.","intensity":{"label":"Turns","min":0.25,"max":4},"channels":{"rotation":{"kind":"knots","interp":"linear","points":[[0,0],[1,360]]}}}

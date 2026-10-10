@@ -1,0 +1,1 @@
+{"schema":1,"id":"warp-zoom","name":"Warp Zoom","description":"A steady push-in about the centre, 3% of the picture per second (Android's zoompan). Strength is the zoom speed. Holds after 30 s.","intensity":{"label":"Zoom speed","min":0.2,"max":5},"span":30,"channels":{"scale":{"kind":"knots","interp":"linear","points":[[0,1],[1,1.9]]}}}

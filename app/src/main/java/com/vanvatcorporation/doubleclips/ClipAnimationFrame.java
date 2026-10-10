@@ -80,6 +80,8 @@ public final class ClipAnimationFrame {
     public float squeezeAnchor() { return get(ClipAnimation.Channel.SQUEEZE_ANCHOR); }
     /** True when the picture's edge pixels should fill the whole canvas. */
     public boolean edgeFill() { return get(ClipAnimation.Channel.EDGE_FILL) > 0.5f; }
+    /** Red colour cast, 0 = none .. 1 = strong. */
+    public float redTint() { return get(ClipAnimation.Channel.RED_TINT); }
 
     /**
      * This frame combined with {@code other} (a transition style's side) the way the two combine with a clip's own
@@ -96,7 +98,7 @@ public final class ClipAnimationFrame {
             double x = get(c), y = other.get(c), r;
             switch (c) {
                 case OFFSET_X: case OFFSET_Y: case ROTATION: case HUE: case BRIGHTNESS: case TEMPERATURE:
-                case EDGE_SLIDE: case EDGE_SLIDE_Y: case MOTION_BLUR: case BLUR:
+                case EDGE_SLIDE: case EDGE_SLIDE_Y: case MOTION_BLUR: case BLUR: case RED_TINT:
                     r = x + y;
                     break;
                 case BLUR_ANGLE:
@@ -113,6 +115,27 @@ public final class ClipAnimationFrame {
                     break;
             }
             out[c.ordinal()] = (float) Math.min(Math.max(r, c.min), c.max);
+        }
+        return new ClipAnimationFrame(out);
+    }
+
+    /**
+     * This frame with every channel's distance from its neutral value multiplied by {@code amount} (clamped to the
+     * channel's range): a 12% push becomes 24% at amount 2. This is what an effect's strength slider does. The streak
+     * angle, the squeeze anchor and edge fill are not "amounts", so they stay as they are. Same rule as iOS.
+     */
+    public ClipAnimationFrame scaledDeviation(float amount) {
+        if (isNeutral() || Math.abs(amount - 1f) < 0.0001f) return this;
+        float[] out = new float[v.length];
+        for (ClipAnimation.Channel c : ClipAnimation.Channel.values()) {
+            int i = c.ordinal();
+            if (c == ClipAnimation.Channel.BLUR_ANGLE || c == ClipAnimation.Channel.SQUEEZE_ANCHOR
+                    || c == ClipAnimation.Channel.EDGE_FILL) {
+                out[i] = v[i];
+                continue;
+            }
+            double n = c.neutral;
+            out[i] = (float) Math.min(Math.max(n + (v[i] - n) * amount, c.min), c.max);
         }
         return new ClipAnimationFrame(out);
     }

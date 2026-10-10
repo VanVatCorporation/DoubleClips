@@ -66,6 +66,7 @@ public final class ClipAnimationAssets {
         List<String> errors = new ArrayList<>();
         if (builtInsLoaded) return errors;
         errors.addAll(loadTransitionStyles(context));
+        errors.addAll(loadEffectStyles(context));
 
         AssetManager assets = context.getAssets();
         List<Pending> pending = new ArrayList<>();
@@ -124,6 +125,40 @@ public final class ClipAnimationAssets {
         for (Pending p : pending) errors.add(p.label + ": its \"mirrorOf\" animation was never loaded");
 
         builtInsLoaded = true;
+        return errors;
+    }
+
+    private static boolean effectStylesLoaded = false;
+
+    /**
+     * Loads the bundled data-driven effect styles ({@code assets/animations/effects/*.json}) into
+     * {@link EffectStyleLoader}. Idempotent; a bad file is reported and skipped, never fatal.
+     */
+    public static synchronized List<String> loadEffectStyles(Context context) {
+        List<String> errors = new ArrayList<>();
+        if (effectStylesLoaded) return errors;
+        AssetManager assets = context.getAssets();
+        String folder = ASSET_DIR + "/" + EffectStyleLoader.ASSET_FOLDER;
+        try {
+            String[] names = assets.list(folder);
+            if (names != null) {
+                Arrays.sort(names);
+                for (String n : names) {
+                    if (!n.endsWith(".json")) continue;
+                    String label = EffectStyleLoader.ASSET_FOLDER + "/" + n;
+                    try {
+                        EffectStyleLoader.register(readAsset(assets, folder + "/" + n), label);
+                    } catch (ClipAnimationLoader.FormatException e) {
+                        errors.add(e.getMessage());
+                    } catch (IOException e) {
+                        errors.add(label + ": can't read file: " + e.getMessage());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            errors.add("can't list assets/" + folder + ": " + e.getMessage());
+        }
+        effectStylesLoaded = true;
         return errors;
     }
 
