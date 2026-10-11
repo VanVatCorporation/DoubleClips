@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A keyframe that is at the playhead (timeline diamond) and the property diamonds that are animated: iOS's accent. -->
+    <color name="keyframe_active">#4A5FFF</color>
+</resources>

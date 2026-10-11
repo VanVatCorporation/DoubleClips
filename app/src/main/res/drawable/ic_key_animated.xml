@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyframe diamond, property animated but no keyframe of it at the playhead: left half filled. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3 L3,12 L12,21 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,3 L21,12 L12,21 L3,12 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

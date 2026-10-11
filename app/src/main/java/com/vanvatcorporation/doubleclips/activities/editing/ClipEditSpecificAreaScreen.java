@@ -2,6 +2,8 @@ package com.vanvatcorporation.doubleclips.activities.editing;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.ColorStateList;
+import android.content.res.TypedArray;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
@@ -14,7 +16,9 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
@@ -27,6 +31,9 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.warkiz.widget.IndicatorSeekBar;
+
+import java.util.EnumMap;
+import java.util.Locale;
 
 public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
@@ -42,6 +49,25 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public AnimationPicker inAnimationPicker, outAnimationPicker;
     public android.view.View animationPacksButton;
     public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
+
+    /** The state of the keyframe diamond beside a property (the iOS design). */
+    public enum KeyMode {
+        /** Hollow: no keyframe holds this property; it is just its value. */
+        OFF,
+        /** Left half filled: the property is animated, but no keyframe of it sits at the playhead. */
+        ANIMATED,
+        /** Filled: a keyframe of this property sits at the playhead (edits go into that keyframe). */
+        ON_KEY
+    }
+
+    /** A keyframe diamond was tapped. */
+    public interface KeyDiamondListener {
+        void onKeyDiamond(EditingActivity.VideoProperties.ValueType type);
+    }
+
+    private final EnumMap<EditingActivity.VideoProperties.ValueType, ImageView> keyDiamonds =
+            new EnumMap<>(EditingActivity.VideoProperties.ValueType.class);
+    private KeyDiamondListener keyDiamondListener;
 
 
     public ClipEditSpecificAreaScreen(Context context) {
@@ -130,6 +156,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
 
 
+        installKeyDiamonds();
+
         // Clear focus after edit
         onClose.add(() -> {
             clipNameField.clearFocus();
@@ -161,6 +189,94 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         return new BitmapDrawable(getResources(), bitmap);
     }
 
+    // ---- keyframe diamonds ---------------------------------------------------------------
+
+    public void setKeyDiamondListener(KeyDiamondListener listener) {
+        keyDiamondListener = listener;
+    }
+
+    /**
+     * Puts one diamond beside every property (hollow = not animated, half = animated but no keyframe of it at the
+     * playhead, filled = a keyframe of it is at the playhead). Added in code so the layout stays as it is: after the
+     * field of a "X / Y" pair, or at the end of a row whose value or reset button sits at the row's end.
+     */
+    private void installKeyDiamonds() {
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.PosX, positionXField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.PosY, positionYField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Rot, rotationField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.ScaleX, scaleXField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.ScaleY, scaleYField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.PivotX, pivotXField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.PivotY, pivotYField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Volume, volumeField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Hue, hueField);
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Opacity, findViewById(R.id.opacityResetButton));
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Speed, findViewById(R.id.speedResetButton));
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Saturation, findViewById(R.id.saturationResetButton));
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Brightness, findViewById(R.id.brightnessResetButton));
+        insertKeyDiamond(EditingActivity.VideoProperties.ValueType.Temperature, findViewById(R.id.temperatureResetButton));
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void insertKeyDiamond(EditingActivity.VideoProperties.ValueType type, View anchor) {
+        if (anchor == null || !(anchor.getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) anchor.getParent();
+
+        ImageView diamond = new ImageView(getContext());
+        diamond.setId(View.generateViewId());
+        diamond.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        diamond.setPadding(dp(5), dp(5), dp(5), dp(5));
+        diamond.setContentDescription("Keyframe " + type.displayName());
+        diamond.setOnClickListener(v -> {
+            if (keyDiamondListener != null) keyDiamondListener.onKeyDiamond(type);
+        });
+
+        int size = dp(28); // two of them sit in each X / Y row, so keep them compact
+        if (parent instanceof LinearLayout) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            lp.gravity = android.view.Gravity.CENTER_VERTICAL;
+            parent.addView(diamond, parent.indexOfChild(anchor) + 1, lp);
+        } else if (parent instanceof RelativeLayout) {
+            // The anchor was pinned to the end of the row: it now sits next to the diamond, which takes the end.
+            RelativeLayout.LayoutParams anchorParams = (RelativeLayout.LayoutParams) anchor.getLayoutParams();
+            anchorParams.removeRule(RelativeLayout.ALIGN_PARENT_END);
+            anchorParams.removeRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+            anchorParams.addRule(RelativeLayout.START_OF, diamond.getId());
+            anchor.setLayoutParams(anchorParams);
+
+            RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(size, size);
+            lp.addRule(RelativeLayout.ALIGN_PARENT_END);
+            lp.addRule(RelativeLayout.CENTER_VERTICAL);
+            parent.addView(diamond, lp);
+        } else {
+            return;
+        }
+        keyDiamonds.put(type, diamond);
+        setKeyMode(type, KeyMode.OFF, true);
+    }
+
+    /** Shows the diamond of one property; {@code enabled} is false while the playhead is outside the clip. */
+    public void setKeyMode(EditingActivity.VideoProperties.ValueType type, KeyMode mode, boolean enabled) {
+        ImageView diamond = keyDiamonds.get(type);
+        if (diamond == null) return;
+        int icon = mode == KeyMode.ON_KEY ? R.drawable.ic_key_on
+                : (mode == KeyMode.ANIMATED ? R.drawable.ic_key_animated : R.drawable.ic_key_off);
+        diamond.setImageResource(icon);
+        if (mode == KeyMode.OFF) {
+            TypedArray a = getContext().obtainStyledAttributes(new int[]{android.R.attr.textColorSecondary});
+            ColorStateList off = a.getColorStateList(0);
+            a.recycle();
+            diamond.setImageTintList(off);
+        } else {
+            diamond.setImageTintList(ColorStateList.valueOf(getContext().getColor(R.color.keyframe_active)));
+        }
+        diamond.setEnabled(enabled);
+        diamond.setAlpha(enabled ? 1f : 0.3f);
+    }
+
     public void createKeyframeElement(EditingActivity.Clip clip, EditingActivity.Keyframe keyframe, Runnable onClickKeyframe, Runnable onLongClickKeyframe)
     {
         LinearLayout layout = new LinearLayout(getContext());
@@ -168,7 +284,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
         TextView text = new TextView(getContext());
         text.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        text.setText("Keyframe | Local clip time: " + keyframe.getLocalTime());
+        text.setText(String.format(Locale.US, "Keyframe | %.2fs | %s", keyframe.getLocalTime(), keyframe.channelSummary()));
         text.setOnClickListener(v -> {
             text.setBackgroundColor(getResources().getColor(R.color.colorHighlightedButton, null));
             onClickKeyframe.run();

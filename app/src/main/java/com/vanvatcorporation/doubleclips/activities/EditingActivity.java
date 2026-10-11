@@ -1361,8 +1361,18 @@ public class EditingActivity extends AppCompatActivityImpl {
                     selectingClip(listClip.get(0));
             }
 
-            if(!isPlaying)
-                currentTime = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
+            if(!isPlaying) {
+                float scrolledTo = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
+                // A tap on a keyframe puts the playhead exactly on it, but the scroll position is whole pixels: keep that
+                // exact time until the playhead is moved away, or "the keyframe at the playhead" would miss by a pixel.
+                if (!Float.isNaN(playheadSnapTime) && Math.abs(scrolledTo - playheadSnapTime) <= 1.5f / pixelsPerSecond) {
+                    currentTime = playheadSnapTime;
+                } else {
+                    currentTime = scrolledTo;
+                    playheadSnapTime = Float.NaN;
+                }
+            }
+            if (heavyDue) refreshKeyframeKnotHighlight();
 
             // Get time (- centerOffset mean remove the start spacer)
             //float totalSeconds = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
@@ -1671,7 +1681,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         });
         toolbarClip.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
             if(selectedClip != null) {
-                addKeyframe(selectedClip, currentTime);
+                keyAllAtPlayhead(selectedClip);
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
@@ -2020,104 +2030,11 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.setStartClipTrim(ParserHelper.TryParse(clipEditSpecificAreaScreen.startTrimField.getText().toString(), selectedClip.getStartClipTrim()));
                 selectedClip.setEndClipTrim(ParserHelper.TryParse(clipEditSpecificAreaScreen.endTrimField.getText().toString(), selectedClip.getEndClipTrim()));
 
-                // Apply to the keyframe if possible
-                Keyframe selectedKeyframe = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
-                if(selectedKeyframe != null)
-                {
-                    VideoProperties valueBeforeEdit = new VideoProperties(selectedKeyframe.value);
-                    selectedKeyframe.value.setAllValue(
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosX)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosY)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PivotX)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PivotY)),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
-
-                            Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
-                            Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
-                            ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.Volume)),
-                            Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
-                            Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
-                            Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
-
-                            );
-
-                    selectedKeyframe.holdChanged(valueBeforeEdit);
-                    selectedKeyframe.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
-                }
-                else {
-
-                    new AlertDialog.Builder(this)
-                            .setTitle("Missing Keyframe")
-                            .setMessage("There is no keyframe at this timestamp. How would you like to apply these property changes?")
-                            .setPositiveButton("New Keyframe", (dialog, which) -> {
-
-                                addKeyframe(selectedClip, currentTime);
-
-
-                                Keyframe insertionKeyframe = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
-
-                                if(insertionKeyframe == null) {
-                                    LoggingManager.LogToToast(this, "Keyframe insertion error.");
-                                }
-                                else {
-
-                                    insertionKeyframe.value.setAllValue(
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PosX)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PosY)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Rot)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleX)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.ScaleY)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PivotX)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.PivotY)),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Hue)),
-
-                                            Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
-                                            Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
-                                            ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), insertionKeyframe.value.getValue(VideoProperties.ValueType.Volume)),
-                                            Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
-                                            Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
-                                            Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
-
-                                    );
-
-                                    insertionKeyframe.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
-
-                                    LoggingManager.LogToToast(this, "New keyframe added at " + currentTime);
-                                }
-                            })
-                            .setNeutralButton("Apply to Clip", (dialog, which) -> {
-
-                                selectedClip.videoProperties.setAllValue(
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosX)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PosY)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.rotationField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Rot)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleX)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.scaleYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.ScaleY)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotXField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PivotX)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.pivotYField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.PivotY)),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.hueField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Hue)),
-
-                                        Math.clamp(clipEditSpecificAreaScreen.opacitySeekbar.getProgressFloat(), 0f, 1f),
-                                        Math.clamp(clipEditSpecificAreaScreen.speedSeekbar.getProgressFloat(), 0.01f, 10f),
-                                        ParserHelper.TryParse(clipEditSpecificAreaScreen.volumeField.getText().toString(), selectedClip.videoProperties.getValue(VideoProperties.ValueType.Volume)),
-                                        Math.clamp(clipEditSpecificAreaScreen.saturationSeekbar.getProgressFloat(), -10f, 10f),
-                                        Math.clamp(clipEditSpecificAreaScreen.brightnessSeekbar.getProgressFloat(), -10f, 10f),
-                                        Math.clamp(clipEditSpecificAreaScreen.temperatureSeekbar.getProgressFloat(), 1000f, 40000f)
-
-                                );
-
-                            })
-                            .setNegativeButton("Revert", (dialog, which) -> {
-                                // Dismiss the dialog and potentially refresh the UI fields to original values
-                                dialog.dismiss();
-                                LoggingManager.LogToToast(this, "Changes discarded");
-                            })
-                            .show();
-
-                }
+                // Per-property keyframes: a property with keyframes is written into the keyframe at the playhead (added when
+                // there is none), any other property is edited as before. One undo step for the whole sheet.
+                applySheetProperties();
+                commitKeyframeEdit("Change properties: " + selectedClip.getClipName(), selectedClip, sheetBefore);
+                sheetBefore = null;
 
                 selectedClip.setAdditionalFFmpegCommand(clipEditSpecificAreaScreen.additionFFmpegCommandField.getText().toString());
                 selectedClip.setMute(clipEditSpecificAreaScreen.muteAudioCheckbox.isChecked());
@@ -2146,21 +2063,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.clipNameField.setText(String.valueOf(selectedClip.getClipName()));
             clipEditSpecificAreaScreen.startTrimField.setText(String.valueOf(selectedClip.startClipTrim));
             clipEditSpecificAreaScreen.endTrimField.setText(String.valueOf(selectedClip.endClipTrim));
-            clipEditSpecificAreaScreen.positionXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PosX)));
-            clipEditSpecificAreaScreen.positionYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PosY)));
-            clipEditSpecificAreaScreen.rotationField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Rot)));
-            clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
-            clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
-            clipEditSpecificAreaScreen.pivotXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotX)));
-            clipEditSpecificAreaScreen.pivotYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotY)));
-            clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
-            clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
-
-            clipEditSpecificAreaScreen.opacitySeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Opacity));
-            clipEditSpecificAreaScreen.speedSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Speed));
-            clipEditSpecificAreaScreen.saturationSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Saturation));
-            clipEditSpecificAreaScreen.brightnessSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Brightness));
-            clipEditSpecificAreaScreen.temperatureSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Temperature));
+            sheetBefore = KeyframeSnapshot.of(selectedClip);
+            clipEditSpecificAreaScreen.setKeyDiamondListener(this::onSheetKeyDiamond);
+            populateSheetProperties();
 
             clipEditSpecificAreaScreen.additionFFmpegCommandField.setText(selectedClip.additionalFFmpegCommand);
             clipEditSpecificAreaScreen.muteAudioCheckbox.setChecked(selectedClip.isMute());
@@ -2188,45 +2093,16 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
 
 
-            Keyframe k = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
-            if(k != null) {
-                clipEditSpecificAreaScreen.easingSpinner.setSelection(clipEditSpecificAreaScreen.easingTypeArrayAdapter.getPosition(k.easing));
-            }
-            else LoggingManager.LogToToast(this, "There are 0 keyframe to show at this time.");
-
-
-            for(Keyframe keyframe : selectedClip.keyframes.keyframes)
-            {
-                clipEditSpecificAreaScreen.createKeyframeElement(selectedClip, keyframe, () -> {
-                    setCurrentTime(keyframe.getGlobalTime(selectedClip));
-
-
-                    // Same as above
-                    clipEditSpecificAreaScreen.positionXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PosX)));
-                    clipEditSpecificAreaScreen.positionYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PosY)));
-                    clipEditSpecificAreaScreen.rotationField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Rot)));
-                    clipEditSpecificAreaScreen.scaleXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleX)));
-                    clipEditSpecificAreaScreen.scaleYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.ScaleY)));
-                    clipEditSpecificAreaScreen.pivotXField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotX)));
-                    clipEditSpecificAreaScreen.pivotYField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.PivotY)));
-                    clipEditSpecificAreaScreen.hueField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Hue)));
-                    clipEditSpecificAreaScreen.volumeField.setText(String.valueOf(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Volume)));
-
-                    clipEditSpecificAreaScreen.opacitySeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Opacity));
-                    clipEditSpecificAreaScreen.speedSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Speed));
-                    clipEditSpecificAreaScreen.saturationSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Saturation));
-                    clipEditSpecificAreaScreen.brightnessSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Brightness));
-                    clipEditSpecificAreaScreen.temperatureSeekbar.setProgress(selectedClip.keyframes.getValueAtTime(selectedClip, currentTime, VideoProperties.ValueType.Temperature));
-
-                }, () -> {
-                    removeKeyframe(selectedClip, keyframe);
-                });
-            }
+            rebuildSheetKeyframeList();
 
             clipEditSpecificAreaScreen.clearKeyframeButton.setOnClickListener(v -> {
                 if(selectedClip != null)
                 {
+                    KeyframeSnapshot beforeClear = KeyframeSnapshot.of(selectedClip);
                     clearKeyframe(selectedClip);
+                    commitKeyframeEdit("Clear keyframes: " + selectedClip.getClipName(), selectedClip, beforeClear);
+                    rebuildSheetKeyframeList();
+                    populateSheetProperties();
                 }
             });
 
@@ -2984,19 +2860,290 @@ public class EditingActivity extends AppCompatActivityImpl {
         handleClipInteraction(clipView);
     }
 
-    public void addKeyframe(Clip clip, float keyframeTime)
-    {
-        addKeyframe(clip, new Keyframe(keyframeTime - clip.startTime, new VideoProperties(
-                clip.videoProperties.getValue(VideoProperties.ValueType.PosX), clip.videoProperties.getValue(VideoProperties.ValueType.PosY),
-                clip.videoProperties.getValue(VideoProperties.ValueType.Rot),
-                clip.videoProperties.getValue(VideoProperties.ValueType.ScaleX), clip.videoProperties.getValue(VideoProperties.ValueType.ScaleY),
-                clip.videoProperties.getValue(VideoProperties.ValueType.PivotX), clip.videoProperties.getValue(VideoProperties.ValueType.PivotY),
-                clip.videoProperties.getValue(VideoProperties.ValueType.Opacity), clip.videoProperties.getValue(VideoProperties.ValueType.Speed),
-                clip.videoProperties.getValue(VideoProperties.ValueType.Volume),
-                clip.videoProperties.getValue(VideoProperties.ValueType.Hue), clip.videoProperties.getValue(VideoProperties.ValueType.Saturation),
-                clip.videoProperties.getValue(VideoProperties.ValueType.Brightness), clip.videoProperties.getValue(VideoProperties.ValueType.Temperature)
-        ), EasingType.NONE));
+    // ======================================================================
+    //  Per-property keyframes in the clip sheet and on the timeline (the iOS design)
+    // ======================================================================
+    //
+    // A property with keyframes shows (and edits) its value AT THE PLAYHEAD: changing it adds a keyframe of just that
+    // property there, or changes the one that is there. A property without keyframes is edited as before. The diamond
+    // beside each property turns its animation on at the playhead, or takes its keyframe there off (when that was the
+    // last one, the property stays at that value). On the timeline a keyframe's diamond lights up while the playhead is
+    // on it; tapping one moves the playhead onto it, so the sheet then edits that keyframe.
+
+    /** Easing of a keyframe the editor creates (a diamond, editing an animated property, the toolbar button): iOS's default. */
+    public static final EasingType KEYFRAME_DEFAULT_EASING = EasingType.LINEAR;
+    /** A timeline keyframe lights up when the playhead is within this many seconds of it. */
+    private static final float KEYFRAME_KNOT_ACTIVE_SECONDS = 0.02f;
+    /** Exact time of the keyframe the playhead was last snapped onto (NaN = none), see the timeline scroll listener. */
+    private float playheadSnapTime = Float.NaN;
+    /** The clip's properties and keyframes when the clip sheet opened: one undo step for everything done in it. */
+    private KeyframeSnapshot sheetBefore;
+
+    /** A copy of a clip's static properties and keyframes, for undo. */
+    private static final class KeyframeSnapshot {
+        final VideoProperties statics;
+        final List<Keyframe> keys = new ArrayList<>();
+
+        private KeyframeSnapshot(Clip clip) {
+            statics = new VideoProperties(clip.videoProperties);
+            for (Keyframe k : clip.keyframes.keyframes) keys.add(k.copy());
+        }
+
+        static KeyframeSnapshot of(Clip clip) { return new KeyframeSnapshot(clip); }
+
+        private static boolean sameLook(VideoProperties a, VideoProperties b) {
+            for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+                if (a.getValue(type) != b.getValue(type)) return false;
+            }
+            return true;
+        }
+
+        boolean sameAs(KeyframeSnapshot other) {
+            if (keys.size() != other.keys.size() || !sameLook(statics, other.statics)) return false;
+            for (int i = 0; i < keys.size(); i++) {
+                Keyframe a = keys.get(i), b = other.keys.get(i);
+                if (a.getLocalTime() != b.getLocalTime() || a.easing != b.easing
+                        || !java.util.Objects.equals(a.channels, b.channels) || !sameLook(a.value, b.value)) return false;
+            }
+            return true;
+        }
+
+        void restoreInto(Clip clip) {
+            clip.videoProperties = new VideoProperties(statics);
+            clip.keyframes.keyframes.clear();
+            for (Keyframe k : keys) clip.keyframes.keyframes.add(k.copy());
+        }
     }
+
+    /** Records one undo step if the clip's properties / keyframes differ from {@code before}. */
+    private void commitKeyframeEdit(String name, Clip clip, KeyframeSnapshot before) {
+        if (clip == null || before == null) return;
+        KeyframeSnapshot after = KeyframeSnapshot.of(clip);
+        if (before.sameAs(after)) return;
+        // The clip already holds the "after" state; executing the command re-applies it (idempotent) and puts it on the stack.
+        executeCommand(new TransformGestureCommand(name,
+                () -> { after.restoreInto(clip); keyframesRestored(clip); },
+                () -> { before.restoreInto(clip); keyframesRestored(clip); }));
+    }
+
+    private void keyframesRestored(Clip clip) {
+        syncKeyframeKnots(clip);
+        if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+        if (selectedClip == clip && clipEditSpecificAreaScreen != null && clipEditSpecificAreaScreen.getVisibility() == View.VISIBLE) {
+            rebuildSheetKeyframeList();
+            populateSheetProperties();
+        }
+    }
+
+    /** The toolbar's keyframe button: keys EVERY property at the playhead, from the look at that moment. */
+    private void keyAllAtPlayhead(Clip clip) {
+        KeyframeSnapshot before = KeyframeSnapshot.of(clip);
+        if (!clip.keyframes.keyAll(clip, currentTime - clip.startTime, settings.frameRate, KEYFRAME_DEFAULT_EASING)) return;
+        commitKeyframeEdit("Add Keyframe: " + clip.getClipName(), clip, before);
+    }
+
+    // ---- timeline diamonds ---------------------------------------------------------------
+
+    /** Puts the playhead exactly on a keyframe (a tap on its diamond). */
+    private void snapPlayheadTo(float time) {
+        playheadSnapTime = time;
+        setCurrentTime(time);
+        refreshKeyframeKnotHighlight();
+    }
+
+    private boolean keyframeAtPlayhead(Clip clip, Keyframe keyframe) {
+        return Math.abs(keyframe.getGlobalTime(clip) - currentTime) <= KEYFRAME_KNOT_ACTIVE_SECONDS;
+    }
+
+    private void styleKeyframeKnot(View knot, boolean active) {
+        knot.setSelected(active); // the flag that says which colour it has now
+        knot.setBackgroundColor(active ? getColor(R.color.keyframe_active) : Color.WHITE);
+    }
+
+    /** Colours the selected clip's diamonds: the accent while the playhead is on one, white otherwise. */
+    private void refreshKeyframeKnotHighlight() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.viewRef == null) return;
+        for (int i = 0; i < clip.viewRef.getChildCount(); i++) {
+            View knot = clip.viewRef.getChildAt(i);
+            Object tag = knot.getTag(R.id.keyframe_knot_tag);
+            if (!(tag instanceof Keyframe)) continue;
+            boolean active = keyframeAtPlayhead(clip, (Keyframe) tag);
+            if (knot.isSelected() != active) styleKeyframeKnot(knot, active);
+        }
+    }
+
+    /** Rebuilds the clip's diamonds from its keyframes (after anything added, removed or replaced them). */
+    private void syncKeyframeKnots(Clip clip) {
+        if (clip == null || clip.viewRef == null) return;
+        clearKeyframeUi(clip);
+        for (Keyframe k : clip.keyframes.keyframes) addKeyframeUi(clip, k);
+    }
+
+    // ---- clip sheet ----------------------------------------------------------------------
+
+    private float sheetLocalTime() {
+        return Math.min(Math.max(currentTime - selectedClip.startTime, 0f), selectedClip.duration);
+    }
+
+    private boolean sheetPlayheadInsideClip() {
+        return currentTime >= selectedClip.startTime - 0.001f && currentTime <= selectedClip.startTime + selectedClip.duration + 0.001f;
+    }
+
+    /** The slider properties keep the ranges the sheet always had. */
+    private static float clampSheetValue(VideoProperties.ValueType type, float value) {
+        switch (type) {
+            case Opacity: return Math.clamp(value, 0f, 1f);
+            case Speed: return Math.clamp(value, 0.01f, 10f);
+            case Saturation: case Brightness: return Math.clamp(value, -10f, 10f);
+            case Temperature: return Math.clamp(value, 1000f, 40000f);
+            default: return value;
+        }
+    }
+
+    /** What the sheet shows for a property right now (its fallback when a field holds no number). */
+    private float readSheetValue(VideoProperties.ValueType type, float fallback) {
+        ClipEditSpecificAreaScreen sheet = clipEditSpecificAreaScreen;
+        switch (type) {
+            case PosX: return ParserHelper.TryParse(sheet.positionXField.getText().toString(), fallback);
+            case PosY: return ParserHelper.TryParse(sheet.positionYField.getText().toString(), fallback);
+            case Rot: return ParserHelper.TryParse(sheet.rotationField.getText().toString(), fallback);
+            case ScaleX: return ParserHelper.TryParse(sheet.scaleXField.getText().toString(), fallback);
+            case ScaleY: return ParserHelper.TryParse(sheet.scaleYField.getText().toString(), fallback);
+            case PivotX: return ParserHelper.TryParse(sheet.pivotXField.getText().toString(), fallback);
+            case PivotY: return ParserHelper.TryParse(sheet.pivotYField.getText().toString(), fallback);
+            case Hue: return ParserHelper.TryParse(sheet.hueField.getText().toString(), fallback);
+            case Volume: return ParserHelper.TryParse(sheet.volumeField.getText().toString(), fallback);
+            case Opacity: return clampSheetValue(type, sheet.opacitySeekbar.getProgressFloat());
+            case Speed: return clampSheetValue(type, sheet.speedSeekbar.getProgressFloat());
+            case Saturation: return clampSheetValue(type, sheet.saturationSeekbar.getProgressFloat());
+            case Brightness: return clampSheetValue(type, sheet.brightnessSeekbar.getProgressFloat());
+            case Temperature: return clampSheetValue(type, sheet.temperatureSeekbar.getProgressFloat());
+            default: return fallback;
+        }
+    }
+
+    /**
+     * Writes what was edited in the sheet: each property whose value really changed (beyond the sliders' 2-decimal
+     * rounding) goes into the keyframe at the playhead when some keyframe holds the property, else into the clip's static
+     * value. Properties that did not change are left exactly as they were. Returns true when anything changed.
+     */
+    private boolean applySheetProperties() {
+        Clip clip = selectedClip;
+        if (clip == null) return false;
+        boolean inside = sheetPlayheadInsideClip();
+        float local = sheetLocalTime();
+        Keyframe keyframeHere = clip.keyframes.keyframeAtLocal(local); // before any edit can add one
+        boolean changed = false;
+        for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+            float current = clampSheetValue(type, clip.keyframes.getValueAtTime(clip, currentTime, type));
+            float edited = readSheetValue(type, current);
+            if (Math.abs(edited - current) <= KeyframeChannels.SAME_VALUE_TOLERANCE) continue;
+            if (clip.keyframes.isAnimated(type)) {
+                if (!inside) continue; // a keyframe can't be placed outside the clip
+                clip.keyframes.setKey(type, local, edited, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+            } else {
+                clip.videoProperties.setValue(edited, type);
+            }
+            changed = true;
+        }
+        // The easing belongs to the keyframe that was at the playhead when the sheet showed it.
+        if (keyframeHere != null && clip.keyframes.keyframes.contains(keyframeHere)) {
+            EasingType easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
+            if (easing != null && easing != keyframeHere.easing) {
+                keyframeHere.easing = easing;
+                changed = true;
+            }
+        }
+        if (changed) syncKeyframeKnots(clip);
+        return changed;
+    }
+
+    /** Fills the sheet's properties, their diamonds and the easing from the clip at the playhead. */
+    private void populateSheetProperties() {
+        Clip clip = selectedClip;
+        if (clip == null) return;
+        ClipEditSpecificAreaScreen sheet = clipEditSpecificAreaScreen;
+        float local = sheetLocalTime();
+        boolean inside = sheetPlayheadInsideClip();
+        for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+            float value = clip.keyframes.getValueAtTime(clip, currentTime, type);
+            switch (type) {
+                case PosX: sheet.positionXField.setText(String.valueOf(value)); break;
+                case PosY: sheet.positionYField.setText(String.valueOf(value)); break;
+                case Rot: sheet.rotationField.setText(String.valueOf(value)); break;
+                case ScaleX: sheet.scaleXField.setText(String.valueOf(value)); break;
+                case ScaleY: sheet.scaleYField.setText(String.valueOf(value)); break;
+                case PivotX: sheet.pivotXField.setText(String.valueOf(value)); break;
+                case PivotY: sheet.pivotYField.setText(String.valueOf(value)); break;
+                case Hue: sheet.hueField.setText(String.valueOf(value)); break;
+                case Volume: sheet.volumeField.setText(String.valueOf(value)); break;
+                case Opacity: sheet.opacitySeekbar.setProgress(value); break;
+                case Speed: sheet.speedSeekbar.setProgress(value); break;
+                case Saturation: sheet.saturationSeekbar.setProgress(value); break;
+                case Brightness: sheet.brightnessSeekbar.setProgress(value); break;
+                case Temperature: sheet.temperatureSeekbar.setProgress(value); break;
+                default: break;
+            }
+            ClipEditSpecificAreaScreen.KeyMode mode = !clip.keyframes.isAnimated(type) ? ClipEditSpecificAreaScreen.KeyMode.OFF
+                    : (clip.keyframes.keyframeIndex(local, type) >= 0 ? ClipEditSpecificAreaScreen.KeyMode.ON_KEY
+                    : ClipEditSpecificAreaScreen.KeyMode.ANIMATED);
+            sheet.setKeyMode(type, mode, inside);
+        }
+        Keyframe here = clip.keyframes.keyframeAtLocal(local);
+        if (here != null) sheet.easingSpinner.setSelection(sheet.easingTypeArrayAdapter.getPosition(here.easing));
+    }
+
+    /** A diamond beside a property was tapped: turn its animation on at the playhead, or take its keyframe there off. */
+    private void onSheetKeyDiamond(VideoProperties.ValueType type) {
+        Clip clip = selectedClip;
+        if (clip == null || !sheetPlayheadInsideClip()) return;
+        applySheetProperties(); // anything typed but not applied yet comes first, or toggling would lose it
+        float local = sheetLocalTime();
+        if (clip.keyframes.keyframeIndex(local, type) >= 0) {
+            Float removed = clip.keyframes.removeKey(type, local);
+            // No longer animated: the property stays where it was.
+            if (removed != null && !clip.keyframes.isAnimated(type)) clip.videoProperties.setValue(removed, type);
+        } else {
+            float value = clip.keyframes.getValueAtTime(clip, currentTime, type);
+            clip.keyframes.setKey(type, local, value, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+        }
+        syncKeyframeKnots(clip);
+        rebuildSheetKeyframeList();
+        populateSheetProperties();
+        if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+    }
+
+    /** The sheet's list of the clip's keyframes: time, which properties each holds; tap = go there, long press = delete. */
+    private void rebuildSheetKeyframeList() {
+        Clip clip = selectedClip;
+        if (clip == null) return;
+        clipEditSpecificAreaScreen.keyframeScrollFrame.removeAllViews();
+        for (Keyframe keyframe : new ArrayList<>(clip.keyframes.keyframes)) {
+            clipEditSpecificAreaScreen.createKeyframeElement(clip, keyframe, () -> {
+                applySheetProperties();
+                snapPlayheadTo(keyframe.getGlobalTime(clip));
+                populateSheetProperties();
+            }, () -> deleteKeyframeFromSheet(clip, keyframe));
+        }
+    }
+
+    /** Deletes a whole keyframe. A property that loses its last keyframe stays at the value that keyframe gave it. */
+    private void deleteKeyframeFromSheet(Clip clip, Keyframe keyframe) {
+        KeyframeSnapshot before = KeyframeSnapshot.of(clip);
+        List<VideoProperties.ValueType> held = new ArrayList<>();
+        for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+            if (keyframe.animates(type)) held.add(type);
+        }
+        removeKeyframe(clip, keyframe);
+        for (VideoProperties.ValueType type : held) {
+            if (!clip.keyframes.isAnimated(type)) clip.videoProperties.setValue(keyframe.value.getValue(type), type);
+        }
+        commitKeyframeEdit("Remove keyframe: " + clip.getClipName(), clip, before);
+        rebuildSheetKeyframeList();
+        populateSheetProperties();
+    }
+
     public void addKeyframe(Clip clip, Keyframe keyframe)
     {
         // Clamp keyframe in local time.
@@ -3019,6 +3166,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         knotView.setTag(R.id.keyframe_knot_tag, keyframe);
         knotView.setTag(R.id.clip_knot_tag, clip);
+        styleKeyframeKnot(knotView, keyframeAtPlayhead(clip, keyframe));
         
         int width = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, getResources().getDisplayMetrics());
         int height = width;
@@ -3062,7 +3210,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
     public void clearKeyframeUi(Clip clip)
     {
-        for (int i = 0; i < clip.viewRef.getChildCount(); i++) {
+        // Backwards: removing a child shifts the ones after it, so a forward loop skipped every other knot.
+        for (int i = clip.viewRef.getChildCount() - 1; i >= 0; i--) {
             View knotView = clip.viewRef.getChildAt(i);
             if(knotView.getTag(R.id.keyframe_knot_tag) instanceof Keyframe)
             {
@@ -3105,7 +3254,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 Keyframe data = (Keyframe) view.getTag(R.id.keyframe_knot_tag);
                 Clip data2 = (Clip) view.getTag(R.id.clip_knot_tag);
 
-                setCurrentTime(data.getGlobalTime(data2));
+                snapPlayheadTo(data.getGlobalTime(data2));
             }
 
         });
@@ -4154,6 +4303,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             if(movePlayhead && currentTime < selectedClip.startTime)
                 setCurrentTime(selectedClip.startTime);
+            refreshKeyframeKnotHighlight();
         }
 
         if(timelineRenderer != null) timelineRenderer.refreshGizmo();
@@ -6187,6 +6337,28 @@ frameRate = 60;
                 String n = this == RotInRadians ? "Rot" : name();
                 return Character.toLowerCase(n.charAt(0)) + n.substring(1);
             }
+
+            /** The property a {@link #channelName()} names, or null (a name this build doesn't know, like iOS's "strength"). */
+            public static ValueType fromChannelName(String channelName) {
+                for (ValueType type : CHANNELS) {
+                    if (type.channelName().equals(channelName)) return type;
+                }
+                return null;
+            }
+
+            /** How the editor names the property: "Pos X", "Scale Y", "Rotation"... */
+            public String displayName() {
+                switch (this) {
+                    case PosX: return "Pos X";
+                    case PosY: return "Pos Y";
+                    case Rot: case RotInRadians: return "Rotation";
+                    case ScaleX: return "Scale X";
+                    case ScaleY: return "Scale Y";
+                    case PivotX: return "Pivot X";
+                    case PivotY: return "Pivot Y";
+                    default: return name();
+                }
+            }
         }
     }
     public static class Keyframe implements Serializable, UnknownKeysHolder {
@@ -6237,17 +6409,26 @@ frameRate = 60;
             channels = KeyframeChannels.with(channels, type.channelName(), on);
         }
 
-        /**
-         * Call right after {@link #value} was overwritten with a whole look (the clip sheet does that): the properties whose
-         * value really changed (beyond the sliders' 2-decimal rounding) become held by this keyframe; the others get their
-         * exact previous value back, so reopening and closing the sheet pins nothing and rounds nothing.
-         */
-        public void holdChanged(VideoProperties before) {
-            for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
-                float was = before.getValue(type);
-                if (Math.abs(value.getValue(type) - was) > KeyframeChannels.SAME_VALUE_TOLERANCE) animate(type, true);
-                else value.setValue(was, type);
+        /** "All", or "Pos X, Scale Y": which properties this keyframe animates. */
+        public String channelSummary() {
+            if (channels == null) return "All";
+            StringBuilder sb = new StringBuilder();
+            for (String name : channels) {
+                if (sb.length() > 0) sb.append(", ");
+                VideoProperties.ValueType type = VideoProperties.ValueType.fromChannelName(name);
+                if (type != null) sb.append(type.displayName());
+                else if (!name.isEmpty()) sb.append(Character.toUpperCase(name.charAt(0))).append(name.substring(1));
             }
+            return sb.toString();
+        }
+
+        /** An independent copy (own look, own channels list), for undo snapshots. */
+        public Keyframe copy() {
+            Keyframe c = new Keyframe(time, new VideoProperties(value), easing);
+            c.frame = frame;
+            c.channels = KeyframeChannels.copy(channels);
+            c.copyUnknownKeysFrom(this);
+            return c;
         }
 
         public long getLocalFrame() {
@@ -6323,6 +6504,88 @@ frameRate = 60;
         public boolean isAnimated(VideoProperties.ValueType type) {
             for (Keyframe k : keyframes) if (k.animates(type)) return true;
             return false;
+        }
+
+        /** Any keyframe at this local clip time (within the keyframe spacing), or null. */
+        public Keyframe keyframeAtLocal(float localTime) {
+            for (Keyframe k : keyframes) {
+                if (Math.abs(k.getLocalTime() - localTime) <= Constants.TRACK_CLIPS_MINIMUM_KEYFRAME_SPACE_SECONDS) return k;
+            }
+            return null;
+        }
+
+        /** Index of the keyframe at this local time that holds {@code type}, or -1. */
+        public int keyframeIndex(float localTime, VideoProperties.ValueType type) {
+            for (int i = 0; i < keyframes.size(); i++) {
+                Keyframe k = keyframes.get(i);
+                if (Math.abs(k.getLocalTime() - localTime) <= Constants.TRACK_CLIPS_MINIMUM_KEYFRAME_SPACE_SECONDS && k.animates(type)) return i;
+            }
+            return -1;
+        }
+
+        /** Every property of the clip at a global time (static values for those no keyframe holds). */
+        public VideoProperties resolved(Clip clip, float playheadTime) {
+            VideoProperties look = new VideoProperties(clip.videoProperties);
+            for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+                look.setValue(getValueAtTime(clip, playheadTime, type), type);
+            }
+            return look;
+        }
+
+        /**
+         * Gives {@code type} the value {@code value} at this local clip time: updates the keyframe that already holds it
+         * there, makes a keyframe that is already there hold it, or adds a keyframe that holds only it (its stored look is
+         * what every other property is at that moment, so nothing jumps).
+         */
+        public void setKey(VideoProperties.ValueType type, float localTime, float value, Clip clip, int frameRate, EasingType easing) {
+            Keyframe here = keyframeAtLocal(localTime);
+            if (here != null) {
+                here.animate(type, true);
+                here.value.setValue(value, type);
+                return;
+            }
+            VideoProperties look = resolved(clip, clip.startTime + localTime);
+            look.setValue(value, type);
+            Keyframe added = new Keyframe(localTime, look, easing);
+            added.channels = new ArrayList<>(Arrays.asList(type.channelName()));
+            keyframes.add(added);
+            sortKeyframe();
+            reassignKeyframes(frameRate);
+        }
+
+        /**
+         * Takes {@code type} off the keyframe at this local time (the keyframe goes when it holds nothing else). Returns the
+         * value it had there, so the caller can keep the property at that value; null when there was no such keyframe.
+         */
+        public Float removeKey(VideoProperties.ValueType type, float localTime) {
+            int i = keyframeIndex(localTime, type);
+            if (i < 0) return null;
+            Keyframe k = keyframes.get(i);
+            float value = k.value.getValue(type);
+            k.animate(type, false);
+            if (KeyframeChannels.holdsNothing(k.channels)) keyframes.remove(i);
+            return value;
+        }
+
+        /**
+         * The toolbar's "keyframe" button: keys EVERY property at this local time from the look at that moment (so nothing
+         * jumps). A keyframe of just some properties already there is made to hold all of them. Returns false when there was
+         * nothing to do (outside the clip, or an all-property keyframe is already there).
+         */
+        public boolean keyAll(Clip clip, float localTime, int frameRate, EasingType easing) {
+            if (localTime < 0f || localTime > clip.duration) return false;
+            VideoProperties look = resolved(clip, clip.startTime + localTime);
+            Keyframe here = keyframeAtLocal(localTime);
+            if (here != null) {
+                if (here.channels == null) return false;
+                here.channels = null;
+                here.value = look;
+                return true;
+            }
+            keyframes.add(new Keyframe(localTime, look, easing));
+            sortKeyframe();
+            reassignKeyframes(frameRate);
+            return true;
         }
 
         /** The keyframes as one property sees them, for {@link KeyframeChannels#valueAt}. */
