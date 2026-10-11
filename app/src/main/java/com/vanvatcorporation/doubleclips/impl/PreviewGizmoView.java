@@ -12,6 +12,7 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewConfiguration;
 
+import com.vanvatcorporation.doubleclips.KeyframeChannels;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity.Clip;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity.ClipType;
@@ -23,6 +24,7 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity.VideoPropert
 import com.vanvatcorporation.doubleclips.constants.Constants;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -39,9 +41,10 @@ import java.util.Locale;
  *   <li>the round handle above the top edge rotates it around its visual centre, snapping to 90&deg;</li>
  *   <li>a two-finger pinch scales it about its centre</li>
  * </ul>
- * Every gesture is ONE undo step. If the clip has keyframes the gesture edits the keyframe at the
- * playhead, inserting one first (from the current interpolated look) when there is none - otherwise
- * interpolation would overwrite the change.
+ * Every gesture is ONE undo step. Keyframes are per property: a property that some keyframe holds is edited in the
+ * keyframe at the playhead (inserting one first, from the current interpolated look, when there is none - otherwise
+ * interpolation would overwrite the change; a keyframe that does not hold it yet starts to), and only the
+ * properties the gesture actually changes are held; a property no keyframe holds is just its static value.
  * <p>
  * The view is a transparent overlay that sits OUTSIDE the scaled canvas pane, so handles keep a
  * constant on-screen size and can be grabbed even when they lie beyond the canvas edge. All clip
@@ -116,6 +119,12 @@ public final class PreviewGizmoView extends View {
     private VideoProperties basis;     // values the gesture started from (static or keyframe)
     private VideoProperties live;      // values currently shown
     private int keyIndex = -1;         // keyframe being edited, or -1
+    /** The properties a gesture can change. */
+    private static final ValueType[] TRANSFORM = {
+            ValueType.PosX, ValueType.PosY, ValueType.Rot, ValueType.ScaleX, ValueType.ScaleY
+    };
+    private final EnumSet<ValueType> touched = EnumSet.noneOf(ValueType.class);          // changed so far by this gesture
+    private final EnumSet<ValueType> animatedAtStart = EnumSet.noneOf(ValueType.class);  // held by some keyframe at its start
     private Snapshot before;
     private float pressCanvasX, pressCanvasY, pressOverlayX, pressOverlayY;
     private int draggedHandle = -1;
@@ -426,11 +435,20 @@ public final class PreviewGizmoView extends View {
         float time = host.currentTime();
         VideoProperties resolved = resolve(clip, time);
         keyIndex = -1;
+        touched.clear();
+        animatedAtStart.clear();
         if (clip.keyframes != null && !clip.keyframes.keyframes.isEmpty()) {
+            for (ValueType type : TRANSFORM) {
+                if (clip.keyframes.isAnimated(type)) animatedAtStart.add(type);
+            }
             Keyframe at = clip.keyframes.getKeyframeAtTime(clip, time);
             if (at != null) {
                 keyIndex = clip.keyframes.keyframes.indexOf(at);
-                basis = new VideoProperties(at.value);
+                basis = new VideoProperties(resolved);
+                // What this keyframe holds starts from its own value (the playhead can sit a hair off it).
+                for (ValueType type : TRANSFORM) {
+                    if (at.animates(type)) basis.setValue(at.value.getValue(type), type);
+                }
             } else {
                 basis = resolved; // a keyframe is inserted from this look on the first real change
             }
@@ -449,7 +467,7 @@ public final class PreviewGizmoView extends View {
         invalidate();
     }
 
-    /** Applies in-progress values to the clip; the first real change also inserts the keyframe if one is needed. */
+    /** Applies in-progress values to the clip; the first real change that a keyframe holds also inserts the keyframe. */
     private void show(VideoProperties v) {
         if (target == null) return;
         if (!changed && sameTransform(v, basis)) {
@@ -457,32 +475,66 @@ public final class PreviewGizmoView extends View {
             invalidate();
             return;
         }
-        if (!changed) {
-            changed = true;
-            if (target.keyframes != null && !target.keyframes.keyframes.isEmpty() && keyIndex < 0) {
-                if (!insertKeyframe()) { // could not place a keyframe here: drop the gesture
-                    cancel();
-                    return;
-                }
-            }
+        for (ValueType type : TRANSFORM) {
+            if (v.getValue(type) != basis.getValue(type)) touched.add(type);
+        }
+        changed = true;
+        if (!writeTouched(v)) { // could not place a keyframe here: drop the gesture
+            cancel();
+            return;
         }
         live = v;
-        writeProperties(target, v, keyIndex);
         host.requestRender();
         host.showInfo(String.format(Locale.US, "Pos X: %.0f | Pos Y: %.0f\nScale X: %.2f | Scale Y: %.2f | Rot: %.1f",
                 v.valuePosX, v.valuePosY, v.valueScaleX, v.valueScaleY, v.valueRot));
         invalidate();
     }
 
-    /** Adds a keyframe at the playhead from the current interpolated look (gesture-owned; undo removes it). */
+    /**
+     * Writes the properties this gesture has changed: into the keyframe at the playhead when some keyframe holds the
+     * property (inserting that keyframe first if there is none, and making it hold the property), else into the static
+     * properties. Returns false when the keyframe could not be placed.
+     */
+    private boolean writeTouched(VideoProperties v) {
+        Clip clip = target;
+        boolean needsKeyframe = false;
+        for (ValueType type : touched) {
+            if (animatedAtStart.contains(type)) { needsKeyframe = true; break; }
+        }
+        if (needsKeyframe && keyIndex < 0 && !insertKeyframe()) return false;
+        Keyframe key = keyIndex >= 0 && keyIndex < clip.keyframes.keyframes.size() ? clip.keyframes.keyframes.get(keyIndex) : null;
+        for (ValueType type : touched) {
+            float value = v.getValue(type);
+            if (key != null && animatedAtStart.contains(type)) {
+                key.animate(type, true);
+                key.value.setValue(value, type);
+            } else {
+                clip.videoProperties.setValue(value, type);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Adds a keyframe at the playhead from the current interpolated look (gesture-owned; undo removes it). It holds only
+     * the properties this gesture animates; the rest of its look is just what they were.
+     */
     private boolean insertKeyframe() {
         Clip clip = target;
         float localTime = Math.max(0f, Math.min(host.currentTime() - clip.startTime, clip.duration));
         EasingType easing = EasingType.LINEAR; // keep the curve the new keyframe splits
         for (Keyframe k : clip.keyframes.keyframes) {
-            if (k.getLocalTime() <= localTime) easing = k.easing;
+            if (k.getLocalTime() > localTime) continue;
+            for (ValueType type : touched) {
+                if (animatedAtStart.contains(type) && k.animates(type)) { easing = k.easing; break; }
+            }
         }
         Keyframe kf = new Keyframe(localTime, new VideoProperties(basis), easing);
+        List<String> held = new ArrayList<>();
+        for (ValueType type : touched) {
+            if (animatedAtStart.contains(type)) held.add(type.channelName());
+        }
+        kf.channels = held;
         host.addKeyframe(clip, kf);
         keyIndex = clip.keyframes.keyframes.indexOf(kf);
         return keyIndex >= 0;
@@ -685,18 +737,6 @@ public final class PreviewGizmoView extends View {
                 && a.valueScaleX == b.valueScaleX && a.valueScaleY == b.valueScaleY;
     }
 
-    /** Writes just the transform channels into the static properties or into one keyframe. */
-    private static void writeProperties(Clip clip, VideoProperties v, int keyIndex) {
-        VideoProperties dst = (keyIndex >= 0 && keyIndex < clip.keyframes.keyframes.size())
-                ? clip.keyframes.keyframes.get(keyIndex).value
-                : clip.videoProperties;
-        dst.valuePosX = v.valuePosX;
-        dst.valuePosY = v.valuePosY;
-        dst.valueRot = v.valueRot;
-        dst.valueScaleX = v.valueScaleX;
-        dst.valueScaleY = v.valueScaleY;
-    }
-
     // ======================================================================
     //  Geometry (same maths as OpenGLEdit.buildClipMvp)
     // ======================================================================
@@ -854,18 +894,24 @@ public final class PreviewGizmoView extends View {
         final VideoProperties statics;
         final List<Keyframe> keys;
         final List<VideoProperties> values;
+        final List<List<String>> channels; // each keyframe's channels list (null = holds everything)
 
-        private Snapshot(VideoProperties statics, List<Keyframe> keys, List<VideoProperties> values) {
+        private Snapshot(VideoProperties statics, List<Keyframe> keys, List<VideoProperties> values, List<List<String>> channels) {
             this.statics = statics;
             this.keys = keys;
             this.values = values;
+            this.channels = channels;
         }
 
         static Snapshot of(Clip clip) {
             List<Keyframe> keys = new ArrayList<>(clip.keyframes.keyframes);
             List<VideoProperties> values = new ArrayList<>();
-            for (Keyframe k : keys) values.add(new VideoProperties(k.value));
-            return new Snapshot(new VideoProperties(clip.videoProperties), keys, values);
+            List<List<String>> channels = new ArrayList<>();
+            for (Keyframe k : keys) {
+                values.add(new VideoProperties(k.value));
+                channels.add(KeyframeChannels.copy(k.channels));
+            }
+            return new Snapshot(new VideoProperties(clip.videoProperties), keys, values, channels);
         }
 
         void restore(Clip clip, Host host) {
@@ -876,7 +922,10 @@ public final class PreviewGizmoView extends View {
             for (Keyframe k : keys) {
                 if (!clip.keyframes.keyframes.contains(k)) host.addKeyframe(clip, k);
             }
-            for (int i = 0; i < keys.size(); i++) copyInto(keys.get(i).value, values.get(i));
+            for (int i = 0; i < keys.size(); i++) {
+                copyInto(keys.get(i).value, values.get(i));
+                keys.get(i).channels = KeyframeChannels.copy(channels.get(i));
+            }
         }
 
         private static void copyInto(VideoProperties dst, VideoProperties src) {

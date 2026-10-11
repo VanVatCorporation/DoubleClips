@@ -73,6 +73,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.annotations.Expose;
 
+import com.vanvatcorporation.doubleclips.KeyframeChannels;
 import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.FXCommandEmitter;
 import com.vanvatcorporation.doubleclips.R;
@@ -2023,6 +2024,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 Keyframe selectedKeyframe = selectedClip.keyframes.getKeyframeAtTime(selectedClip, currentTime);
                 if(selectedKeyframe != null)
                 {
+                    VideoProperties valueBeforeEdit = new VideoProperties(selectedKeyframe.value);
                     selectedKeyframe.value.setAllValue(
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.positionXField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosX)),
                             ParserHelper.TryParse(clipEditSpecificAreaScreen.positionYField.getText().toString(), selectedKeyframe.value.getValue(VideoProperties.ValueType.PosY)),
@@ -2042,6 +2044,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                             );
 
+                    selectedKeyframe.holdChanged(valueBeforeEdit);
                     selectedKeyframe.easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
                 }
                 else {
@@ -5382,9 +5385,15 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void mergingVideoPropertiesFromSingleKeyframe() {
             if(hasOnlyOneAnimatedProperties())
             {
-                VideoProperties videoProperties = keyframes.keyframes.get(0).value;
+                // Only what the keyframe holds: the other properties are this clip's static values (a keyframe's fill for
+                // them is not an instruction).
+                Keyframe only = keyframes.keyframes.get(0);
+                VideoProperties merged = new VideoProperties(videoProperties);
+                for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+                    if (only.animates(type)) merged.setValue(only.value.getValue(type), type);
+                }
 
-                applyPropertiesToClip(videoProperties);
+                applyPropertiesToClip(merged);
             }
         }
         public void applyPropertiesToClip(VideoProperties properties) {
@@ -6163,7 +6172,21 @@ frameRate = 60;
         }
 
         public enum ValueType {
-            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
+            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature;
+
+            /**
+             * The properties an "all properties" keyframe holds (RotInRadians is only Rot in radians), in the order of
+             * {@link KeyframeChannels#ALL}.
+             */
+            public static final ValueType[] CHANNELS = {
+                    PosX, PosY, Rot, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature
+            };
+
+            /** The name a keyframe's {@code channels} list uses for this property ("posX", "scaleY"...): iOS's raw values. */
+            public String channelName() {
+                String n = this == RotInRadians ? "Rot" : name();
+                return Character.toLowerCase(n.charAt(0)) + n.substring(1);
+            }
         }
     }
     public static class Keyframe implements Serializable, UnknownKeysHolder {
@@ -6179,6 +6202,13 @@ frameRate = 60;
         public VideoProperties value;
         @Expose
         public EasingType easing;
+        /**
+         * The properties this keyframe animates, by {@link VideoProperties.ValueType#channelName()}; null = all of them,
+         * which is what every keyframe written before per-property keyframes means (see {@link KeyframeChannels}). iOS
+         * writes it; names this build doesn't know are kept as they are.
+         */
+        @Expose
+        public List<String> channels;
 
 
         public Keyframe(float time, VideoProperties value, EasingType easing)
@@ -6195,6 +6225,29 @@ frameRate = 60;
         }
         public void setLocalTime(float time) {
             this.time = time;
+        }
+
+        /** Does this keyframe hold {@code type}? (An old-style keyframe, channels == null, holds everything.) */
+        public boolean animates(VideoProperties.ValueType type) {
+            return KeyframeChannels.holds(channels, type.channelName());
+        }
+
+        /** Makes the keyframe hold (or stop holding) one property. Holding every property is stored as null. */
+        public void animate(VideoProperties.ValueType type, boolean on) {
+            channels = KeyframeChannels.with(channels, type.channelName(), on);
+        }
+
+        /**
+         * Call right after {@link #value} was overwritten with a whole look (the clip sheet does that): the properties whose
+         * value really changed (beyond the sliders' 2-decimal rounding) become held by this keyframe; the others get their
+         * exact previous value back, so reopening and closing the sheet pins nothing and rounds nothing.
+         */
+        public void holdChanged(VideoProperties before) {
+            for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
+                float was = before.getValue(type);
+                if (Math.abs(value.getValue(type) - was) > KeyframeChannels.SAME_VALUE_TOLERANCE) animate(type, true);
+                else value.setValue(was, type);
+            }
         }
 
         public long getLocalFrame() {
@@ -6254,31 +6307,35 @@ frameRate = 60;
             }
             return null;
         }
+        /**
+         * One property of the clip at a global time. Only the keyframes that hold the property take part (an old-style
+         * keyframe holds all of them); none holds it = the clip's static value (also when there are no keyframes at all).
+         * Before the first keyframe that holds it, it holds that keyframe's value; after the last, the last one's.
+         */
         public float getValueAtTime(Clip clip, float playheadTime, VideoProperties.ValueType valueType) {
-            if (keyframes.isEmpty()) return clip.videoProperties.getValue(valueType); // previously return -1, but it's not suitable for fallback
-
+            float staticValue = clip.videoProperties.getValue(valueType); // previously return -1, but it's not suitable for fallback
+            if (keyframes.isEmpty()) return staticValue;
             // preprocessing the global time to match the local time of the clip
-            playheadTime -= clip.startTime;
+            return KeyframeChannels.valueAt(new KeyView(valueType), playheadTime - clip.startTime, staticValue);
+        }
 
-            Keyframe prev = keyframes.get(0);
-            for (Keyframe next : keyframes) {
-                if (playheadTime < next.getLocalTime()) {
-                    float t = (playheadTime - prev.getLocalTime()) / (next.getLocalTime() - prev.getLocalTime());
-                    t = Math.max(0f, Math.min(1f, t));
+        /** Does any keyframe hold this property? (Otherwise it is just its static value.) */
+        public boolean isAnimated(VideoProperties.ValueType type) {
+            for (Keyframe k : keyframes) if (k.animates(type)) return true;
+            return false;
+        }
 
-                    float prevValue = prev.value.getValue(valueType);
-                    float nextValue = next.value.getValue(valueType);
+        /** The keyframes as one property sees them, for {@link KeyframeChannels#valueAt}. */
+        private final class KeyView implements KeyframeChannels.Keys {
+            private final VideoProperties.ValueType type;
 
+            KeyView(VideoProperties.ValueType type) { this.type = type; }
 
-                    return lerp(prevValue, nextValue, ease(t, prev.easing)); // linear interpolation
-                }
-                prev = next;
-
-//                if (playheadTime <= keyframes.get(0).time) return keyframes.get(0).value;
-//                if (playheadTime >= keyframes.get(keyframes.size() - 1).time) return keyframes.get(keyframes.size() - 1).value;
-
-            }
-            return keyframes.get(keyframes.size() - 1).value.getValue(valueType);
+            @Override public int size() { return keyframes.size(); }
+            @Override public boolean holds(int i) { return keyframes.get(i).animates(type); }
+            @Override public float time(int i) { return keyframes.get(i).getLocalTime(); }
+            @Override public float value(int i) { return keyframes.get(i).value.getValue(type); }
+            @Override public float ease(int i, float t) { return AnimatedProperty.this.ease(t, keyframes.get(i).easing); }
         }
         public float getValueAtPoint(int keyframeIndex, VideoProperties.ValueType valueType) {
             if (keyframes.isEmpty()) return 0f;

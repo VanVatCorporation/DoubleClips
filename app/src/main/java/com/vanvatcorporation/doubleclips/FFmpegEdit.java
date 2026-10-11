@@ -933,7 +933,23 @@ public class FFmpegEdit {
      * @return Expression for FFmpeg in String format.
      *
      */
+    /**
+     * The ffmpeg expression of one property over time. Only the keyframes that hold the property take part (an
+     * old-style keyframe holds all of them, see {@link KeyframeChannels}); when none does it is just the clip's static
+     * value. {@code startIndex} counts within those keyframes (every caller passes 0).
+     */
     public static String getKeyframeFFmpegExpr(List<EditingActivity.Keyframe> keyframes, EditingActivity.Clip clip, int startIndex, EditingActivity.VideoProperties.ValueType valueType)
+    {
+        List<EditingActivity.Keyframe> holders = new ArrayList<>(keyframes.size());
+        for (EditingActivity.Keyframe k : keyframes) {
+            if (k.animates(valueType)) holders.add(k);
+        }
+        if (holders.isEmpty()) return String.valueOf(clip.videoProperties.getValue(valueType));
+        return getKeyframeFFmpegExprOf(holders, clip, startIndex, valueType);
+    }
+
+    /** {@link #getKeyframeFFmpegExpr} over keyframes that all hold {@code valueType}. */
+    private static String getKeyframeFFmpegExprOf(List<EditingActivity.Keyframe> keyframes, EditingActivity.Clip clip, int startIndex, EditingActivity.VideoProperties.ValueType valueType)
     {
         StringBuilder keyframeExprString = new StringBuilder();
 
@@ -988,7 +1004,7 @@ public class FFmpegEdit {
                 // insert the expr here
                 // previous: nextKeyframe.value.getValue(valueType)
                 .append(generateEasing(prevKeyframe, nextKeyframe, clip, valueType, timeUnit)).append(",")
-                .append(getKeyframeFFmpegExpr(keyframes, clip, startIndex + 1, valueType))
+                .append(getKeyframeFFmpegExprOf(keyframes, clip, startIndex + 1, valueType))
                 .append(")");
 
         return keyframeExprString.toString();
