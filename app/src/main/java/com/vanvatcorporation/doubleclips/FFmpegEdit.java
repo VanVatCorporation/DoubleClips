@@ -839,7 +839,9 @@ public class FFmpegEdit {
                 if (clip == null) continue;
                 if (clip.isEndTransitionEnabled() && clip.endTransition != null && clip.endTransition.effect != null) {
                     TransitionStyle dataDriven = TransitionStyleLoader.get(clip.endTransition.effect.style);
-                    if (dataDriven != null) {
+                    // (An id xfade also has keeps using xfade, see FXCommandEmitter: nothing to warn about.)
+                    if (dataDriven != null && !FXCommandEmitter.FXRegistry.transitionFXMap.containsKey(
+                            FXCommandEmitter.FXRegistry.normalizeId(clip.endTransition.effect.style))) {
                         found.add("The '" + dataDriven.getName() + "' transition style (OpenGL only: FFmpeg just cuts from one clip to the next)");
                     }
                 }

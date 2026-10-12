@@ -1,0 +1,48 @@
+{
+ "schema": 1,
+ "id": "fadeblack",
+ "name": "Fade Black",
+ "description": "A darkens to black in the first half, B brightens from black in the second (hard cut at the middle).",
+ "defaultDuration": 0.5,
+ "cut": 0.5,
+ "from": {
+  "channels": {
+   "exposure": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.5,
+      0
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "exposure": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  }
+ }
+}

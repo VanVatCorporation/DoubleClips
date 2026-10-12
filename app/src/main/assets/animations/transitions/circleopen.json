@@ -1,0 +1,25 @@
+{
+ "schema": 1,
+ "id": "circleopen",
+ "name": "Circle Open",
+ "description": "B opens from the centre as a growing circle (mask: circle).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "circle",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  }
+ }
+}

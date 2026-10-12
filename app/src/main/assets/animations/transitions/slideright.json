@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "slideright",
+ "name": "Slide Right",
+ "description": "Both pictures move right together; B enters from the left.",
+ "defaultDuration": 0.5,
+ "mode": "layers",
+ "from": {
+  "channels": {
+   "offsetX": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "offsetX": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      -1
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

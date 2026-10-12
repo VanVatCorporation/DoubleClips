@@ -1,0 +1,48 @@
+{
+ "schema": 1,
+ "id": "fadewhite",
+ "name": "Fade White",
+ "description": "A washes out to white in the first half, B comes in from white in the second (hard cut at the middle).",
+ "defaultDuration": 0.5,
+ "cut": 0.5,
+ "from": {
+  "channels": {
+   "whiteMix": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "whiteMix": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.5,
+      1
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

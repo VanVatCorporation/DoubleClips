@@ -1830,6 +1830,7 @@ public class OpenGLEditNative {
             GaussianBlurShader blurShader = null;
             PostFxShader postFxShader = null; // whole-picture effects (data-driven transition channels), same lazy pattern
             EffectLayerRenderer effectRenderer = null; // effect clips (adjustment layers), same lazy pattern
+            TransitionMaskRenderer maskRenderer = null; // data-driven mask transitions, same lazy pattern
             ExportEncoder encoder = new ExportEncoder();
 
             // Frame watchdog: if a single frame's rendering (decode + draw +
@@ -1905,8 +1906,8 @@ public class OpenGLEditNative {
                         if (layer.simpleDraw != null) {
                             stillActive.add(layer.simpleDraw.clip);
                         } else if (layer.transition != null) {
-                            stillActive.add(layer.transition.clipACommand.clip);
-                            stillActive.add(layer.transition.clipBCommand.clip);
+                            if (layer.transition.clipACommand != null) stillActive.add(layer.transition.clipACommand.clip);
+                            if (layer.transition.clipBCommand != null) stillActive.add(layer.transition.clipBCommand.clip);
                         } // an effect layer holds no source of its own
                     }
                     releaseInactive(activeSources, stillActive);
@@ -1995,21 +1996,31 @@ public class OpenGLEditNative {
 
                         transitionLayerA.bindForDrawing();
                         transitionLayerA.clearTransparent();
-                        renderDrawCommand(transition.clipACommand, shader, imageShader, activeSources, activeImageSources,
-                                reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                        if (transition.clipACommand != null) {
+                            renderDrawCommand(transition.clipACommand, shader, imageShader, activeSources, activeImageSources,
+                                    reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                        }
 
                         transitionLayerB.bindForDrawing();
                         transitionLayerB.clearTransparent();
-                        renderDrawCommand(transition.clipBCommand, shader, imageShader, activeSources, activeImageSources,
-                                reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                        if (transition.clipBCommand != null) {
+                            renderDrawCommand(transition.clipBCommand, shader, imageShader, activeSources, activeImageSources,
+                                    reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                        }
 
                         // Back to the main frame's own framebuffer - still the
                         // same EGL context/surface the whole time, only the FBO
                         // binding changed, so no eglMakeCurrent is needed here.
                         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
                         GLES20.glViewport(0, 0, width, height);
-                        blendShader.draw(transitionLayerA.getTextureId(), transitionLayerB.getTextureId(),
-                                transition.progress, TransitionBlendShader.styleToId(transition.style));
+                        if (transition.mask != null) {
+                            // Data-driven mask style: B revealed through the style's mask shape.
+                            if (maskRenderer == null) maskRenderer = new TransitionMaskRenderer();
+                            maskRenderer.draw(transitionLayerA.getTextureId(), transitionLayerB.getTextureId(), transition.mask, width, height);
+                        } else {
+                            blendShader.draw(transitionLayerA.getTextureId(), transitionLayerB.getTextureId(),
+                                    transition.progress, TransitionBlendShader.styleToId(transition.style));
+                        }
                     }
 
                     profiler.begin(FrameProfiler.ENCODE);
@@ -2047,6 +2058,7 @@ public class OpenGLEditNative {
                 if (blurScratchA != null) blurScratchA.release();
                 if (blurScratchB != null) blurScratchB.release();
                 if (effectRenderer != null) effectRenderer.release();
+                if (maskRenderer != null) maskRenderer.release();
                 encoder.close();
             }
         });

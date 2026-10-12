@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "revealup",
+ "name": "Reveal Up",
+ "description": "A slides up and away while B stays put underneath (mask: wipe following A's lower edge).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "from": {
+  "channels": {
+   "offsetY": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      -1
+     ]
+    ]
+   }
+  }
+ },
+ "mask": {
+  "shape": "wipe",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": 90
+ }
+}

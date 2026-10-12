@@ -1,0 +1,26 @@
+{
+ "schema": 1,
+ "id": "wipeleft",
+ "name": "Wipe Left",
+ "description": "B is revealed from the right edge, sweeping left (mask: wipe).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "wipe",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": 180
+ }
+}

@@ -1,0 +1,27 @@
+{
+ "schema": 1,
+ "id": "diagbl",
+ "name": "Diagonal Bottom-Left Wipe",
+ "description": "B is revealed from the bottom-left corner along the diagonal (mask: wipe in canvas proportions).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "wipe",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": 45,
+  "normalized": true
+ }
+}

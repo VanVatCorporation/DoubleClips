@@ -102,8 +102,10 @@ public class FXCommandEmitter {
         // Data-driven styles (TransitionStyleLoader, e.g. Glitch Blur) are OpenGL-only: xfade has no such name and would
         // make the whole export fail. FFmpeg gets a hard cut at the style's own cut point (no look on either side);
         // the export screen warns about it (FFmpegEdit.getUnsupportedAnimationFeatures).
+        // An id that xfade ALSO has (fade, wipeleft, circleopen... the bundled files re-create them for the GPU renderers)
+        // keeps using xfade here: it is the real thing, and the file's layers / mask looks only exist on the OpenGL side.
         TransitionStyle dataDriven = TransitionStyleLoader.get(transition.effect.style);
-        if(dataDriven != null)
+        if(dataDriven != null && !FXRegistry.transitionFXMap.containsKey(FXRegistry.normalizeId(transition.effect.style)))
         {
             String cutExpression = "if(lt(P," + String.format(java.util.Locale.US, "%.4f", dataDriven.getCut()) + "),A,B)";
             tags.storeTag(mergedClip, outputLabel, fromTag.index);

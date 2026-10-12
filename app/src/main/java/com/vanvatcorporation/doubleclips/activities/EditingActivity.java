@@ -1,5 +1,7 @@
 package com.vanvatcorporation.doubleclips.activities;
 
+import com.vanvatcorporation.doubleclips.EffectStyleLoader;
+
 import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
 
 import android.annotation.SuppressLint;
@@ -1930,12 +1932,25 @@ public class EditingActivity extends AppCompatActivityImpl {
         effectEditSpecificAreaScreen.onClose.add(() -> {
             if(selectedClip != null)
             {
-                selectedClip.effect = new EffectTemplate((String) FXCommandEmitter.FXRegistry.effectsFXMap.keySet().toArray()[effectEditSpecificAreaScreen.effectEditContent.getSelectedItemPosition()], ParserHelper.TryParse(effectEditSpecificAreaScreen.effectDurationContent.getText().toString(), 1), 1);
+                // Edit the effect in place: keeps its other params / unknown keys (the old code built a new one each time).
+                String style = effectEditSpecificAreaScreen.getStyleId();
+                double duration = ParserHelper.TryParse(effectEditSpecificAreaScreen.effectDurationContent.getText().toString(), 1.0); // double: "2.5" must not fall back to 1
+                if (selectedClip.effect == null) selectedClip.effect = new EffectTemplate(style, duration, 1);
+                selectedClip.effect.style = style;
+                selectedClip.effect.duration = duration;
+                if (EffectStyleLoader.get(style) != null) { // a style this build doesn't know keeps whatever strength it had
+                    if (selectedClip.effect.params == null) selectedClip.effect.params = new java.util.HashMap<>();
+                    selectedClip.effect.params.put("intensity", (double) effectEditSpecificAreaScreen.getStrength());
+                }
             }
         });
         effectEditSpecificAreaScreen.onOpen.add(() -> {
-            List<String> stringEffects = Arrays.asList(FXCommandEmitter.FXRegistry.effectsFXMap.values().toArray(new String[0]));
-            effectEditSpecificAreaScreen.effectEditContent.setSelection(stringEffects.indexOf(FXCommandEmitter.FXRegistry.effectsFXMap.get(selectedClip.effect.style)));
+            if (selectedClip == null || selectedClip.effect == null) {
+                effectEditSpecificAreaScreen.setEffect("", 1f);
+                return;
+            }
+            Object intensity = selectedClip.effect.params == null ? null : selectedClip.effect.params.get("intensity");
+            effectEditSpecificAreaScreen.setEffect(selectedClip.effect.style, intensity instanceof Number ? ((Number) intensity).floatValue() : 1f);
             effectEditSpecificAreaScreen.effectDurationContent.setText(String.valueOf(selectedClip.effect.duration));
         });
 

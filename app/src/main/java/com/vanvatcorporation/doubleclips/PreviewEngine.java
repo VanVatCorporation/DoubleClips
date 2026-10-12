@@ -142,6 +142,7 @@ public final class PreviewEngine {
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private OpenGLEditNative.PostFxShader postShader; // exposure / edge fill / slide / squeeze / motion blur (transition styles)
     private EffectLayerRenderer effectRenderer;      // effect clips (adjustment layers), created on first use
+    private TransitionMaskRenderer maskRenderer;     // data-driven mask transitions, created on first use
     private Offscreen layerA, layerB, blurA, blurB;
     private Pool pool;
     private Request lastRequest;
@@ -256,8 +257,8 @@ public final class PreviewEngine {
                         for (OpenGLEdit.FrameLayer layer : edit.computeFrameForTimestamp(timeline, timeSeconds + PREFETCH_SECONDS, canvasW, canvasH, stretch)) {
                             if (layer.simpleDraw != null) fresh.add(layer.simpleDraw);
                             else if (layer.transition != null) {
-                                fresh.add(layer.transition.clipACommand);
-                                fresh.add(layer.transition.clipBCommand);
+                                if (layer.transition.clipACommand != null) fresh.add(layer.transition.clipACommand);
+                                if (layer.transition.clipBCommand != null) fresh.add(layer.transition.clipBCommand);
                             } // an effect layer has nothing to decode
                         }
                         cachedPrefetch = fresh;
@@ -303,6 +304,7 @@ public final class PreviewEngine {
                     if (blurA != null) blurA.release();
                     if (blurB != null) blurB.release();
                     if (effectRenderer != null) { effectRenderer.release(); effectRenderer = null; }
+                    if (maskRenderer != null) { maskRenderer.release(); maskRenderer = null; }
                 } catch (RuntimeException e) {
                     Log.w(TAG, "close: " + e);
                 }
@@ -472,12 +474,18 @@ public final class PreviewEngine {
             OpenGLEdit.TransitionCommand t = layer.transition;
             layerA.bind();
             layerA.clearTransparent();
-            drawCommand(t.clipACommand, r.timeSeconds);
+            if (t.clipACommand != null) drawCommand(t.clipACommand, r.timeSeconds);
             layerB.bind();
             layerB.clearTransparent();
-            drawCommand(t.clipBCommand, r.timeSeconds);
+            if (t.clipBCommand != null) drawCommand(t.clipBCommand, r.timeSeconds);
             bindScreen();
-            blendShader.draw(layerA.texture, layerB.texture, t.progress, OpenGLEditNative.TransitionBlendShader.styleToId(t.style));
+            if (t.mask != null) {
+                // Data-driven mask style: B revealed through the style's mask shape.
+                if (maskRenderer == null) maskRenderer = new TransitionMaskRenderer();
+                maskRenderer.draw(layerA.texture, layerB.texture, t.mask, previewW, previewH);
+            } else {
+                blendShader.draw(layerA.texture, layerB.texture, t.progress, OpenGLEditNative.TransitionBlendShader.styleToId(t.style));
+            }
         }
 
         profiler.begin(FrameProfiler.ENCODE); // "swap" in the preview's report

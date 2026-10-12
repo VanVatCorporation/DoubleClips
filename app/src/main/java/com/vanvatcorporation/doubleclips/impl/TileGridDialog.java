@@ -20,8 +20,13 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.StyleTileRenderer;
+
+import android.os.Handler;
+import android.os.Looper;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -30,6 +35,15 @@ import java.util.function.Supplier;
  * animation picker is meant to reuse it with GIF previews, so it only knows about tiles.
  */
 public final class TileGridDialog {
+
+    /** A preview drawn off the UI thread (the live style tiles): callbacks arrive on the main thread, null = could not be drawn. */
+    public interface AsyncPreview {
+        /** The tile's still picture. */
+        void staticFrame(Consumer<Bitmap> onReady);
+
+        /** The frames of its loop (played while this tile is the selected one), or null when it has none. */
+        void loopFrames(Consumer<List<Bitmap>> onReady);
+    }
 
     public static final class Tile {
         public final String id;
@@ -42,6 +56,8 @@ public final class TileGridDialog {
         public final Supplier<Bitmap> preview;
         /** Only user-made entries can be deleted (long press). */
         public final boolean deletable;
+        /** Set instead of {@link #preview} for live tiles. */
+        public final AsyncPreview async;
 
         public Tile(String id, String title, String author, String badge, Supplier<Bitmap> preview, boolean deletable) {
             this.id = id;
@@ -50,6 +66,18 @@ public final class TileGridDialog {
             this.badge = badge;
             this.preview = preview;
             this.deletable = deletable;
+            this.async = null;
+        }
+
+        /** A live tile: the picture arrives later and the selected one loops. */
+        public Tile(String id, String title, String author, String badge, AsyncPreview async, boolean deletable) {
+            this.id = id;
+            this.title = title;
+            this.author = author;
+            this.badge = badge;
+            this.preview = null;
+            this.deletable = deletable;
+            this.async = async;
         }
     }
 
@@ -119,6 +147,8 @@ public final class TileGridDialog {
                 .create();
 
         final SparseArray<Bitmap> previews = new SparseArray<>();
+        final SparseArray<ImageView> imageViews = new SparseArray<>(); // the cell currently showing each position
+        final SparseArray<Boolean> requested = new SparseArray<>();
         grid.setAdapter(new BaseAdapter() {
             @Override public int getCount() { return tiles.size(); }
             @Override public Tile getItem(int i) { return tiles.get(i); }
@@ -149,6 +179,21 @@ public final class TileGridDialog {
                         bmp = null; // a broken style shouldn't take the whole picker down
                     }
                     if (bmp != null) previews.put(position, bmp);
+                }
+                if (tile.async != null) {
+                    if (bmp != null) {
+                        image.setImageBitmap(bmp);
+                    } else if (requested.get(position) == null) {
+                        requested.put(position, true);
+                        final int pos = position;
+                        tile.async.staticFrame(made -> {
+                            if (made == null) return;
+                            previews.put(pos, made);
+                            ImageView shown = imageViews.get(pos);
+                            if (shown != null) shown.setImageBitmap(made);
+                        });
+                    }
+                    imageViews.put(position, image);
                 }
                 if (bmp != null) image.setImageBitmap(bmp);
                 frame.addView(image, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -214,6 +259,31 @@ public final class TileGridDialog {
         });
 
         dialog.show();
+
+        // The selected live tile loops (the others stay frozen halfway).
+        int selectedIndex = -1;
+        for (int i = 0; i < tiles.size(); i++) if (tiles.get(i).id != null && tiles.get(i).id.equals(selectedId)) selectedIndex = i;
+        if (selectedIndex >= 0 && tiles.get(selectedIndex).async != null) {
+            final int index = selectedIndex;
+            final boolean[] stopped = {false};
+            dialog.setOnDismissListener(d -> stopped[0] = true);
+            tiles.get(index).async.loopFrames(frames -> {
+                if (frames == null || frames.isEmpty() || stopped[0]) return;
+                final Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(new Runnable() {
+                    int frameIndex = 0;
+
+                    @Override
+                    public void run() {
+                        if (stopped[0]) return;
+                        ImageView shown = imageViews.get(index);
+                        if (shown != null) shown.setImageBitmap(frames.get(frameIndex % frames.size()));
+                        frameIndex++;
+                        handler.postDelayed(this, 1000L / StyleTileRenderer.LOOP_FPS);
+                    }
+                });
+            });
+        }
         return dialog;
     }
 }

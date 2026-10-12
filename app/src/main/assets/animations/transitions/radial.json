@@ -1,0 +1,26 @@
+{
+ "schema": 1,
+ "id": "radial",
+ "name": "Radial",
+ "description": "B is swept in clockwise from 12 o'clock like a clock hand (mask: clock).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "clock",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "start": 0
+ }
+}

@@ -11,6 +11,10 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.Spinner;
+import android.view.ViewGroup;
+import android.graphics.Bitmap;
+import com.vanvatcorporation.doubleclips.StyleTileRenderer;
+import com.vanvatcorporation.doubleclips.impl.TileGridDialog;
 
 import com.vanvatcorporation.doubleclips.ClipAnimationAssets;
 import com.vanvatcorporation.doubleclips.FXCommandEmitter;
@@ -23,6 +27,7 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
@@ -64,6 +69,7 @@ public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen
         transitionModeEditContent = findViewById(R.id.transitionModeContent);
 
         refreshStyles(null);
+        addBrowseButton();
 
         // Picking a data-driven style fills in its own default duration (Glitch Blur is 2.3 s, a new transition starts
         // at 0.2 s). Only for a pick the user made: selections the code makes (opening the picker on a knot) must
@@ -105,7 +111,7 @@ public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen
         ClipAnimationAssets.loadAll(getContext()); // also loads the transition styles; no-op after the first call
         styleEntries = TransitionStyleCatalog.build(
                 FXCommandEmitter.FXRegistry.transitionFXMap,
-                OpenGLEdit.SUPPORTED_TRANSITION_STYLES,
+                OpenGLEdit.glTransitionStyles(),
                 TransitionStyleLoader.list(),
                 OpenGLEdit.SUPPORTS_DATA_DRIVEN_TRANSITIONS,
                 currentStyle);
@@ -113,6 +119,60 @@ public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen
         transitionEditContent.setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, styleEntries));
         int index = TransitionStyleCatalog.indexOf(styleEntries, currentStyle);
         if (index >= 0) transitionEditContent.setSelection(index);
+    }
+
+    /**
+     * A "Browse" button left of the style spinner: opens the tile grid (every style drawn live on two stand-in pictures,
+     * halfway through; the selected one loops). The spinner stays: it is where the choice is stored, so picking in the
+     * grid just selects the same entry in it (and fills in a data-driven style's default duration like a spinner pick).
+     */
+    private void addBrowseButton() {
+        if (!(transitionEditContent.getParent() instanceof RelativeLayout)) return;
+        RelativeLayout row = (RelativeLayout) transitionEditContent.getParent();
+        Button browse = new Button(getContext(), null, android.R.attr.borderlessButtonStyle);
+        browse.setText("Browse");
+        browse.setAllCaps(false);
+        browse.setTextColor(getContext().getColor(R.color.ios_blue));
+        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.addRule(RelativeLayout.LEFT_OF, transitionEditContent.getId());
+        lp.addRule(RelativeLayout.CENTER_VERTICAL);
+        row.addView(browse, lp);
+        browse.setOnClickListener(v -> openStyleGrid());
+    }
+
+    private void openStyleGrid() {
+        final Context context = getContext();
+        final StyleTileRenderer renderer = StyleTileRenderer.get(context);
+        List<TileGridDialog.Tile> tiles = new ArrayList<>();
+        for (TransitionStyleCatalog.Entry entry : styleEntries) {
+            final String id = entry.id;
+            String badge = entry.engine == TransitionStyleCatalog.Engine.OPENGL_ONLY ? "OpenGL"
+                    : entry.engine == TransitionStyleCatalog.Engine.FFMPEG_ONLY ? "FFmpeg"
+                    : entry.engine == TransitionStyleCatalog.Engine.UNKNOWN ? "?" : null;
+            tiles.add(new TileGridDialog.Tile(id, entry.label, null, badge, new TileGridDialog.AsyncPreview() {
+                @Override public void staticFrame(Consumer<Bitmap> onReady) {
+                    renderer.staticTile(StyleTileRenderer.Kind.TRANSITION, id, onReady::accept);
+                }
+
+                @Override public void loopFrames(Consumer<List<Bitmap>> onReady) {
+                    renderer.loopFrames(StyleTileRenderer.Kind.TRANSITION, id, onReady::accept);
+                }
+            }, false));
+        }
+        String selected = styleIdAt(transitionEditContent.getSelectedItemPosition(), null);
+        TileGridDialog.show(context, "Transition style", tiles, selected, new TileGridDialog.Listener() {
+            @Override public void onPick(TileGridDialog.Tile tile) {
+                for (int i = 0; i < styleEntries.size(); i++) {
+                    if (styleEntries.get(i).id.equals(tile.id)) {
+                        userPickingStyle = true; // so a data-driven style's default duration is filled in, like a spinner pick
+                        transitionEditContent.setSelection(i);
+                        return;
+                    }
+                }
+            }
+
+            @Override public void onDelete(TileGridDialog.Tile tile) { }
+        }, null, null);
     }
 
     /** The style id at a spinner position, or {@code fallback} when the position is not valid. */

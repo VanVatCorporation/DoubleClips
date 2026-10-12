@@ -45,11 +45,22 @@ public class OpenGLEdit {
     public static final Set<String> SUPPORTED_TRANSITION_STYLES = new java.util.HashSet<>(java.util.Arrays.asList(
             "fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "slideup", "slidedown"
     ));
+    /**
+     * The transition ids the OpenGL export draws: the built-in shader styles plus every data-driven style (the
+     * bundled iOS files re-create the xfade names fade, wipeleft, circleopen... as {@code layers} / {@code mask}
+     * styles, and for those ids OpenGL uses the file, see {@link #computeFrameForTimestamp}). For the picker's badges.
+     */
+    public static Set<String> glTransitionStyles() {
+        Set<String> all = new java.util.HashSet<>(SUPPORTED_TRANSITION_STYLES);
+        if (SUPPORTS_DATA_DRIVEN_TRANSITIONS) for (TransitionStyle s : TransitionStyleLoader.list()) all.add(s.getId());
+        return all;
+    }
     public static final boolean SUPPORTS_TRANSITIONS = true;
     /**
-     * Data-driven transition styles ({@link TransitionStyleLoader}, e.g. Glitch Blur): the GPU path draws ONE picture
-     * (A before the style's cut, B after) with the style's channels merged into that clip's own animation frame,
-     * in all three timing modes (see {@link TransitionTiming}). False would make the export screen warn about them.
+     * Data-driven transition styles ({@link TransitionStyleLoader}): mode cut draws ONE picture (A before the style's
+     * cut, B after), mode layers draws both (B over A) and mode mask reveals B through the style's mask shape
+     * ({@link TransitionMaskRenderer}); each side's channels are merged into that clip's own animation frame, in all
+     * three timing modes (see {@link TransitionTiming}). False would make the export screen warn about them.
      */
     public static final boolean SUPPORTS_DATA_DRIVEN_TRANSITIONS = true;
     /**
@@ -331,17 +342,56 @@ public class OpenGLEdit {
      * unsupported ones out before this is created).
      */
     public static class TransitionCommand {
+        /** Null only for a mask transition whose side could not be drawn (then that side is empty). */
         public final DrawCommand clipACommand;
         public final DrawCommand clipBCommand;
         public final String style;
         /** 0 at the start of the transition window, 1 at the end. */
         public final float progress;
+        /** Set for a data-driven {@code mask} transition: B is revealed through this shape instead of a built-in blend style. */
+        public final MaskSpec mask;
+
+        /** A data-driven mask transition (either command may be null). */
+        public TransitionCommand(DrawCommand clipACommand, DrawCommand clipBCommand, MaskSpec mask, float progress) {
+            this.clipACommand = clipACommand;
+            this.clipBCommand = clipBCommand;
+            this.style = "mask";
+            this.progress = progress;
+            this.mask = mask;
+        }
 
         public TransitionCommand(DrawCommand clipACommand, DrawCommand clipBCommand, String style, float progress) {
             this.clipACommand = clipACommand;
             this.clipBCommand = clipBCommand;
             this.style = style;
             this.progress = progress;
+            this.mask = null;
+        }
+    }
+
+    /**
+     * A transition mask at one moment (iOS ClipCompositor.transitionMask): white = B, black = A. {@code reveal} is how
+     * much of B shows; the other values depend on the shape (see TransitionMaskRenderer for the geometry):
+     * wipe angle / softness / normalized, circle cx / cy / softness / invert, noise softness / grain, slices angle /
+     * count, clock start.
+     */
+    public static final class MaskSpec {
+        public final String shape;
+        public final float reveal, angleDegrees, softness, cx, cy, grain, count, startDegrees;
+        public final boolean normalized, invert;
+
+        MaskSpec(EffectFilterOps.Filter mask, float p) {
+            shape = mask.getOp();
+            reveal = (float) Math.min(Math.max(mask.raw("reveal", p), 0.0), 1.0);
+            angleDegrees = (float) mask.raw("angle", p);
+            softness = (float) mask.raw("softness", p);
+            cx = (float) mask.raw("cx", p);
+            cy = (float) mask.raw("cy", p);
+            grain = (float) mask.raw("grain", p);
+            count = (float) mask.raw("count", p);
+            startDegrees = (float) mask.raw("start", p);
+            normalized = mask.hasFlag("normalized");
+            invert = mask.hasFlag("invert");
         }
     }
 
@@ -473,6 +523,31 @@ public class OpenGLEdit {
 
         for (EditingActivity.Track track : timeline.tracks) {
             if (track == null || track.clips == null) continue;
+
+            // Data-driven style in mode layers / mask (animations/transitions/*.json): BOTH pictures for the whole window.
+            DataWindow both = findBothSidedWindow(track, outputTimeSeconds);
+            if (both != null) {
+                float p = both.window.progressAt(outputTimeSeconds);
+                TransitionStyle style = both.style;
+                // A mask style may leave a side out (that clip is then drawn as it is); a layers style always has both looks.
+                ClipAnimationFrame fromLook = style.isMask() && style.getFrom().channels().isEmpty() ? null : style.getFrom().evaluate(p);
+                ClipAnimationFrame toLook = style.isMask() && style.getTo().channels().isEmpty() ? null : style.getTo().evaluate(p);
+                DrawCommand a = buildDrawCommand(both.clipA, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
+                        fromLook, both.window);
+                DrawCommand b = buildDrawCommand(both.clipB, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
+                        toLook, null);
+                if (a != null || b != null) {
+                    if (style.isMask()) {
+                        layers.add(FrameLayer.of(new TransitionCommand(a, b, new MaskSpec(style.getMask(), p), p)));
+                    } else {
+                        // B over A, the style's looks (slides, cross fades) do the rest.
+                        if (a != null) layers.add(FrameLayer.of(a));
+                        if (b != null) layers.add(FrameLayer.of(b));
+                    }
+                    continue;
+                }
+                // Neither side is drawable: fall through to the normal handling.
+            }
 
             // Data-driven style (animations/transitions/*.json): one picture, A or B, with the style's channels merged in.
             DataDrivenHit dataHit = findDataDrivenHit(track, outputTimeSeconds);
@@ -1011,11 +1086,21 @@ public class OpenGLEdit {
         return window == null ? null : new DataWindow(a, b, style, window);
     }
 
+    /** The layers / mask transition whose window contains t on this track (both clips are drawn for all of it), or null. */
+    private static DataWindow findBothSidedWindow(EditingActivity.Track track, float t) {
+        for (int i = 0; i < track.clips.size() - 1; i++) {
+            DataWindow w = dataWindowAt(track, i);
+            if (w != null && w.window.contains(t) && (w.style.isLayers() || w.style.isMask())) return w;
+        }
+        return null;
+    }
+
     /** The picture to draw at t if t is inside a data-driven transition window of this track, else null. */
     private static DataDrivenHit findDataDrivenHit(EditingActivity.Track track, float t) {
         for (int i = 0; i < track.clips.size() - 1; i++) {
             DataWindow w = dataWindowAt(track, i);
             if (w == null || !w.window.contains(t)) continue;
+            if (w.style.isLayers() || w.style.isMask()) continue; // drawn by findBothSidedWindow
             float progress = w.window.progressAt(t);
             boolean showA = w.style.showsFrom(progress);
             return new DataDrivenHit(showA ? w.clipA : w.clipB, w.style.frameAt(progress), showA ? w.window : null);

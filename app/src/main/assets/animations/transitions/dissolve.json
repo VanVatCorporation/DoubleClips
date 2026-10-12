@@ -1,0 +1,25 @@
+{
+ "schema": 1,
+ "id": "dissolve",
+ "name": "Dissolve",
+ "description": "Every pixel flips from A to B at its own moment (mask: noise).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "noise",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  }
+ }
+}

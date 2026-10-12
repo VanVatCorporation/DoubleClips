@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "slideup",
+ "name": "Slide Up",
+ "description": "Both pictures move up together; B enters from the bottom.",
+ "defaultDuration": 0.5,
+ "mode": "layers",
+ "from": {
+  "channels": {
+   "offsetY": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      -1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "offsetY": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

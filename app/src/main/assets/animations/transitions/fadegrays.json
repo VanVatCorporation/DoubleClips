@@ -1,0 +1,66 @@
+{
+ "schema": 1,
+ "id": "fadegrays",
+ "name": "Fade Gray",
+ "description": "Both pictures lose their colour toward the middle while B cross fades in over A.",
+ "defaultDuration": 0.5,
+ "mode": "layers",
+ "from": {
+  "channels": {
+   "saturation": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.5,
+      0
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "saturation": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   },
+   "opacity": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  }
+ }
+}

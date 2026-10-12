@@ -1,0 +1,27 @@
+{
+ "schema": 1,
+ "id": "vdslice",
+ "name": "Vertical Down Slice",
+ "description": "Ten horizontal strips; in each B grows downward from the top (mask: slices).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "slices",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": -90,
+  "count": 10
+ }
+}

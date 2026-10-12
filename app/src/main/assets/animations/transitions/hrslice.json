@@ -1,0 +1,27 @@
+{
+ "schema": 1,
+ "id": "hrslice",
+ "name": "Horizontal Right Slice",
+ "description": "Ten vertical strips; in each B grows from the right edge (mask: slices).",
+ "defaultDuration": 0.5,
+ "mode": "mask",
+ "mask": {
+  "shape": "slices",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": 180,
+  "count": 10
+ }
+}

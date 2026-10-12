@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "slidedown",
+ "name": "Slide Down",
+ "description": "Both pictures move down together; B enters from the top.",
+ "defaultDuration": 0.5,
+ "mode": "layers",
+ "from": {
+  "channels": {
+   "offsetY": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "offsetY": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      -1
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}
