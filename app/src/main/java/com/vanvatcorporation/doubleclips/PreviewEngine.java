@@ -141,6 +141,7 @@ public final class PreviewEngine {
     private OpenGLEditNative.TransitionBlendShader blendShader;
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private OpenGLEditNative.PostFxShader postShader; // exposure / edge fill / slide / squeeze / motion blur (transition styles)
+    private EffectLayerRenderer effectRenderer;      // effect clips (adjustment layers), created on first use
     private Offscreen layerA, layerB, blurA, blurB;
     private Pool pool;
     private Request lastRequest;
@@ -254,10 +255,10 @@ public final class PreviewEngine {
                         List<OpenGLEdit.DrawCommand> fresh = new ArrayList<>();
                         for (OpenGLEdit.FrameLayer layer : edit.computeFrameForTimestamp(timeline, timeSeconds + PREFETCH_SECONDS, canvasW, canvasH, stretch)) {
                             if (layer.simpleDraw != null) fresh.add(layer.simpleDraw);
-                            else {
+                            else if (layer.transition != null) {
                                 fresh.add(layer.transition.clipACommand);
                                 fresh.add(layer.transition.clipBCommand);
-                            }
+                            } // an effect layer has nothing to decode
                         }
                         cachedPrefetch = fresh;
                         cachedPrefetchAtNanos = computeStart;
@@ -301,6 +302,7 @@ public final class PreviewEngine {
                     if (layerB != null) layerB.release();
                     if (blurA != null) blurA.release();
                     if (blurB != null) blurB.release();
+                    if (effectRenderer != null) { effectRenderer.release(); effectRenderer = null; }
                 } catch (RuntimeException e) {
                     Log.w(TAG, "close: " + e);
                 }
@@ -429,6 +431,12 @@ public final class PreviewEngine {
         float blurScale = previewW / (float) canvasW;
 
         for (OpenGLEdit.FrameLayer layer : r.layers) {
+            if (layer.effect != null) {
+                // Adjustment layer: filter everything drawn so far, in place (the same renderer the export uses).
+                if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                effectRenderer.apply(layer.effect, previewW, previewH);
+                continue;
+            }
             if (layer.simpleDraw != null) {
                 boolean hasBlur = layer.simpleDraw.blurSigmaPixels > 0f;
                 boolean hasPost = layer.simpleDraw.post != null;

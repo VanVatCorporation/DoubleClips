@@ -1611,6 +1611,8 @@ public class OpenGLEditNative {
                 "varying vec2 vTexCoord;\n" +
                 "uniform sampler2D uTexture;\n" +
                 "uniform float uExposure;\n" +
+                "uniform float uRedTint;\n" +    // red cast: lifts red, cuts green / blue
+                "uniform float uWhiteMix;\n" +   // wash-out toward white
                 "uniform vec4 uBox;\n" +        // the picture's own bounding box (minU, minV, maxU, maxV), inside the canvas
                 "uniform float uEdgeFill;\n" +  // 1: the picture's edge pixels cover the whole canvas
                 "uniform vec2 uSlide;\n" +      // picture offset in canvas fractions (+u right, +v up)
@@ -1639,7 +1641,10 @@ public class OpenGLEditNative {
                 "        sum += texture2D(uTexture, v);\n" +
                 "    }\n" +
                 "    sum /= n;\n" +
-                "    gl_FragColor = vec4(sum.rgb * uExposure, sum.a);\n" +
+                // iOS ClipCompositor.colorAdjusted: exposure x (1 + 0.15 tint | 1 - 0.6 tint), then toward white by the alpha.
+                "    vec3 rgbOut = sum.rgb * uExposure * vec3(1.0 + 0.15 * uRedTint, 1.0 - 0.6 * uRedTint, 1.0 - 0.6 * uRedTint);\n" +
+                "    rgbOut = rgbOut * (1.0 - uWhiteMix) + vec3(uWhiteMix) * sum.a;\n" +
+                "    gl_FragColor = vec4(rgbOut, sum.a);\n" +
                 "}\n";
 
         private static final float[] QUAD_VERTICES = {
@@ -1651,7 +1656,7 @@ public class OpenGLEditNative {
 
         private int program;
         private int aPositionLoc, aTexCoordLoc, uTextureLoc, uExposureLoc, uBoxLoc, uEdgeFillLoc, uSlideLoc,
-                uSqueezeLoc, uAnchorLoc, uStreakLoc, uTapsLoc, uHalfTexelLoc;
+                uSqueezeLoc, uAnchorLoc, uStreakLoc, uTapsLoc, uHalfTexelLoc, uRedTintLoc, uWhiteMixLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         public void init() {
@@ -1660,6 +1665,8 @@ public class OpenGLEditNative {
             aTexCoordLoc = GLES20.glGetAttribLocation(program, "aTexCoord");
             uTextureLoc = GLES20.glGetUniformLocation(program, "uTexture");
             uExposureLoc = GLES20.glGetUniformLocation(program, "uExposure");
+            uRedTintLoc = GLES20.glGetUniformLocation(program, "uRedTint");
+            uWhiteMixLoc = GLES20.glGetUniformLocation(program, "uWhiteMix");
             uBoxLoc = GLES20.glGetUniformLocation(program, "uBox");
             uEdgeFillLoc = GLES20.glGetUniformLocation(program, "uEdgeFill");
             uSlideLoc = GLES20.glGetUniformLocation(program, "uSlide");
@@ -1694,6 +1701,8 @@ public class OpenGLEditNative {
 
             if (fx == null) {
                 GLES20.glUniform1f(uExposureLoc, 1f);
+                GLES20.glUniform1f(uRedTintLoc, 0f);
+                GLES20.glUniform1f(uWhiteMixLoc, 0f);
                 GLES20.glUniform4f(uBoxLoc, 0f, 0f, 1f, 1f);
                 GLES20.glUniform1f(uEdgeFillLoc, 0f);
                 GLES20.glUniform2f(uSlideLoc, 0f, 0f);
@@ -1706,6 +1715,8 @@ public class OpenGLEditNative {
                 float minU = Math.max(0f, fx.boxMinU), minV = Math.max(0f, fx.boxMinV);
                 float maxU = Math.min(1f, fx.boxMaxU), maxV = Math.min(1f, fx.boxMaxV);
                 GLES20.glUniform1f(uExposureLoc, fx.exposure);
+                GLES20.glUniform1f(uRedTintLoc, fx.redTint);
+                GLES20.glUniform1f(uWhiteMixLoc, fx.whiteMix);
                 GLES20.glUniform4f(uBoxLoc, minU, minV, Math.max(minU, maxU), Math.max(minV, maxV));
                 GLES20.glUniform1f(uEdgeFillLoc, fx.edgeFill ? 1f : 0f);
                 GLES20.glUniform2f(uSlideLoc, fx.slideU, fx.slideV);
@@ -1818,6 +1829,7 @@ public class OpenGLEditNative {
             OffscreenTarget blurScratchB = null;
             GaussianBlurShader blurShader = null;
             PostFxShader postFxShader = null; // whole-picture effects (data-driven transition channels), same lazy pattern
+            EffectLayerRenderer effectRenderer = null; // effect clips (adjustment layers), same lazy pattern
             ExportEncoder encoder = new ExportEncoder();
 
             // Frame watchdog: if a single frame's rendering (decode + draw +
@@ -1892,10 +1904,10 @@ public class OpenGLEditNative {
                     for (OpenGLEdit.FrameLayer layer : layers) {
                         if (layer.simpleDraw != null) {
                             stillActive.add(layer.simpleDraw.clip);
-                        } else {
+                        } else if (layer.transition != null) {
                             stillActive.add(layer.transition.clipACommand.clip);
                             stillActive.add(layer.transition.clipBCommand.clip);
-                        }
+                        } // an effect layer holds no source of its own
                     }
                     releaseInactive(activeSources, stillActive);
                     releaseInactive(activeImageSources, stillActive);
@@ -1907,6 +1919,12 @@ public class OpenGLEditNative {
                     // and simple/transition layers must interleave correctly, not
                     // be grouped into two passes (see OpenGLEdit.computeFrameForTimestamp).
                     for (OpenGLEdit.FrameLayer layer : layers) {
+                        if (layer.effect != null) {
+                            // Adjustment layer: filter everything drawn so far, in place.
+                            if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                            effectRenderer.apply(layer.effect, width, height);
+                            continue;
+                        }
                         if (layer.simpleDraw != null) {
                             boolean hasBlur = layer.simpleDraw.blurSigmaPixels > 0f;
                             boolean hasPost = layer.simpleDraw.post != null;
@@ -2028,6 +2046,7 @@ public class OpenGLEditNative {
                 if (transitionLayerB != null) transitionLayerB.release();
                 if (blurScratchA != null) blurScratchA.release();
                 if (blurScratchB != null) blurScratchB.release();
+                if (effectRenderer != null) effectRenderer.release();
                 encoder.close();
             }
         });

@@ -52,6 +52,15 @@ public class OpenGLEdit {
      * in all three timing modes (see {@link TransitionTiming}). False would make the export screen warn about them.
      */
     public static final boolean SUPPORTS_DATA_DRIVEN_TRANSITIONS = true;
+    /**
+     * Effect clips (adjustment layers, {@link EffectLayerRenderer}): the filter ops of an effect style's
+     * {@code filters} list that the GPU draws. A style whose list names an op outside this set still runs its channels
+     * and the ops it does know, but the export screen warns about it (see getUnsupportedFeatures). Channel-only styles
+     * (shakes, pulses, fades, spin, push...) are always fully drawn. E2b adds the distortion / glitch ops.
+     */
+    public static final Set<String> SUPPORTED_EFFECT_OPS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "blur", "colorControls", "photoEffect", "sepia", "vignette", "bloom", "pixellate", "dotScreen"
+    ));
     public static final boolean SUPPORTS_REVERSE = true;
     public static final boolean SUPPORTS_KEYFRAMES = true;
     public static final boolean SUPPORTS_IMAGES = true;
@@ -74,9 +83,11 @@ public class OpenGLEdit {
                     case IMAGE:
                         if (!SUPPORTS_IMAGES) found.add("Image clips");
                         break;
-                    case EFFECT:
-                        found.add("Effect clips");
+                    case EFFECT: {
+                        String problem = effectProblem(clip);
+                        if (problem != null) found.add(problem);
                         break;
+                    }
                     case SCENE_3D:
                         found.add("3D scene clips");
                         break;
@@ -104,6 +115,19 @@ public class OpenGLEdit {
             }
         }
         return new ArrayList<>(found);
+    }
+
+    /** Why the OpenGL engine can't draw this effect clip completely, or null when it can (unknown style: nothing is drawn anywhere). */
+    private static String effectProblem(EditingActivity.Clip clip) {
+        if (clip.effect == null || clip.effect.style == null) return null;
+        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(clip.effect.style));
+        if (style == null) return "The '" + clip.effect.style + "' effect (not known to this version, it is left out)";
+        for (EffectFilterOps.Filter filter : style.getFilters()) {
+            if (!SUPPORTED_EFFECT_OPS.contains(filter.getOp())) {
+                return "The '" + style.getName() + "' effect (its " + filter.getOp() + " filter is not drawn by the OpenGL export yet)";
+            }
+        }
+        return null;
     }
 
     /**
@@ -147,6 +171,8 @@ public class OpenGLEdit {
     public static final class PostFx {
         /** Brightness multiplier (1 = none). */
         public final float exposure;
+        /** Red colour cast 0..1 (lifts red, cuts green / blue) and wash-out toward white 0..1 (iOS ClipCompositor.colorAdjusted). */
+        public final float redTint, whiteMix;
         /** Half-length of the motion-blur streak as (du, dv); (0,0) = none. Already includes the canvas aspect ratio. */
         public final float streakU, streakV;
         /** Streak LENGTH as a fraction of the canvas width (to pick the tap count). */
@@ -160,10 +186,12 @@ public class OpenGLEdit {
         /** The picture's own bounding box on the canvas (minU, minV, maxU, maxV): what edge fill extends from. */
         public final float boxMinU, boxMinV, boxMaxU, boxMaxV;
 
-        PostFx(float exposure, float streakU, float streakV, float streakLengthFraction, float slideU, float slideV,
-               float squeezeX, float squeezeAnchor, boolean edgeFill,
+        PostFx(float exposure, float redTint, float whiteMix, float streakU, float streakV, float streakLengthFraction,
+               float slideU, float slideV, float squeezeX, float squeezeAnchor, boolean edgeFill,
                float boxMinU, float boxMinV, float boxMaxU, float boxMaxV) {
             this.exposure = exposure;
+            this.redTint = redTint;
+            this.whiteMix = whiteMix;
             this.streakU = streakU;
             this.streakV = streakV;
             this.streakLengthFraction = streakLengthFraction;
@@ -190,7 +218,9 @@ public class OpenGLEdit {
             boolean hasStreak = motion > 0.0005f;
             boolean hasSlide = Math.abs(slideU) > 1e-5f || Math.abs(slideV) > 1e-5f;
             boolean hasSqueeze = Math.abs(squeeze - 1f) > 0.002f;
-            if (!hasExposure && !hasStreak && !hasSlide && !hasSqueeze && !fill) return null;
+            float redTint = anim.redTint(), whiteMix = anim.whiteMix();
+            boolean hasTint = redTint > 0.001f || whiteMix > 0.001f;
+            if (!hasExposure && !hasStreak && !hasSlide && !hasSqueeze && !fill && !hasTint) return null;
 
             // The picture's bounding box: where the quad's corners land (mvp maps the unit quad to NDC; NDC +1 = canvas top = v 1).
             float minU = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxU = -Float.MAX_VALUE, maxV = -Float.MAX_VALUE;
@@ -213,7 +243,7 @@ public class OpenGLEdit {
             float aspect = canvasHeight > 0 ? canvasWidth / (float) canvasHeight : 1f;
             float streakU = hasStreak ? (float) Math.cos(angle) * half : 0f;
             float streakV = hasStreak ? (float) Math.sin(angle) * half * aspect : 0f;
-            return new PostFx(exposure, streakU, streakV, hasStreak ? motion : 0f, slideU, slideV,
+            return new PostFx(exposure, redTint, whiteMix, streakU, streakV, hasStreak ? motion : 0f, slideU, slideV,
                     squeeze, anim.squeezeAnchor(), fill, minU, minV, maxU, maxV);
         }
     }
@@ -314,16 +344,103 @@ public class OpenGLEdit {
         }
     }
 
-    /** One track's single frame layer: exactly one of simpleDraw/transition is non-null. Order in the list returned by computeFrameForTimestamp is the actual draw order. */
+    /** One evaluated {@code filters} entry of an effect style at one moment: the op, its parameters already moved by the strength, and its options. */
+    public static final class FilterStep {
+        public final String op;
+        /** {@code photoEffect}'s name ("noir", "chrome"...), else null. */
+        public final String name;
+        /** The op's {@code randomSign} flag (rgbShift). */
+        public final boolean randomSign;
+        private final java.util.Map<String, Double> values;
+
+        FilterStep(String op, String name, boolean randomSign, java.util.Map<String, Double> values) {
+            this.op = op;
+            this.name = name;
+            this.randomSign = randomSign;
+            this.values = values;
+        }
+
+        /** A parameter at this moment (0 for a name the op doesn't have). Distances are fractions of the canvas, see EffectLayerRenderer. */
+        public float v(String param) {
+            Double d = values.get(param);
+            return d == null ? 0f : d.floatValue();
+        }
+    }
+
+    /**
+     * An effect clip (adjustment layer) for one frame: process the picture drawn so far (the layers before this one in
+     * the list), then the layers after it are drawn on top of the result. Everything is already evaluated for this
+     * moment, so the GL side only draws: {@link #look} (the style's channels: whole-picture transform and colour, then
+     * the post pass and blur) and {@link #steps} (the style's filters, in order). Mirrors iOS EffectRenderer.apply.
+     */
+    public static final class EffectCommand {
+        public final EditingActivity.Clip clip;
+        public final EffectStyle style;
+        /** The strength this frame (effect.params["intensity"]; 1 = the file's own look). */
+        public final float strength;
+        /** Seconds into the effect clip and the clip's length. */
+        public final float elapsed, duration;
+        /** Output time, the seed of the random patterns (they jump 15 times a second, like iOS). */
+        public final float time;
+        /** The style's channels at this moment, or null when it has none. */
+        public final ClipAnimationFrame look;
+        /** Whether the look needs the transform / colour pass (false when only exposure / blur / slide... are asked for). */
+        public final boolean lookPass;
+        /** Column-major, maps the canvas-sized quad to where the picture ends up (rotation / scale / offset about the canvas centre). */
+        public final float[] lookMvp;
+        /** Colour of the look pass (clip-shader units, see ImageTransformShader): hue degrees, saturation x, brightness, contrast x, kelvin, opacity. */
+        public final float hue, saturation, brightness, contrast, temperatureKelvin, opacity;
+        /** Exposure / tint / white / edge fill / slide / squeeze / motion blur of the look, or null. */
+        public final PostFx post;
+        /** Gaussian blur of the look as a fraction of the canvas WIDTH (0 = none). */
+        public final float blurWidthFraction;
+        public final List<FilterStep> steps;
+        /** How much of the filter chain's result is blended over the picture before it (1 = all of it). */
+        public final float mix;
+
+        EffectCommand(EditingActivity.Clip clip, EffectStyle style, float strength, float elapsed, float duration, float time,
+                      ClipAnimationFrame look, boolean lookPass, float[] lookMvp, PostFx post, List<FilterStep> steps, float mix) {
+            this.clip = clip;
+            this.style = style;
+            this.strength = strength;
+            this.elapsed = elapsed;
+            this.duration = duration;
+            this.time = time;
+            this.look = look;
+            this.lookPass = lookPass;
+            this.lookMvp = lookMvp;
+            this.hue = look == null ? 0f : look.hueDegrees();
+            this.saturation = look == null ? 1f : look.saturation();
+            this.brightness = look == null ? 0f : look.brightness();
+            this.contrast = look == null ? 1f : look.contrast();
+            this.temperatureKelvin = 6500f + (look == null ? 0f : look.temperatureKelvin());
+            this.opacity = look == null ? 1f : look.opacity();
+            this.post = post;
+            this.blurWidthFraction = look == null ? 0f : look.blurWidthFraction();
+            this.steps = steps;
+            this.mix = mix;
+        }
+
+        /** True when drawing it would change nothing (an effect whose look is neutral right now and that has no filters). */
+        public boolean isNoOp() {
+            return !lookPass && post == null && blurWidthFraction < 0.0005f && steps.isEmpty();
+        }
+    }
+
+    /** One track's single frame layer: exactly one of simpleDraw / transition / effect is non-null. Order in the list returned by computeFrameForTimestamp is the actual draw order. */
     public static class FrameLayer {
         public final DrawCommand simpleDraw;
         public final TransitionCommand transition;
-        private FrameLayer(DrawCommand simpleDraw, TransitionCommand transition) {
+        /** An adjustment layer: filters everything drawn before it. */
+        public final EffectCommand effect;
+        private FrameLayer(DrawCommand simpleDraw, TransitionCommand transition, EffectCommand effect) {
             this.simpleDraw = simpleDraw;
             this.transition = transition;
+            this.effect = effect;
         }
-        static FrameLayer of(DrawCommand d) { return new FrameLayer(d, null); }
-        static FrameLayer of(TransitionCommand t) { return new FrameLayer(null, t); }
+        static FrameLayer of(DrawCommand d) { return new FrameLayer(d, null, null); }
+        static FrameLayer of(TransitionCommand t) { return new FrameLayer(null, t, null); }
+        static FrameLayer of(EffectCommand e) { return new FrameLayer(null, null, e); }
     }
 
     /**
@@ -377,6 +494,12 @@ public class OpenGLEdit {
 
             EditingActivity.Clip activeClip = findActiveClip(track, outputTimeSeconds);
             if (activeClip == null) continue;
+            // An effect clip is an adjustment layer: it processes everything drawn on the tracks before it.
+            if (activeClip.type == EditingActivity.ClipType.EFFECT) {
+                EffectCommand effect = buildEffectCommand(activeClip, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                if (effect != null && !effect.isNoOp()) layers.add(FrameLayer.of(effect));
+                continue;
+            }
             // Per-character / word / line text animation: one layer per unit, in reading order.
             List<DrawCommand> unitCommands = buildTextUnitCommands(activeClip, outputTimeSeconds, canvasWidth, canvasHeight, projection);
             if (unitCommands != null) {
@@ -631,6 +754,74 @@ public class OpenGLEdit {
             for (int i = 0; i < n; i++) rank[i] = i;
         }
         return rank;
+    }
+
+    /**
+     * Evaluates an effect clip at outputTimeSeconds (null: no effect object, or a style this build doesn't know, which
+     * every platform leaves alone). Strength is the static {@code params["intensity"]} for now (effect strength keyframes come with K2).
+     */
+    private EffectCommand buildEffectCommand(EditingActivity.Clip clip, float outputTimeSeconds, int canvasWidth, int canvasHeight,
+                                             float[] projection) {
+        if (clip.effect == null || clip.effect.style == null) return null;
+        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(clip.effect.style));
+        if (style == null) return null;
+
+        float strength = 1f;
+        if (clip.effect.params != null && clip.effect.params.get("intensity") instanceof Number) {
+            strength = ((Number) clip.effect.params.get("intensity")).floatValue();
+        }
+        strength = Math.max(strength, 0f);
+        float elapsed = Math.max(outputTimeSeconds - clip.startTime, 0f);
+        float duration = clip.duration;
+
+        ClipAnimationFrame look = style.hasChannels() ? style.frameAt(elapsed, duration, strength) : null;
+        float[] mvp = null;
+        PostFx post = null;
+        boolean lookPass = false;
+        if (look != null) {
+            mvp = effectLookMvp(look, projection, canvasWidth, canvasHeight);
+            post = PostFx.from(look, mvp, canvasWidth, canvasHeight);
+            lookPass = Math.abs(look.scale() - 1f) > 1e-4f || Math.abs(look.rotationDegrees()) > 1e-3f
+                    || Math.abs(look.offsetX()) > 1e-5f || Math.abs(look.offsetY()) > 1e-5f
+                    || Math.abs(look.hueDegrees()) > 1e-3f || Math.abs(look.saturation() - 1f) > 1e-4f
+                    || Math.abs(look.brightness()) > 1e-4f || Math.abs(look.contrast() - 1f) > 1e-4f
+                    || Math.abs(look.temperatureKelvin()) > 0.5f || look.opacity() < 0.9999f;
+            // (The clip-only "warp" channels have no meaning for a whole picture and no bundled effect uses them.)
+        }
+
+        List<FilterStep> steps = new ArrayList<>();
+        for (EffectFilterOps.Filter filter : style.getFilters()) {
+            if (!SUPPORTED_EFFECT_OPS.contains(filter.getOp())) continue;
+            java.util.Map<String, Double> values = new java.util.HashMap<>();
+            for (EffectFilterOps.Param param : filter.getSpec().params) {
+                values.put(param.name, style.filterValue(filter, param.name, elapsed, duration, strength));
+            }
+            steps.add(new FilterStep(filter.getOp(), filter.getString("name"), filter.hasFlag("randomSign"), values));
+        }
+        return new EffectCommand(clip, style, strength, elapsed, duration, outputTimeSeconds, look, lookPass, mvp, post,
+                steps, style.filterMix(strength));
+    }
+
+    /**
+     * Where the canvas-sized picture goes under an effect's look: scale and rotation about the CANVAS CENTRE, then the
+     * offset (fractions of the canvas, + = right / down). Same conventions as buildClipMvp, so a look moves a picture
+     * exactly like the same channels move a clip.
+     */
+    private static float[] effectLookMvp(ClipAnimationFrame look, float[] projection, int canvasWidth, int canvasHeight) {
+        float scale = look.scale();
+        float rot = (float) Math.toRadians(look.rotationDegrees());
+        float cos = (float) Math.cos(rot), sin = (float) Math.sin(rot);
+        float halfW = canvasWidth * scale / 2f, halfH = canvasHeight * scale / 2f;
+        float[] model = new float[16];
+        model[0] = halfW * cos;   model[1] = halfW * sin;
+        model[4] = -halfH * sin;  model[5] = halfH * cos;
+        model[10] = 1;
+        model[12] = canvasWidth / 2f + look.offsetX() * canvasWidth;
+        model[13] = canvasHeight / 2f + look.offsetY() * canvasHeight;
+        model[15] = 1;
+        float[] mvp = new float[16];
+        multiplyMM(mvp, projection, model);
+        return mvp;
     }
 
     /** Builds one clip's complete draw info at outputTimeSeconds, or null if its type isn't drawable (audio/text/effect/3D — see getUnsupportedFeatures). */
