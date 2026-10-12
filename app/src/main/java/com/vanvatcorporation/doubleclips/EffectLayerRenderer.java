@@ -220,6 +220,102 @@ public final class EffectLayerRenderer {
             "    gl_FragColor = vec4(clamp(s.rgb + g * uAmount, 0.0, 1.0), s.a);\n" +
             "}\n";
 
+    /** CITwirlDistortion: rotates the picture around the centre, most at the centre, fading to nothing at the radius. */
+    private static final String FS_TWIRL = FS_HEAD +
+            "uniform vec2 uRes;\n" +
+            "uniform float uRadius;\n" +  // pixels
+            "uniform float uAngle;\n" +   // radians
+            "void main() {\n" +
+            "    vec2 p = vTexCoord * uRes;\n" +
+            "    vec2 q = p - uRes * 0.5;\n" +
+            "    float d = length(q);\n" +
+            "    float t = clamp(1.0 - d / max(uRadius, 1.0), 0.0, 1.0);\n" +
+            "    float a = uAngle * t * t;\n" +
+            "    float s = sin(a);\n" +
+            "    float c = cos(a);\n" +
+            "    vec2 r = vec2(c * q.x - s * q.y, s * q.x + c * q.y);\n" +
+            "    gl_FragColor = texture2D(uTexture, clamp((r + uRes * 0.5) / uRes, 0.0, 1.0));\n" +
+            "}\n";
+
+    /** CIBumpDistortion: a bulge (scale > 0) or pinch (scale < 0) around the centre. */
+    private static final String FS_BUMP = FS_HEAD +
+            "uniform vec2 uRes;\n" +
+            "uniform float uRadius;\n" +  // pixels
+            "uniform float uScale;\n" +
+            "void main() {\n" +
+            "    vec2 p = vTexCoord * uRes;\n" +
+            "    vec2 q = p - uRes * 0.5;\n" +
+            "    float t = clamp(1.0 - length(q) / max(uRadius, 1.0), 0.0, 1.0);\n" +
+            "    float f = clamp(1.0 - uScale * 0.5 * t * t, 0.05, 4.0);\n" +
+            "    gl_FragColor = texture2D(uTexture, clamp((q * f + uRes * 0.5) / uRes, 0.0, 1.0));\n" +
+            "}\n";
+
+    /** CIKaleidoscope: the picture folded into mirrored wedges around the centre. */
+    private static final String FS_KALEIDO = FS_HEAD +
+            "uniform vec2 uRes;\n" +
+            "uniform float uCount;\n" +
+            "uniform float uAngle;\n" +
+            "void main() {\n" +
+            "    vec2 q = vTexCoord * uRes - uRes * 0.5;\n" +
+            "    float len = length(q);\n" +
+            "    float seg = 6.2831853 / max(uCount, 1.0);\n" +
+            "    float a = atan(q.y, q.x) - uAngle;\n" +
+            "    a = mod(a, seg);\n" +
+            "    a = abs(a - seg * 0.5);\n" +
+            "    a += uAngle;\n" +
+            "    vec2 r = vec2(cos(a), sin(a)) * len;\n" +
+            "    gl_FragColor = texture2D(uTexture, clamp((r + uRes * 0.5) / uRes, 0.0, 1.0));\n" +
+            "}\n";
+
+    /** Red one way, blue the other, green stays (uShift = the red offset in texture units; content moves right when positive). */
+    private static final String FS_RGB = FS_HEAD +
+            "uniform float uShift;\n" +
+            "void main() {\n" +
+            "    float r = texture2D(uTexture, vec2(clamp(vTexCoord.x - uShift, 0.0, 1.0), vTexCoord.y)).r;\n" +
+            "    vec4 g = texture2D(uTexture, vTexCoord);\n" +
+            "    float b = texture2D(uTexture, vec2(clamp(vTexCoord.x + uShift, 0.0, 1.0), vTexCoord.y)).b;\n" +
+            "    gl_FragColor = vec4(r, g.g, b, g.a);\n" +
+            "}\n";
+
+    /** A horizontal band (v from uBand.x to uBand.y, v up) moved sideways by uBand.z texture units: a torn scanline strip. */
+    private static final String FS_SLICE = FS_HEAD +
+            "uniform vec3 uBand;\n" +
+            "void main() {\n" +
+            "    vec2 uv = vTexCoord;\n" +
+            "    if (uv.y >= uBand.x && uv.y <= uBand.y) uv.x = clamp(uv.x - uBand.z, 0.0, 1.0);\n" +
+            "    gl_FragColor = texture2D(uTexture, uv);\n" +
+            "}\n";
+
+    /** CIColorPolynomial, as the iOS cross-process look: red / green get an S-curve, blue is flattened and lifted. */
+    private static final String FS_CROSS = FS_HEAD +
+            "void main() {\n" +
+            "    vec4 c = texture2D(uTexture, vTexCoord);\n" +
+            "    vec3 x = c.rgb;\n" +
+            "    vec3 x2 = x * x;\n" +
+            "    vec3 x3 = x2 * x;\n" +
+            "    float r = 0.0 + 0.6 * x.r + 1.2 * x2.r - 0.8 * x3.r;\n" +
+            "    float g = 0.0 + 0.9 * x.g + 0.3 * x2.g - 0.2 * x3.g;\n" +
+            "    float b = 0.08 + 1.2 * x.b - 0.9 * x2.b + 0.6 * x3.b;\n" +
+            "    gl_FragColor = vec4(clamp(vec3(r, g, b), 0.0, 1.0), c.a);\n" +
+            "}\n";
+
+    /** The last two steps of the VHS look: dark horizontal scanlines, then grain that changes every step. */
+    private static final String FS_VHS = FS_HEAD +
+            "uniform vec2 uRes;\n" +
+            "uniform float uS;\n" +        // amount, 0..2
+            "uniform float uLine;\n" +     // scanline width in pixels
+            "uniform vec2 uSeed;\n" +
+            "float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n" +
+            "void main() {\n" +
+            "    vec4 c = texture2D(uTexture, vTexCoord);\n" +
+            "    vec2 px = vTexCoord * uRes;\n" +
+            "    float stripe = mod(floor(px.y / uLine), 2.0);\n" +
+            "    vec3 rgb = mix(c.rgb, vec3(0.0), (1.0 - stripe) * 0.22 * uS);\n" +
+            "    float n = hash(floor(px) + uSeed);\n" +
+            "    rgb = mix(rgb, vec3(n), 0.12 * uS);\n" +
+            "    gl_FragColor = vec4(rgb, c.a);\n" +
+            "}\n";
+
     // photoEffect names -> FS_PHOTO's uMode
     private static final String[] PHOTO_NAMES = {"noir", "chrome", "fade", "instant", "mono", "process", "tonal", "transfer"};
 
@@ -289,7 +385,8 @@ public final class EffectLayerRenderer {
     private int captureTexture;
     private Target[] pool;
 
-    private Prog look, copy, color, photo, sepia, vignette, pixel, dot, bright, add;
+    private Prog look, copy, color, photo, sepia, vignette, pixel, dot, bright, add,
+            twirl, bump, kaleido, rgb, slice, cross, vhsFx;
     private OpenGLEditNative.PostFxShader postShader;
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private FloatBuffer fullQuad, lookQuad;
@@ -341,6 +438,13 @@ public final class EffectLayerRenderer {
             dot = new Prog(VS_FULL, FS_DOT);
             bright = new Prog(VS_FULL, FS_BRIGHT);
             add = new Prog(VS_FULL, FS_ADD);
+            twirl = new Prog(VS_FULL, FS_TWIRL);
+            bump = new Prog(VS_FULL, FS_BUMP);
+            kaleido = new Prog(VS_FULL, FS_KALEIDO);
+            rgb = new Prog(VS_FULL, FS_RGB);
+            slice = new Prog(VS_FULL, FS_SLICE);
+            cross = new Prog(VS_FULL, FS_CROSS);
+            vhsFx = new Prog(VS_FULL, FS_VHS);
             postShader = new OpenGLEditNative.PostFxShader();
             postShader.init();
             blurShader = new OpenGLEditNative.GaussianBlurShader();
@@ -439,16 +543,8 @@ public final class EffectLayerRenderer {
                 float sigma = height * step.v("radius");
                 return sigma > 0.1f ? blur(src, sigma, keep) : src;
             }
-            case "colorControls": {
-                Target dst = free(src, keep);
-                dst.bindCleared();
-                color.use();
-                color.f("uBrightness", step.v("brightness"));
-                color.f("uContrast", step.v("contrast"));
-                color.f("uSaturation", step.v("saturation"));
-                drawQuad(color, fullQuad, src, 0);
-                return dst.texture;
-            }
+            case "colorControls":
+                return passColor(src, keep, step.v("brightness"), step.v("contrast"), step.v("saturation"));
             case "photoEffect": {
                 int mode = 0;
                 for (int i = 0; i < PHOTO_NAMES.length; i++) if (PHOTO_NAMES[i].equals(step.name)) mode = i;
@@ -520,9 +616,116 @@ public final class EffectLayerRenderer {
                 drawQuad(add, fullQuad, src, glow);
                 return dst.texture;
             }
+            case "kaleidoscope": {
+                Target dst = free(src, keep);
+                dst.bindCleared();
+                kaleido.use();
+                kaleido.f2("uRes", width, height);
+                kaleido.f("uCount", Math.round(step.v("count")));
+                kaleido.f("uAngle", step.v("angle"));
+                drawQuad(kaleido, fullQuad, src, 0);
+                return dst.texture;
+            }
+            case "twirl": {
+                Target dst = free(src, keep);
+                dst.bindCleared();
+                twirl.use();
+                twirl.f2("uRes", width, height);
+                twirl.f("uRadius", Math.min(width, height) * step.v("radius"));
+                twirl.f("uAngle", step.v("angle"));
+                drawQuad(twirl, fullQuad, src, 0);
+                return dst.texture;
+            }
+            case "bump": {
+                Target dst = free(src, keep);
+                dst.bindCleared();
+                bump.use();
+                bump.f2("uRes", width, height);
+                bump.f("uRadius", Math.min(width, height) * step.v("radius"));
+                bump.f("uScale", step.v("scale"));
+                drawQuad(bump, fullQuad, src, 0);
+                return dst.texture;
+            }
+            case "rgbShift": {
+                float direction = step.randomSign ? (step.random(1) > 0.5f ? 1f : -1f) : 1f;
+                return passRgb(src, keep, width * step.v("dx") * direction);
+            }
+            case "tearSlices": {
+                float amount = step.v("amount");
+                int cur = src;
+                for (int i = 0; i < 2; i++) {
+                    cur = passSlice(cur, keep, step.random(3 + i) * height * 0.85f,
+                            height * (0.02f + 0.08f * step.random(5 + i)),
+                            (step.random(7 + i) - 0.5f) * width * 0.14f * amount);
+                }
+                return cur;
+            }
+            case "crossProcess": {
+                Target dst = free(src, keep);
+                dst.bindCleared();
+                cross.use();
+                drawQuad(cross, fullQuad, src, 0);
+                return dst.texture;
+            }
+            case "vhs":
+                return runVhs(step, src, keep);
             default:
                 return src; // an op this build doesn't draw (the export screen warns, see OpenGLEdit.SUPPORTED_EFFECT_OPS)
         }
+    }
+
+    /** iOS EffectRenderer.vhs: worn colour, soft picture, colour fringing, tearing at the bottom + a wandering band, scanlines, grain. */
+    private int runVhs(OpenGLEdit.FilterStep step, int src, int keep) {
+        float s = Math.min(step.v("amount"), 2f);
+        if (s < 0.001f) return src;
+        int cur = passColor(src, keep, 0f, 1.05f, 0.88f);
+        cur = blur(cur, Math.max(0.5f, height * 0.0009f * s), keep);
+        cur = passRgb(cur, keep, width * 0.004f * s);
+        cur = passSlice(cur, keep, 0f, height * 0.05f, (step.random(21) - 0.5f) * width * 0.06f * s);
+        float wander = (float) ((step.step * 0.07) % 1.0);
+        cur = passSlice(cur, keep, wander * height, height * 0.012f, (step.random(23) - 0.5f) * width * 0.03f * s);
+        Target dst = free(cur, keep);
+        dst.bindCleared();
+        vhsFx.use();
+        vhsFx.f2("uRes", width, height);
+        vhsFx.f("uS", s);
+        vhsFx.f("uLine", Math.max(1f, height / 540f));
+        vhsFx.f2("uSeed", step.random(25) * 700f, step.random(27) * 700f);
+        drawQuad(vhsFx, fullQuad, cur, 0);
+        return dst.texture;
+    }
+
+    private int passColor(int src, int keep, float brightness, float contrast, float saturation) {
+        Target dst = free(src, keep);
+        dst.bindCleared();
+        color.use();
+        color.f("uBrightness", brightness);
+        color.f("uContrast", contrast);
+        color.f("uSaturation", saturation);
+        drawQuad(color, fullQuad, src, 0);
+        return dst.texture;
+    }
+
+    /** Red moves {@code dxPixels} to the right, blue the same to the left, green stays. */
+    private int passRgb(int src, int keep, float dxPixels) {
+        Target dst = free(src, keep);
+        dst.bindCleared();
+        rgb.use();
+        rgb.f("uShift", dxPixels / width);
+        drawQuad(rgb, fullQuad, src, 0);
+        return dst.texture;
+    }
+
+    /** Moves the band {@code yPixels} .. +{@code heightPixels} (measured from the BOTTOM, like iOS) sideways. */
+    private int passSlice(int src, int keep, float yPixels, float heightPixels, float shiftPixels) {
+        float v0 = yPixels / height, v1 = (yPixels + heightPixels) / height;
+        if (v1 <= 0f || v0 >= 1f) return src;
+        Target dst = free(src, keep);
+        dst.bindCleared();
+        slice.use();
+        GLES20.glUniform3f(slice.loc("uBand"), v0, v1, shiftPixels / width);
+        drawQuad(slice, fullQuad, src, 0);
+        return dst.texture;
     }
 
     /**

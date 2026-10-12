@@ -843,6 +843,14 @@ public class FFmpegEdit {
                         found.add("The '" + dataDriven.getName() + "' transition style (OpenGL only: FFmpeg just cuts from one clip to the next)");
                     }
                 }
+                if (clip.type == EditingActivity.ClipType.EFFECT && clip.effect != null && clip.effect.style != null) {
+                    // An effect clip filters the whole picture drawn so far (an adjustment layer); a filter graph per clip can't do that.
+                    EffectStyle effectStyle = EffectStyleLoader.get(clip.effect.style);
+                    if (effectStyle != null) {
+                        found.add("The '" + effectStyle.getName() + "' effect (OpenGL only: FFmpeg can't filter the layers below an effect clip, so the clip is skipped)");
+                    }
+                    continue;
+                }
                 if (clip.type == EditingActivity.ClipType.TEXT) {
                     collectUnsupportedTextStyle(clip, found);
                     // drawtext can't animate at all: text in / out animations (and per-character ones) are OpenGL-only.

@@ -56,10 +56,11 @@ public class OpenGLEdit {
      * Effect clips (adjustment layers, {@link EffectLayerRenderer}): the filter ops of an effect style's
      * {@code filters} list that the GPU draws. A style whose list names an op outside this set still runs its channels
      * and the ops it does know, but the export screen warns about it (see getUnsupportedFeatures). Channel-only styles
-     * (shakes, pulses, fades, spin, push...) are always fully drawn. E2b adds the distortion / glitch ops.
+     * (shakes, pulses, fades, spin, push...) are always fully drawn. Every op the loader knows is drawn since E2b.
      */
     public static final Set<String> SUPPORTED_EFFECT_OPS = new java.util.HashSet<>(java.util.Arrays.asList(
-            "blur", "colorControls", "photoEffect", "sepia", "vignette", "bloom", "pixellate", "dotScreen"
+            "blur", "colorControls", "photoEffect", "sepia", "vignette", "bloom", "pixellate", "dotScreen",
+            "kaleidoscope", "twirl", "bump", "rgbShift", "tearSlices", "crossProcess", "vhs"
     ));
     public static final boolean SUPPORTS_REVERSE = true;
     public static final boolean SUPPORTS_KEYFRAMES = true;
@@ -351,14 +352,20 @@ public class OpenGLEdit {
         public final String name;
         /** The op's {@code randomSign} flag (rgbShift). */
         public final boolean randomSign;
+        /** Which 1/15 s slot of output time this is: the seed of the random patterns (see {@link #random}). */
+        public final int step;
         private final java.util.Map<String, Double> values;
 
-        FilterStep(String op, String name, boolean randomSign, java.util.Map<String, Double> values) {
+        FilterStep(String op, String name, boolean randomSign, int step, java.util.Map<String, Double> values) {
+            this.step = step;
             this.op = op;
             this.name = name;
             this.randomSign = randomSign;
             this.values = values;
         }
+
+        /** Deterministic pseudo-random 0..1 for this step (iOS EffectRenderer.random): the same frame always looks the same in preview, scrubbing and export. */
+        public float random(double salt) { return OpenGLEdit.random(step, salt); }
 
         /** A parameter at this moment (0 for a name the op doesn't have). Distances are fractions of the canvas, see EffectLayerRenderer. */
         public float v(String param) {
@@ -790,16 +797,23 @@ public class OpenGLEdit {
         }
 
         List<FilterStep> steps = new ArrayList<>();
+        int randomStep = (int) Math.floor(Math.max(outputTimeSeconds, 0f) * 15.0); // random patterns jump 15 times a second
         for (EffectFilterOps.Filter filter : style.getFilters()) {
             if (!SUPPORTED_EFFECT_OPS.contains(filter.getOp())) continue;
             java.util.Map<String, Double> values = new java.util.HashMap<>();
             for (EffectFilterOps.Param param : filter.getSpec().params) {
                 values.put(param.name, style.filterValue(filter, param.name, elapsed, duration, strength));
             }
-            steps.add(new FilterStep(filter.getOp(), filter.getString("name"), filter.hasFlag("randomSign"), values));
+            steps.add(new FilterStep(filter.getOp(), filter.getString("name"), filter.hasFlag("randomSign"), randomStep, values));
         }
         return new EffectCommand(clip, style, strength, elapsed, duration, outputTimeSeconds, look, lookPass, mvp, post,
                 steps, style.filterMix(strength));
+    }
+
+    /** iOS EffectRenderer.random: a hash of (step, salt) in 0..1. */
+    public static float random(int step, double salt) {
+        double x = Math.sin(step * 12.9898 + salt * 78.233) * 43758.5453;
+        return (float) (x - Math.floor(x));
     }
 
     /**
