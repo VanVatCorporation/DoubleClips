@@ -840,7 +840,7 @@ public class OpenGLEdit {
 
     /**
      * Evaluates an effect clip at outputTimeSeconds (null: no effect object, or a style this build doesn't know, which
-     * every platform leaves alone). Strength is the static {@code params["intensity"]} for now (effect strength keyframes come with K2).
+     * every platform leaves alone). Strength is the static {@code params["intensity"]}, or the keyframed value (K2).
      */
     private EffectCommand buildEffectCommand(EditingActivity.Clip clip, float outputTimeSeconds, int canvasWidth, int canvasHeight,
                                              float[] projection) {
@@ -851,6 +851,10 @@ public class OpenGLEdit {
         float strength = 1f;
         if (clip.effect.params != null && clip.effect.params.get("intensity") instanceof Number) {
             strength = ((Number) clip.effect.params.get("intensity")).floatValue();
+        }
+        // Keyframed strength (K2): when some keyframe holds it, it is read per frame like any other animated property.
+        if (clip.keyframes != null && clip.keyframes.isAnimated(EditingActivity.VideoProperties.ValueType.Strength)) {
+            strength = clip.keyframes.getValueAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Strength);
         }
         strength = Math.max(strength, 0f);
         float elapsed = Math.max(outputTimeSeconds - clip.startTime, 0f);

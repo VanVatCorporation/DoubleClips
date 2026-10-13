@@ -21,8 +21,9 @@ import java.util.List;
  * look (the properties it doesn't hold are filled with what they were), so a reader that knows nothing about
  * {@code channels} still plays something close.
  *
- * The names are iOS's {@code ValueType} raw values ("posX", "scaleY", ...). A list may carry names this build doesn't
- * know ("strength", an iOS-only effect property); they are kept as they are and never held by any property here.
+ * The names are iOS's {@code ValueType} raw values ("posX", "scaleY", ...). "strength" (an effect clip's strength) is
+ * a property too, but only a keyframe that names it holds it (it is not in {@link #ALL}). A list may carry names this
+ * build doesn't know; they are kept as they are and never held by any property here.
  *
  * Plain Java (no Android classes): the rules live here so they can be tested off-device; EditingActivity's Keyframe
  * and AnimatedProperty delegate to it.
@@ -31,7 +32,7 @@ public final class KeyframeChannels {
 
     /**
      * The properties an "all properties" keyframe ({@code channels == null}) holds, in iOS's order. rotInRadians is only
-     * Rot in radians and "strength" (an effect clip's strength, iOS only) is held only by a keyframe that lists it, so
+     * Rot in radians and "strength" (an effect clip's strength) is held only by a keyframe that lists it, so
      * neither is in this list.
      */
     public static final List<String> ALL = Collections.unmodifiableList(Arrays.asList(

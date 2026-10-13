@@ -118,14 +118,24 @@
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
-                    <Spinner
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/transitionContent"
-                        android:layout_width="180dp"
-                        android:layout_height="wrap_content"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:background="@null"
-                        android:textSize="15sp" />
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:maxWidth="200dp"
+                        android:text="Choose..."
+                        android:textAllCaps="false"
+                        android:textColor="@color/ios_blue"
+                        android:textSize="15sp"
+                        app:icon="@drawable/baseline_auto_fix_high_24"
+                        app:iconGravity="textEnd"
+                        app:iconSize="16dp"
+                        app:iconTint="@color/ios_blue" />
 
                 </RelativeLayout>
 

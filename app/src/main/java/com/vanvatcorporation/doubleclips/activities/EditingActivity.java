@@ -1938,10 +1938,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (selectedClip.effect == null) selectedClip.effect = new EffectTemplate(style, duration, 1);
                 selectedClip.effect.style = style;
                 selectedClip.effect.duration = duration;
-                if (EffectStyleLoader.get(style) != null) { // a style this build doesn't know keeps whatever strength it had
-                    if (selectedClip.effect.params == null) selectedClip.effect.params = new java.util.HashMap<>();
-                    selectedClip.effect.params.put("intensity", (double) effectEditSpecificAreaScreen.getStrength());
-                }
+                applyEffectStrength(); // (a style this build doesn't know keeps whatever strength it had)
             }
         });
         effectEditSpecificAreaScreen.onOpen.add(() -> {
@@ -1949,10 +1946,17 @@ public class EditingActivity extends AppCompatActivityImpl {
                 effectEditSpecificAreaScreen.setEffect("", 1f);
                 return;
             }
-            Object intensity = selectedClip.effect.params == null ? null : selectedClip.effect.params.get("intensity");
-            effectEditSpecificAreaScreen.setEffect(selectedClip.effect.style, intensity instanceof Number ? ((Number) intensity).floatValue() : 1f);
+            effectEditSpecificAreaScreen.setEffect(selectedClip.effect.style, effectStrengthAt(selectedClip, currentTime));
             effectEditSpecificAreaScreen.effectDurationContent.setText(String.valueOf(selectedClip.effect.duration));
+            refreshEffectStrengthKey();
         });
+        // Moving the slider edits live (the preview follows), into the keyframe at the playhead when the strength is animated.
+        effectEditSpecificAreaScreen.onStrengthEdited = () -> {
+            applyEffectStrength();
+            refreshEffectStrengthKey();
+            if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+        };
+        effectEditSpecificAreaScreen.onStrengthDiamond = this::onEffectStrengthDiamond;
 
         // ===========================       EFFECT ZONE       ====================================
 
@@ -1970,7 +1974,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     if(clip == selectedKnot)
                     {
                         clip.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
-                        clip.effect.style = transitionEditSpecificAreaScreen.styleIdAt(transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition(), clip.effect.style);
+                        clip.effect.style = transitionEditSpecificAreaScreen.getStyleId(clip.effect.style);
                         clip.effect.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
                         clip.mode = TransitionClip.TransitionMode.values()[transitionEditSpecificAreaScreen.transitionModeEditContent.getSelectedItemPosition()];
 //
@@ -1991,7 +1995,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     TransitionClip clip = timeline.tracks.get(selectedKnot.trackIndex).clips.get(i).endTransition;
                     if(clip == null) continue;
                     clip.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
-                    clip.effect.style = transitionEditSpecificAreaScreen.styleIdAt(transitionEditSpecificAreaScreen.transitionEditContent.getSelectedItemPosition(), clip.effect.style);
+                    clip.effect.style = transitionEditSpecificAreaScreen.getStyleId(clip.effect.style);
                     clip.effect.duration = ParserHelper.TryParse(transitionEditSpecificAreaScreen.transitionDurationContent.getText().toString(), 0.5f);
                     clip.mode = TransitionClip.TransitionMode.values()[transitionEditSpecificAreaScreen.transitionModeEditContent.getSelectedItemPosition()];
                 }
@@ -3107,6 +3111,83 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         Keyframe here = clip.keyframes.keyframeAtLocal(local);
         if (here != null) sheet.easingSpinner.setSelection(sheet.easingTypeArrayAdapter.getPosition(here.easing));
+    }
+
+    // ---- effect strength keyframes (K2) ---------------------------------------------------
+
+    /** An effect clip's static strength (effect.params["intensity"], 1 when absent). */
+    private static float effectStaticStrength(Clip clip) {
+        Object v = clip.effect == null || clip.effect.params == null ? null : clip.effect.params.get("intensity");
+        return v instanceof Number ? ((Number) v).floatValue() : 1f;
+    }
+
+    private static void setEffectStaticStrength(Clip clip, float value) {
+        if (clip.effect == null) return;
+        if (clip.effect.params == null) clip.effect.params = new java.util.HashMap<>();
+        clip.effect.params.put("intensity", (double) value);
+    }
+
+    /** The strength at a global time: keyframed when some keyframe holds it, else the static one. */
+    private static float effectStrengthAt(Clip clip, float time) {
+        return clip.keyframes.isAnimated(VideoProperties.ValueType.Strength)
+                ? clip.keyframes.getValueAtTime(clip, time, VideoProperties.ValueType.Strength)
+                : effectStaticStrength(clip);
+    }
+
+    /**
+     * Writes the strength the effect panel shows: into the keyframe at the playhead when the strength is animated (a key
+     * is added there when none is), else into the static strength. Picking a new style resets the strength to its own
+     * default and writes that statically (its keyframes stay, like iOS). Does nothing for a style this build doesn't know.
+     */
+    private void applyEffectStrength() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.effect == null || EffectStyleLoader.get(effectEditSpecificAreaScreen.getStyleId()) == null) return;
+        float edited = effectEditSpecificAreaScreen.getStrength();
+        if (effectEditSpecificAreaScreen.isStyleChanged()) {
+            setEffectStaticStrength(clip, edited);
+            effectEditSpecificAreaScreen.clearStyleChanged();
+            return;
+        }
+        if (Math.abs(edited - effectStrengthAt(clip, currentTime)) <= KeyframeChannels.SAME_VALUE_TOLERANCE * 0.2f) return;
+        if (clip.keyframes.isAnimated(VideoProperties.ValueType.Strength)) {
+            if (!sheetPlayheadInsideClip()) return; // a keyframe can't be placed outside the clip
+            clip.keyframes.setKey(VideoProperties.ValueType.Strength, sheetLocalTime(), edited, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+            syncKeyframeKnots(clip);
+        } else {
+            setEffectStaticStrength(clip, edited);
+        }
+    }
+
+    /** Shows the strength diamond's state at the playhead (hollow / half / filled). */
+    private void refreshEffectStrengthKey() {
+        Clip clip = selectedClip;
+        if (clip == null) return;
+        VideoProperties.ValueType type = VideoProperties.ValueType.Strength;
+        ClipEditSpecificAreaScreen.KeyMode mode = !clip.keyframes.isAnimated(type) ? ClipEditSpecificAreaScreen.KeyMode.OFF
+                : (clip.keyframes.keyframeIndex(sheetLocalTime(), type) >= 0 ? ClipEditSpecificAreaScreen.KeyMode.ON_KEY
+                : ClipEditSpecificAreaScreen.KeyMode.ANIMATED);
+        effectEditSpecificAreaScreen.setStrengthKeyMode(mode, sheetPlayheadInsideClip());
+    }
+
+    /** The strength diamond: animate the strength from here on, or take the keyframe at the playhead off. */
+    private void onEffectStrengthDiamond() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.effect == null || !sheetPlayheadInsideClip()
+                || EffectStyleLoader.get(effectEditSpecificAreaScreen.getStyleId()) == null) return;
+        VideoProperties.ValueType type = VideoProperties.ValueType.Strength;
+        applyEffectStrength(); // a slider move that wasn't applied yet comes first
+        float local = sheetLocalTime();
+        if (clip.keyframes.keyframeIndex(local, type) >= 0) {
+            Float removed = clip.keyframes.removeKey(type, local);
+            // No longer animated: the strength stays where it was.
+            if (removed != null && !clip.keyframes.isAnimated(type)) setEffectStaticStrength(clip, removed);
+        } else {
+            clip.keyframes.setKey(type, local, effectStrengthAt(clip, currentTime), clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+        }
+        syncKeyframeKnots(clip);
+        effectEditSpecificAreaScreen.setStrengthValue(effectStrengthAt(clip, currentTime));
+        refreshEffectStrengthKey();
+        if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
     }
 
     /** A diamond beside a property was tapped: turn its animation on at the playhead, or take its keyframe there off. */
@@ -6166,6 +6247,12 @@ frameRate = 60;
         public float valuePivotX;
         @Expose
         public float valuePivotY;
+        /**
+         * An effect clip's strength, only ever animated (an effect's static strength is its params["intensity"], so this
+         * is never read for a clip without a "strength" keyframe). iOS's valueStrength: same key, default 1.
+         */
+        @Expose
+        public float valueStrength = 1;
 
         public VideoProperties()
         {
@@ -6226,6 +6313,7 @@ frameRate = 60;
             this.valueSaturation = properties.valueSaturation;
             this.valueBrightness = properties.valueBrightness;
             this.valueTemperature = properties.valueTemperature;
+            this.valueStrength = properties.valueStrength;
         }
 
         public float getValue(ValueType valueType) {
@@ -6262,6 +6350,8 @@ frameRate = 60;
                     return valueBrightness;
                 case Temperature:
                     return valueTemperature;
+                case Strength:
+                    return valueStrength;
                 default:
                     return 1;
 
@@ -6314,6 +6404,9 @@ frameRate = 60;
                 case Temperature:
                     valueTemperature = v;
                     break;
+                case Strength:
+                    valueStrength = v;
+                    break;
 
             }
         }
@@ -6337,7 +6430,9 @@ frameRate = 60;
         }
 
         public enum ValueType {
-            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature;
+            PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature,
+            /** An effect clip's strength (iOS .strength): not in {@link #CHANNELS}, an "all properties" keyframe never holds it. */
+            Strength;
 
             /**
              * The properties an "all properties" keyframe holds (RotInRadians is only Rot in radians), in the order of
@@ -6358,7 +6453,7 @@ frameRate = 60;
                 for (ValueType type : CHANNELS) {
                     if (type.channelName().equals(channelName)) return type;
                 }
-                return null;
+                return Strength.channelName().equals(channelName) ? Strength : null;
             }
 
             /** How the editor names the property: "Pos X", "Scale Y", "Rotation"... */
