@@ -5977,7 +5977,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         int downScrollX;
     }
 
-    public static class TransitionClip implements Serializable {
+    public static class TransitionClip implements Serializable, UnknownKeysHolder {
+
+        /** Keys of this object's JSON that this build has no field for (another platform's), kept across a save. See ProjectGson. */
+        private transient JsonObject unknownKeys;
+        @Override public JsonObject getUnknownKeys() { return unknownKeys; }
+        @Override public void setUnknownKeys(JsonObject keys) { unknownKeys = keys; }
         @Expose
         public int trackIndex;
         @Expose

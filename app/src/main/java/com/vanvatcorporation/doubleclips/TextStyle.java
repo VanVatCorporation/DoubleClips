@@ -43,10 +43,20 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         colorArgb = hexOf(raw, "colorHex", colorArgb);
         outlineColorArgb = hexOf(raw, "outlineColorHex", outlineColorArgb);
         alignment = alignmentOrDefault();
-        // Consumed into the colour fields above (and rewritten from them on save), so they aren't "unknown".
+        // iOS spells these "character" / "centerOut"; in memory they stay CHARACTER / CENTER_OUT (see TextStyleWire).
+        unitMode = TextStyleWire.unitModeFromWire(unitMode);
+        order = TextStyleWire.orderFromWire(order);
+        // iOS keeps an imported font's project-relative path in "fontFile"; that is this build's fontPath.
+        // A value there is the latest word on which font the clip uses, so it wins over an older fontPath.
+        JsonElement file = raw.get("fontFile");
+        if (file != null && file.isJsonPrimitive() && file.getAsJsonPrimitive().isString() && !file.getAsString().isEmpty()) {
+            fontPath = file.getAsString();
+        }
+        // Consumed into the fields above (and rewritten from them on save), so they aren't "unknown".
         if (unknownKeys != null) {
             unknownKeys.remove("colorHex");
             unknownKeys.remove("outlineColorHex");
+            unknownKeys.remove("fontFile");
             if (unknownKeys.size() == 0) unknownKeys = null;
         }
     }
@@ -55,8 +65,13 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
     public void onSaving(JsonObject tree) {
         tree.addProperty("colorHex", toHex(colorArgb));
         tree.addProperty("outlineColorHex", toHex(outlineColorArgb));
-        // iOS names a font by PostScript name; if this build picked a font file since, that name is stale.
-        if (fontPath != null && !fontPath.isEmpty()) tree.remove("fontName");
+        // iOS's spelling of the per-unit animation keys (this build reads either).
+        tree.addProperty("unitMode", TextStyleWire.unitModeToWire(unitMode));
+        tree.addProperty("order", TextStyleWire.orderToWire(order));
+        // A font imported into the project is "Fonts/Name.ttf" on both platforms; a device font is an absolute
+        // path that means nothing on iOS, so it goes out as "" (iOS then uses fontName, or the system font).
+        boolean projectFont = fontPath != null && !fontPath.isEmpty() && !new java.io.File(fontPath).isAbsolute();
+        tree.addProperty("fontFile", projectFont ? fontPath : "");
     }
 
     private static int hexOf(JsonObject raw, String key, int fallback) {
@@ -76,6 +91,11 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
      * whose font is null leaves the clip's current font alone when it is applied.
      */
     @Expose public String fontPath;
+    /**
+     * PostScript name of the font, the key iOS draws text with ("fontName"). Set when a font is picked here (read from the
+     * font file, see {@link FontNames}); an iOS-written name for an installed font is kept as it is. Null = none.
+     */
+    @Expose public String fontName;
     /**
      * Fill and outline colour as ARGB ints in memory. On disk they are the iOS-compatible "colorHex" /
      * "outlineColorHex" ("#RRGGBB" or "#RRGGBBAA", see {@link #onSaving}); these two fields are deliberately NOT
@@ -116,6 +136,7 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         this.name = other.name;
         this.author = other.author;
         this.fontPath = other.fontPath;
+        this.fontName = other.fontName;
         this.colorArgb = other.colorArgb;
         this.outlineColorArgb = other.outlineColorArgb;
         this.outlineWidth = other.outlineWidth;
@@ -132,7 +153,7 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
     }
 
     public boolean animatesPerUnit() {
-        return unitMode != null && !"NONE".equals(unitMode);
+        return unitMode != null && !"NONE".equalsIgnoreCase(unitMode);
     }
 
     /** Shared read-only default for clips with no style yet: plain white text, no outline. Never mutate it. */

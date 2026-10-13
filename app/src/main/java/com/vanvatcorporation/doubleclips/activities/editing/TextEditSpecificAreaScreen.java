@@ -206,6 +206,9 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         TextStyle result = new TextStyle();
         if (!dropForeignFields) result.copyUnknownKeysFrom(previous); // another platform's fields on this style survive an edit here
         result.fontPath = fontPath;
+        // Same font as before: keep its name (it may be an iOS font this build can't read). Another font: its own name.
+        boolean sameFont = previous != null && java.util.Objects.equals(fontPath, previous.fontPath);
+        result.fontName = sameFont && previous.fontName != null ? previous.fontName : TextFonts.postScriptName(projectPath, fontPath);
         result.bold = bold;
         result.italic = italic;
         result.alignment = alignment;

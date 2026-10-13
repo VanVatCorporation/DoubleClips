@@ -88,6 +88,17 @@ public final class TextFonts {
         return prettyName(new File(fontPath).getName());
     }
 
+    /**
+     * The PostScript name to write next to a font (what iOS draws it by): for a font imported into the project, read from
+     * the file. Null for the default font, a device font (iOS doesn't have it) or an unreadable file.
+     */
+    public static String postScriptName(String projectPath, String fontPath) {
+        if (fontPath == null || fontPath.isEmpty() || projectPath == null) return null;
+        File f = new File(fontPath);
+        if (f.isAbsolute()) return null;
+        return FontNames.postScriptName(new File(projectPath, fontPath));
+    }
+
     /** True if the file starts like a TrueType, OpenType or TrueType-collection font. */
     private static boolean looksLikeFont(File file) {
         try (InputStream in = new java.io.FileInputStream(file)) {
