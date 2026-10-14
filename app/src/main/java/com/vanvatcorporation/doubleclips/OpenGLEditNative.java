@@ -775,6 +775,21 @@ public class OpenGLEditNative {
             "    return vec2(srcX, srcY);\n" +
             "}\n";
 
+    /**
+     * Clip masks (see ClipMaskTextures): the mask is an alpha-only picture of the clip's own box, and vQuadPos is the
+     * position in that box (-1..1, y down), so it is sampled at vQuadPos * 0.5 + 0.5 whatever the clip's rotation,
+     * position or scale. uMaskMode: 0 = no mask (one uniform branch, no texture read), 1 = mask, 2 = inverted mask.
+     * uMask is always on texture unit 1: two sampler types on one unit would be a draw error.
+     */
+    private static final String MASK_FRAGMENT_DECLS =
+            "uniform sampler2D uMask;\n" +
+            "uniform float uMaskMode;\n" +
+            "float maskCoverage() {\n" +
+            "    if (uMaskMode < 0.5) return 1.0;\n" +
+            "    float m = texture2D(uMask, vQuadPos * 0.5 + 0.5).a;\n" +
+            "    return uMaskMode > 1.5 ? 1.0 - m : m;\n" +
+            "}\n";
+
     public static class TransformShader {
         private static final String VERTEX_SHADER =
                 "attribute vec4 aPosition;\n" +
@@ -822,6 +837,7 @@ public class OpenGLEditNative {
                 // matrix is uploaded a second time under this name.
                 "uniform mat4 uUnfoldTexMatrix;\n" +
                 UNFOLD_WARP_FRAGMENT_DECLS +
+                MASK_FRAGMENT_DECLS +
                 "void main() {\n" +
                 "    vec2 sampleUv = vTexCoord;\n" +
                 "    if (uUnfoldActive > 0.5) {\n" +
@@ -848,7 +864,7 @@ public class OpenGLEditNative {
                 "    float tempNorm = clamp((uTemperatureKelvin - 6500.0) / 6500.0, -1.0, 1.0);\n" +
                 "    rgb.r *= (1.0 + tempNorm * 0.3);\n" +
                 "    rgb.b *= (1.0 - tempNorm * 0.3);\n" +
-                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity);\n" +
+                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity * maskCoverage());\n" +
                 "}\n";
 
         // Unit quad (-1,-1)..(1,1); OpenGLEdit's model matrix scales/rotates/
@@ -883,6 +899,16 @@ public class OpenGLEditNative {
         private int uUnfoldBottomXLoc;
         private int uUnfoldHeightLoc;
         private int uContrastLoc;
+        private int uMaskLoc;
+        private int uMaskModeLoc;
+        private int maskTexture;
+        private int maskMode; // 0 none, 1 mask, 2 inverted: used by the NEXT drawClip only
+
+        /** Masks the next drawClip with this mask picture ({@link ClipMaskTextures}); 0 = no mask. Consumed by that draw. */
+        public void setMask(int maskTextureId, boolean invert) {
+            maskTexture = maskTextureId;
+            maskMode = maskTextureId == 0 ? 0 : (invert ? 2 : 1);
+        }
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -904,6 +930,8 @@ public class OpenGLEditNative {
             uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
             uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
             uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
+            uMaskLoc = GLES20.glGetUniformLocation(program, "uMask");
+            uMaskModeLoc = GLES20.glGetUniformLocation(program, "uMaskMode");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -959,6 +987,15 @@ public class OpenGLEditNative {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTextureId);
             GLES20.glUniform1i(uTextureLoc, 0);
+            GLES20.glUniform1i(uMaskLoc, 1);
+            GLES20.glUniform1f(uMaskModeLoc, maskMode);
+            if (maskMode != 0) {
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTexture);
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            }
+            maskMode = 0;
+            maskTexture = 0;
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1038,6 +1075,7 @@ public class OpenGLEditNative {
                 "uniform float uBrightness;\n" +
                 "uniform float uTemperatureKelvin;\n" +
                 UNFOLD_WARP_FRAGMENT_DECLS +
+                MASK_FRAGMENT_DECLS +
                 "void main() {\n" +
                 "    vec2 sampleUv = vTexCoord;\n" +
                 "    if (uUnfoldActive > 0.5) {\n" +
@@ -1064,7 +1102,7 @@ public class OpenGLEditNative {
                 "    float tempNorm = clamp((uTemperatureKelvin - 6500.0) / 6500.0, -1.0, 1.0);\n" +
                 "    rgb.r *= (1.0 + tempNorm * 0.3);\n" +
                 "    rgb.b *= (1.0 - tempNorm * 0.3);\n" +
-                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity);\n" +
+                "    gl_FragColor = vec4(clamp(rgb, 0.0, 1.0), color.a * uOpacity * maskCoverage());\n" +
                 "}\n";
 
         // NOT flipped, unlike TransformShader's quad: GLUtils.texImage2D uploads
@@ -1098,6 +1136,16 @@ public class OpenGLEditNative {
         private int uUnfoldBottomXLoc;
         private int uUnfoldHeightLoc;
         private int uContrastLoc;
+        private int uMaskLoc;
+        private int uMaskModeLoc;
+        private int maskTexture;
+        private int maskMode; // 0 none, 1 mask, 2 inverted: used by the NEXT drawClip only
+
+        /** Masks the next drawClip with this mask picture ({@link ClipMaskTextures}); 0 = no mask. Consumed by that draw. */
+        public void setMask(int maskTextureId, boolean invert) {
+            maskTexture = maskTextureId;
+            maskMode = maskTextureId == 0 ? 0 : (invert ? 2 : 1);
+        }
         private java.nio.FloatBuffer vertexBuffer;
 
         /** Must be called on the GL thread, once, after EGL context is current. */
@@ -1117,6 +1165,8 @@ public class OpenGLEditNative {
             uUnfoldBottomXLoc = GLES20.glGetUniformLocation(program, "uUnfoldBottomX");
             uUnfoldHeightLoc = GLES20.glGetUniformLocation(program, "uUnfoldHeight");
             uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
+            uMaskLoc = GLES20.glGetUniformLocation(program, "uMask");
+            uMaskModeLoc = GLES20.glGetUniformLocation(program, "uMaskMode");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -1161,6 +1211,15 @@ public class OpenGLEditNative {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture2DId);
             GLES20.glUniform1i(uTextureLoc, 0);
+            GLES20.glUniform1i(uMaskLoc, 1);
+            GLES20.glUniform1f(uMaskModeLoc, maskMode);
+            if (maskMode != 0) {
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, maskTexture);
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            }
+            maskMode = 0;
+            maskTexture = 0;
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
@@ -2053,6 +2112,10 @@ public class OpenGLEditNative {
                     textCache.closeAll();
                     textCache = null;
                 }
+                if (maskTextures != null) {
+                    maskTextures.release();
+                    maskTextures = null;
+                }
                 if (transitionLayerA != null) transitionLayerA.release();
                 if (transitionLayerB != null) transitionLayerB.release();
                 if (blurScratchA != null) blurScratchA.release();
@@ -2072,6 +2135,15 @@ public class OpenGLEditNative {
      */
     /** Rasterised text textures for TEXT clips; created on first use on the GL thread, freed when the export ends. */
     private TextTextureCache textCache;
+    /** Mask pictures of clip masks (see ClipMaskTextures), created on first use, freed with the text cache. */
+    private ClipMaskTextures maskTextures;
+
+    /** The mask picture of this command's clip for this frame (a GL texture), or 0 when it has no mask. The export draws at canvas size. */
+    private int maskTextureOf(OpenGLEdit.DrawCommand cmd) {
+        if (cmd.mask == null) return 0;
+        if (maskTextures == null) maskTextures = new ClipMaskTextures();
+        return maskTextures.textureFor(cmd.mask, 1f, ClipMaskTextures.EXPORT_CAP);
+    }
 
     /** Where the export's time goes; printed to the export log every 60 frames and once at the end. */
     private FrameProfiler profiler;
@@ -2086,6 +2158,7 @@ public class OpenGLEditNative {
             if (textCache == null) textCache = new TextTextureCache();
             int textTexture = cmd.textUnit == null ? textCache.texture(cmd.clip) : textCache.unitTexture(cmd.clip, cmd.textUnit);
             if (textTexture == 0) return false;
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
             imageShader.drawClip(textTexture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -2105,6 +2178,7 @@ public class OpenGLEditNative {
                 }
                 activeImageSources.put(cmd.clip, imageSource);
             }
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
             imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -2156,6 +2230,7 @@ public class OpenGLEditNative {
             return false;
         }
 
+        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
         shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);

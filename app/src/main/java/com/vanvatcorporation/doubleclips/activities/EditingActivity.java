@@ -4973,15 +4973,32 @@ public class EditingActivity extends AppCompatActivityImpl {
          * A TEXT clip last saved by the desktop port has its look in flat keys (textColor, textBold, ...) and no
          * "textStyle": build the style from them. See TextStyleInterop.
          */
+        /**
+         * Clip mask (iOS keys "mask" and "maskKeys", see ClipMask): limits where the clip is visible. Not loaded by the project
+         * loader but parsed here, so a mask that can't be read never costs the clip: it stays in the clip's unknown keys, untouched,
+         * and the clip just has no mask on this side. Null = no mask.
+         */
+        public transient ClipMask mask;
+        /** The mask's keyframes (panel units, clip-local seconds), or null / empty. */
+        public transient List<ClipMask.Key> maskKeys;
+
         @Override
         public void onLoaded(JsonObject raw) {
             if (type == ClipType.TEXT && textStyle == null) textStyle = TextStyleInterop.fromDesktopKeys(raw);
+            ClipMask.Loaded loadedMask = ClipMask.readFrom(raw, unknownKeys);
+            if (loadedMask != null) {
+                mask = loadedMask.mask;
+                maskKeys = loadedMask.keys;
+                if (unknownKeys != null && unknownKeys.size() == 0) unknownKeys = null;
+            }
         }
 
         /** Writes the desktop port's flat text keys next to "textStyle", so a project saved here still looks right there. */
         @Override
         public void onSaving(JsonObject tree) {
             if (type == ClipType.TEXT) TextStyleInterop.writeDesktopKeys(tree, textStyle != null ? textStyle : TextStyle.DEFAULT);
+            // A mask this build couldn't read is still in the tree (as an unknown key) and is left as it is.
+            ClipMask.writeTo(tree, mask, maskKeys);
         }
         public static final int ELEVATION_HANDLERS = 2;
         public static final int ELEVATION_TRANSITION_KNOT = 1;
@@ -5109,6 +5126,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         public Clip(Clip clip) {
             copyUnknownKeysFrom(clip);
+            this.mask = clip.mask == null ? null : new ClipMask(clip.mask);
+            this.maskKeys = ClipMask.copyKeys(clip.maskKeys);
             this.clipName = clip.clipName;
             this.startTime = clip.startTime;
             this.startClipTrim = clip.startClipTrim;
@@ -6725,7 +6744,8 @@ frameRate = 60;
             return a + (b - a) * t;
         }
 
-        private float ease(float t, EasingType type) {
+        /** The easing curve by type: 0..1 in, 0..1 out (NONE is always 0). Pure maths, also used by clip masks (ClipMaskResolver). */
+        public static float ease(float t, EasingType type) {
             switch (type) {
                 // None
                 case NONE: return 0;

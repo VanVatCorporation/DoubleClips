@@ -837,6 +837,10 @@ public class FFmpegEdit {
             if (track == null || track.clips == null) continue;
             for (EditingActivity.Clip clip : track.clips) {
                 if (clip == null) continue;
+                if (clip.mask != null && clip.type != EditingActivity.ClipType.AUDIO) {
+                    // A per-frame animated mask doesn't fit a filter graph: the OpenGL engine draws it, this one ignores it.
+                    found.add("Clip masks (OpenGL only: FFmpeg draws the clip without its mask)");
+                }
                 if (clip.isEndTransitionEnabled() && clip.endTransition != null && clip.endTransition.effect != null) {
                     TransitionStyle dataDriven = TransitionStyleLoader.get(clip.endTransition.effect.style);
                     // (An id xfade also has keeps using xfade, see FXCommandEmitter: nothing to warn about.)

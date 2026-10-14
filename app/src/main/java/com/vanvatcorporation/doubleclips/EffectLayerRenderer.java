@@ -385,8 +385,9 @@ public final class EffectLayerRenderer {
     private int captureTexture;
     private Target[] pool;
 
-    private Prog look, copy, color, photo, sepia, vignette, pixel, dot, bright, add,
+    private Prog look, copy, copyMask, color, photo, sepia, vignette, pixel, dot, bright, add,
             twirl, bump, kaleido, rgb, slice, cross, vhsFx;
+    private ClipMaskTextures masks; // the effect clip's mask picture, created on first use
     private OpenGLEditNative.PostFxShader postShader;
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private FloatBuffer fullQuad, lookQuad;
@@ -413,6 +414,10 @@ public final class EffectLayerRenderer {
 
     /** Frees every GL object (GL thread, context current). Safe to call twice. */
     public void release() {
+        if (masks != null) {
+            masks.release();
+            masks = null;
+        }
         if (pool != null) {
             for (Target t : pool) if (t != null) t.release();
             pool = null;
@@ -430,6 +435,7 @@ public final class EffectLayerRenderer {
         if (look == null) {
             look = new Prog(VS_LOOK, FS_LOOK);
             copy = new Prog(VS_FULL, FS_COPY);
+            copyMask = new Prog(VS_FULL, FS_COPY_MASK);
             color = new Prog(VS_FULL, FS_COLOR);
             photo = new Prog(VS_FULL, FS_PHOTO);
             sepia = new Prog(VS_FULL, FS_SEPIA);
@@ -478,6 +484,12 @@ public final class EffectLayerRenderer {
     // ---- one effect ----------------------------------------------------------------------------
 
     private void draw(OpenGLEdit.EffectCommand cmd) {
+        // The effect clip's mask (its box is the whole canvas): made first, it binds a texture while it is built.
+        int maskTexture = 0;
+        if (cmd.mask != null) {
+            if (masks == null) masks = new ClipMaskTextures();
+            maskTexture = masks.textureFor(cmd.mask, width / cmd.mask.boxW, width > 1280 ? ClipMaskTextures.EXPORT_CAP : ClipMaskTextures.PREVIEW_CAP);
+        }
         GLES20.glDisable(GLES20.GL_BLEND);
 
         // 1. The picture so far.
@@ -496,12 +508,28 @@ public final class EffectLayerRenderer {
 
         // 4. Back onto the frame: the old picture is replaced (the result is canvas-sized; what a transform leaves empty
         //    is black, like iOS).
+        boolean mixes = !cmd.steps.isEmpty() && cmd.mix < 0.9999f;
+        int effectOut = cur;
+        if (maskTexture != 0 && mixes) {
+            // A mask needs the whole effect as one picture to blend with the old one: build the strength mix into a layer first.
+            Target layer = free(cur, afterLook);
+            layer.bindCleared();
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            drawCopy(afterLook, 1f);
+            drawCopy(cur, Math.max(cmd.mix, 0f));
+            effectOut = layer.texture;
+            mixes = false;
+        }
         restoreMainFramebuffer();
         GLES20.glClearColor(0f, 0f, 0f, 1f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
-        if (!cmd.steps.isEmpty() && cmd.mix < 0.9999f) {
+        if (maskTexture != 0) {
+            drawCopy(captureTexture, 1f);                                   // the picture as it was
+            drawMasked(effectOut, maskTexture, cmd.mask.state.invert);      // the effect, only where the mask shows
+        } else if (mixes) {
             drawCopy(afterLook, 1f);
             drawCopy(cur, Math.max(cmd.mix, 0f));
         } else {
@@ -748,6 +776,19 @@ public final class EffectLayerRenderer {
         return b.texture;
     }
 
+    /**
+     * The effect's output drawn over the picture before it, only where the clip's mask shows: result = mix(before, effect,
+     * mask), by alpha blending. The mask picture (ClipMaskTextures) has row 0 at the TOP of the canvas, while v runs up here.
+     */
+    private static final String FS_COPY_MASK = FS_HEAD +
+            "uniform sampler2D uTexture2;\n" +
+            "uniform float uInvert;\n" +
+            "void main() {\n" +
+            "    vec4 c = texture2D(uTexture, vTexCoord);\n" +
+            "    float m = texture2D(uTexture2, vec2(vTexCoord.x, 1.0 - vTexCoord.y)).a;\n" +
+            "    gl_FragColor = vec4(c.rgb, uInvert > 0.5 ? 1.0 - m : m);\n" +
+            "}\n";
+
     // ---- helpers -------------------------------------------------------------------------------
 
     /** The first pool target whose texture is not in {@code busy}. */
@@ -763,6 +804,12 @@ public final class EffectLayerRenderer {
     private void restoreMainFramebuffer() {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
         GLES20.glViewport(0, 0, width, height);
+    }
+
+    private void drawMasked(int texture, int maskTexture, boolean invert) {
+        copyMask.use();
+        copyMask.f("uInvert", invert ? 1f : 0f);
+        drawQuad(copyMask, fullQuad, texture, maskTexture);
     }
 
     private void drawCopy(int texture, float alpha) {

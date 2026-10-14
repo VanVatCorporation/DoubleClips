@@ -304,6 +304,8 @@ public class OpenGLEdit {
          * blurSigmaPixels &gt; 0) the Gaussian blur, exactly like the in-animation blur path.
          */
         public PostFx post;
+        /** The clip's mask for this frame (see ClipMaskFrame), or null. Not set on per-unit text commands: animated per-letter text ignores masks. */
+        public ClipMaskFrame mask;
 
         public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity,
                             float hueDegrees, float saturation, float brightness, float temperatureKelvin, float blurSigmaPixels,
@@ -454,6 +456,8 @@ public class OpenGLEdit {
         public final List<FilterStep> steps;
         /** How much of the filter chain's result is blended over the picture before it (1 = all of it). */
         public final float mix;
+        /** The effect clip's mask for this frame (box = the whole canvas): the effect shows only where the mask is, or null. */
+        public ClipMaskFrame mask;
 
         EffectCommand(EditingActivity.Clip clip, EffectStyle style, float strength, float elapsed, float duration, float time,
                       ClipAnimationFrame look, boolean lookPass, float[] lookMvp, PostFx post, List<FilterStep> steps, float mix) {
@@ -885,8 +889,10 @@ public class OpenGLEdit {
             }
             steps.add(new FilterStep(filter.getOp(), filter.getString("name"), filter.hasFlag("randomSign"), randomStep, values));
         }
-        return new EffectCommand(clip, style, strength, elapsed, duration, outputTimeSeconds, look, lookPass, mvp, post,
+        EffectCommand command = new EffectCommand(clip, style, strength, elapsed, duration, outputTimeSeconds, look, lookPass, mvp, post,
                 steps, style.filterMix(strength));
+        command.mask = maskFrameOf(clip, outputTimeSeconds, canvasWidth, canvasHeight);
+        return command;
     }
 
     /** iOS EffectRenderer.random: a hash of (step, salt) in 0..1. */
@@ -975,7 +981,8 @@ public class OpenGLEdit {
         ClipAnimationFrame anim = animationFrame(clip, outputTimeSeconds, outWindow);
         if (extraAnim != null) anim = anim.merged(extraAnim);
 
-        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim, textW, textH);
+        float[] box = new float[2]; // the clip as drawn (scaled, not yet rotated), in canvas pixels: the mask works in it
+        float[] mvp = buildClipMvp(clip, outputTimeSeconds, projection, canvasWidth, canvasHeight, stretchToFull, anim, textW, textH, box);
         float opacity = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Opacity)
                 * anim.opacity();
         float hue = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Hue)
@@ -991,7 +998,27 @@ public class OpenGLEdit {
         DrawCommand command = new DrawCommand(clip, localSourceTime, mvp, opacity, hue, saturation, brightness, temperature, blurSigmaPixels,
                 anim.warpTopWidth(), anim.warpBottomWidth(), anim.warpHeight(), anim.contrast());
         command.post = PostFx.from(anim, mvp, canvasWidth, canvasHeight);
+        command.mask = maskFrameOf(clip, outputTimeSeconds, box[0], box[1]);
         return command;
+    }
+
+    /** Clip masks use the clip keyframes' easing curves (by name). */
+    private static final ClipMaskResolver.Easing MASK_EASING = (name, t) -> {
+        try {
+            return EditingActivity.AnimatedProperty.ease(t, EditingActivity.EasingType.valueOf(name));
+        } catch (IllegalArgumentException e) {
+            return t;
+        }
+    };
+
+    /**
+     * The clip's mask at outputTimeSeconds, working in a box of boxW x boxH canvas pixels (the clip as drawn; the whole
+     * canvas for an effect clip), or null when the clip has no mask. Keyframe times are seconds from the clip start.
+     */
+    private ClipMaskFrame maskFrameOf(EditingActivity.Clip clip, float outputTimeSeconds, float boxW, float boxH) {
+        if (clip.mask == null || boxW <= 0f || boxH <= 0f) return null;
+        ClipMaskResolver.State state = ClipMaskResolver.resolve(clip.mask, clip.maskKeys, outputTimeSeconds - clip.startTime, MASK_EASING);
+        return new ClipMaskFrame(state, boxW, boxH);
     }
 
     /**
@@ -1130,7 +1157,7 @@ public class OpenGLEdit {
      */
     private float[] buildClipMvp(EditingActivity.Clip clip, float outputTimeSeconds, float[] projection,
                                   int canvasWidth, int canvasHeight, boolean stretchToFull, ClipAnimationFrame anim,
-                                  float textW, float textH) {
+                                  float textW, float textH, float[] boxOut) {
         // The in-animation's scale multiplies the clip's own (about its pivot), its offset is a
         // fraction of the canvas size added to PosX/PosY, its rotation is added to RotInRadians.
         float scaleX = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.ScaleX) * anim.scale();
@@ -1158,6 +1185,10 @@ public class OpenGLEdit {
         }
         float scaledW = baseW * scaleX;
         float scaledH = baseH * scaleY;
+        if (boxOut != null) {
+            boxOut[0] = Math.abs(scaledW); // the clip's box as drawn (a negative scale only mirrors it)
+            boxOut[1] = Math.abs(scaledH);
+        }
 
         float cos = (float) Math.cos(rotRadians);
         float sin = (float) Math.sin(rotRadians);

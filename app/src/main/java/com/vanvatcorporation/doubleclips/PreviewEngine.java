@@ -142,6 +142,7 @@ public final class PreviewEngine {
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private OpenGLEditNative.PostFxShader postShader; // exposure / edge fill / slide / squeeze / motion blur (transition styles)
     private EffectLayerRenderer effectRenderer;      // effect clips (adjustment layers), created on first use
+    private ClipMaskTextures maskTextures;           // clip masks (see ClipMaskTextures), created on first use
     private TransitionMaskRenderer maskRenderer;     // data-driven mask transitions, created on first use
     private Offscreen layerA, layerB, blurA, blurB;
     private Pool pool;
@@ -304,6 +305,7 @@ public final class PreviewEngine {
                     if (blurA != null) blurA.release();
                     if (blurB != null) blurB.release();
                     if (effectRenderer != null) { effectRenderer.release(); effectRenderer = null; }
+                    if (maskTextures != null) { maskTextures.release(); maskTextures = null; }
                     if (maskRenderer != null) { maskRenderer.release(); maskRenderer = null; }
                 } catch (RuntimeException e) {
                     Log.w(TAG, "close: " + e);
@@ -527,10 +529,18 @@ public final class PreviewEngine {
         postShader.init();
     }
 
+    /** The mask picture of this command's clip for this frame (a GL texture), or 0 when it has no mask. */
+    private int maskTextureOf(OpenGLEdit.DrawCommand cmd) {
+        if (cmd.mask == null) return 0;
+        if (maskTextures == null) maskTextures = new ClipMaskTextures();
+        return maskTextures.textureFor(cmd.mask, previewW / (float) canvasW, ClipMaskTextures.PREVIEW_CAP);
+    }
+
     private boolean drawCommand(OpenGLEdit.DrawCommand cmd, float outputTimeSeconds) {
         if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
             int texture = cmd.textUnit == null ? pool.text.texture(cmd.clip) : pool.text.unitTexture(cmd.clip, cmd.textUnit);
             if (texture == 0) return false;
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
             imageShader.drawClip(texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -539,6 +549,7 @@ public final class PreviewEngine {
         if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
             ImageEntry image = pool.image(cmd.clip);
             if (image == null) return false;
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
             imageShader.drawClip(image.texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -548,6 +559,7 @@ public final class PreviewEngine {
 
         PreviewDecoder decoder = pool.video(cmd.clip, cmd, true);
         if (decoder == null) return false;
+        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
         shader.drawClip(decoder.textureId, decoder.texMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
