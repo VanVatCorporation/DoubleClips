@@ -1003,7 +1003,7 @@ public class OpenGLEdit {
     }
 
     /** Clip masks use the clip keyframes' easing curves (by name). */
-    private static final ClipMaskResolver.Easing MASK_EASING = (name, t) -> {
+    public static final ClipMaskResolver.Easing MASK_EASING = (name, t) -> {
         try {
             return EditingActivity.AnimatedProperty.ease(t, EditingActivity.EasingType.valueOf(name));
         } catch (IllegalArgumentException e) {

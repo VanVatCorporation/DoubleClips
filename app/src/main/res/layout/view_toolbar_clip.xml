@@ -81,6 +81,13 @@
             app:navText="Edit" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/maskMediaButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/outline_masked_transitions_24"
+            app:navText="Mask" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addKeyframeButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"

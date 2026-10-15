@@ -3,8 +3,6 @@ package com.vanvatcorporation.doubleclips;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.util.Log;
 
@@ -86,7 +84,7 @@ public final class ClipMaskTextures {
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(0xFFFFFFFF);
-            ClipMaskGeometry.draw(state, w, h, new CanvasPainter(new Canvas(bitmap), paint));
+            ClipMaskGeometry.draw(state, w, h, new CanvasMaskPainter(new Canvas(bitmap), paint));
 
             int rowBytes = bitmap.getRowBytes();
             ByteBuffer raw = ByteBuffer.allocate(rowBytes * h);
@@ -120,46 +118,6 @@ public final class ClipMaskTextures {
             return 0;
         } finally {
             if (bitmap != null) bitmap.recycle();
-        }
-    }
-
-    /** {@link ClipMaskGeometry} painted on a Canvas. */
-    private static final class CanvasPainter implements ClipMaskGeometry.Painter {
-        private final Canvas canvas;
-        private final Paint paint;
-        private final RectF rect = new RectF();
-
-        CanvasPainter(Canvas canvas, Paint paint) {
-            this.canvas = canvas;
-            this.paint = paint;
-        }
-
-        @Override
-        public void transform(float cx, float cy, float rotationDegrees) {
-            canvas.translate(cx, cy);
-            canvas.rotate(rotationDegrees); // clockwise on screen, like the spec's y-down rotation
-        }
-
-        @Override
-        public void rect(float left, float top, float right, float bottom, float cornerRadius) {
-            rect.set(left, top, right, bottom);
-            if (cornerRadius > 0f) canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint);
-            else canvas.drawRect(rect, paint);
-        }
-
-        @Override
-        public void ellipse(float cx, float cy, float rx, float ry) {
-            rect.set(cx - rx, cy - ry, cx + rx, cy + ry);
-            canvas.drawOval(rect, paint);
-        }
-
-        @Override
-        public void polygon(float[] xy) {
-            Path path = new Path();
-            path.moveTo(xy[0], xy[1]);
-            for (int i = 2; i + 1 < xy.length; i += 2) path.lineTo(xy[i], xy[i + 1]);
-            path.close();
-            canvas.drawPath(path, paint);
         }
     }
 }

@@ -83,9 +83,14 @@ import com.vanvatcorporation.doubleclips.ClipAnimation;
 import com.vanvatcorporation.doubleclips.ClipAnimationAssets;
 import com.vanvatcorporation.doubleclips.ClipAnimationLoader;
 import com.vanvatcorporation.doubleclips.ClipAnimationPacks;
+import com.vanvatcorporation.doubleclips.ClipMask;
+import com.vanvatcorporation.doubleclips.ClipMaskResolver;
+import com.vanvatcorporation.doubleclips.OpenGLEdit;
 import com.vanvatcorporation.doubleclips.activities.editing.AnimationPackDialog;
 import com.vanvatcorporation.doubleclips.activities.editing.BaseEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.editing.MaskEditController;
+import com.vanvatcorporation.doubleclips.activities.editing.MaskEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipsEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.EffectEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ProjectFilesEditSpecificAreaScreen;
@@ -178,6 +183,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private TextEditSpecificAreaScreen textEditSpecificAreaScreen;
     private Scene3dEditSpecificAreaScreen scene3dEditSpecificAreaScreen;
     private EffectEditSpecificAreaScreen effectEditSpecificAreaScreen;
+    private MaskEditSpecificAreaScreen maskEditSpecificAreaScreen; // the clip mask panel (toolbar: Mask)
+    private MaskEditController maskController;
     private TransitionEditSpecificAreaScreen transitionEditSpecificAreaScreen;
     private ClipsEditSpecificAreaScreen clipsEditSpecificAreaScreen;
     private ClipEditSpecificAreaScreen clipEditSpecificAreaScreen;
@@ -1374,7 +1381,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                     playheadSnapTime = Float.NaN;
                 }
             }
-            if (heavyDue) refreshKeyframeKnotHighlight();
+            if (heavyDue) {
+                refreshKeyframeKnotHighlight();
+                if (maskController != null) maskController.onPlayheadMoved(); // the open mask panel shows the values at the playhead
+            }
 
             // Get time (- centerOffset mean remove the start spacer)
             //float totalSeconds = (timelineScroll.getScrollX()) / (float) pixelsPerSecond;
@@ -1681,6 +1691,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
         });
+        toolbarClip.findViewById(R.id.maskMediaButton).setOnClickListener(v -> {
+            if (maskController != null) maskController.open();
+        });
         toolbarClip.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 keyAllAtPlayhead(selectedClip);
@@ -1838,6 +1851,21 @@ public class EditingActivity extends AppCompatActivityImpl {
         effectEditSpecificAreaScreen = (EffectEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_effect, null);
         editingZone.addView(effectEditSpecificAreaScreen);
         // ===========================       EFFECT ZONE       ====================================
+
+        // ===========================       MASK ZONE       ====================================
+        maskEditSpecificAreaScreen = (MaskEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_mask, null);
+        editingZone.addView(maskEditSpecificAreaScreen);
+        maskController = new MaskEditController(maskEditSpecificAreaScreen, new MaskEditController.Host() {
+            @Override public Clip selectedClip() { return selectedClip; }
+            @Override public float currentTime() { return currentTime; }
+            @Override public int frameRate() { return settings.frameRate; }
+            @Override public ClipMaskResolver.Easing easing() { return OpenGLEdit.MASK_EASING; }
+            @Override public void requestRender() { if (timelineRenderer != null) timelineRenderer.renderNow(currentTime); }
+            @Override public void execute(CommandUtils.Command command) { executeCommand(command); }
+            @Override public void maskChanged(Clip clip) { if (maskController != null) maskController.refresh(); }
+            @Override public void message(String text) { LoggingManager.LogToToast(EditingActivity.this, text); }
+        });
+        // ===========================       MASK ZONE       ====================================
 
 
         // ===========================       TRANSITION ZONE       ====================================
@@ -4401,6 +4429,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 setCurrentTime(selectedClip.startTime);
             refreshKeyframeKnotHighlight();
         }
+        if (maskController != null) maskController.onSelectionChanged();
 
         if(timelineRenderer != null) timelineRenderer.refreshGizmo();
     }

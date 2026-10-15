@@ -79,9 +79,9 @@ public class BaseEditSpecificAreaScreen extends BaseAreaScreen {
         {
             animation = AnimationUtils.loadAnimation(getContext(),
                     animationScreen == AnimationScreen.ToTop ?
-                            R.anim.anim_fly_out_to_top_ancitipated :
+                            R.anim.anim_fly_out_to_top_accelerate :
                             animationScreen == AnimationScreen.ToBottom ?
-                                    R.anim.anim_fly_out_to_bot_ancitipated :
+                                    R.anim.anim_fly_out_to_bot_accelerate :
                                     R.anim.anim_fade_out
             );
             animation.setAnimationListener(new Animation.AnimationListener() {
@@ -106,9 +106,9 @@ public class BaseEditSpecificAreaScreen extends BaseAreaScreen {
             setVisibility(VISIBLE);
             animation = AnimationUtils.loadAnimation(getContext(),
                     animationScreen == AnimationScreen.ToTop ?
-                            R.anim.anim_fly_in_to_top_ancitipated :
+                            R.anim.anim_fly_in_to_top_accelerate :
                             animationScreen == AnimationScreen.ToBottom ?
-                                    R.anim.anim_fly_in_to_bot_ancitipated :
+                                    R.anim.anim_fly_in_to_bot_accelerate :
                                     R.anim.anim_fade_in
             );
         }
