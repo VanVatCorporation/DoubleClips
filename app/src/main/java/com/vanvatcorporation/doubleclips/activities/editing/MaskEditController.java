@@ -5,6 +5,7 @@ import android.view.View;
 import com.google.gson.JsonObject;
 import com.vanvatcorporation.doubleclips.ClipMask;
 import com.vanvatcorporation.doubleclips.ClipMaskResolver;
+import com.vanvatcorporation.doubleclips.MaskGizmoMath;
 import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 
@@ -117,6 +118,55 @@ public final class MaskEditController {
     /** Shows the selected clip's mask at the playhead. */
     public void refresh() {
         if (!isOpen()) return;
+        showInPanel();
+    }
+
+    /** The selected clip's mask resolved at the playhead (what the canvas outline draws), or null without a mask. */
+    public ClipMaskResolver.State stateAtPlayhead() {
+        EditingActivity.Clip clip = host.selectedClip();
+        if (!supports(clip) || clip.mask == null) return null;
+        return ClipMaskResolver.resolve(clip.mask, clip.maskKeys, localTime(clip), host.easing());
+    }
+
+    // ---- canvas gestures (MaskGizmoView): one undo step each, several values at once -------------------
+
+    public void canvasGestureBegin() {
+        begin();
+    }
+
+    /** Applies what the gesture has changed so far (only those values), live: no undo step yet. */
+    public void canvasGestureSet(MaskGizmoMath.Edit edit) {
+        EditingActivity.Clip clip = host.selectedClip();
+        if (!supports(clip) || clip.mask == null) return;
+        if (edit.x != null) applyValue(clip, ClipMaskResolver.X, edit.x);
+        if (edit.y != null) applyValue(clip, ClipMaskResolver.Y, edit.y);
+        if (edit.width != null) applyValue(clip, ClipMaskResolver.WIDTH, edit.width);
+        if (edit.height != null) applyValue(clip, ClipMaskResolver.HEIGHT, edit.height);
+        if (edit.rotation != null) applyValue(clip, ClipMaskResolver.ROTATION, edit.rotation);
+        if (edit.feather != null) applyValue(clip, ClipMaskResolver.FEATHER, edit.feather);
+        host.requestRender();
+        showInPanel(); // the number boxes follow the canvas
+    }
+
+    public void canvasGestureEnd() {
+        EditingActivity.Clip clip = host.selectedClip();
+        if (supports(clip) && gestureBefore != null) finish(clip);
+        else gestureBefore = null;
+    }
+
+    /** The gesture was interrupted: back to how the mask was when it began. */
+    public void canvasGestureCancel() {
+        EditingActivity.Clip clip = host.selectedClip();
+        Snapshot before = gestureBefore;
+        gestureBefore = null;
+        if (before != null && supports(clip)) {
+            before.applyTo(clip);
+            host.maskChanged(clip);
+            host.requestRender();
+        }
+    }
+
+    private void showInPanel() {
         EditingActivity.Clip clip = host.selectedClip();
         if (!supports(clip)) return;
         if (clip.mask == null) {

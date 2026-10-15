@@ -108,6 +108,7 @@ import com.vanvatcorporation.doubleclips.UnknownKeysHolder;
 import com.vanvatcorporation.doubleclips.commands.TransformGestureCommand;
 import com.vanvatcorporation.doubleclips.impl.NavigationIconLayout;
 import com.vanvatcorporation.doubleclips.impl.TrackReorderController;
+import com.vanvatcorporation.doubleclips.impl.MaskGizmoView;
 import com.vanvatcorporation.doubleclips.impl.PreviewGizmoView;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.commands.CommandManager;
@@ -1383,6 +1384,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
             if (heavyDue) {
                 refreshKeyframeKnotHighlight();
+                refreshMaskKnotHighlight();
                 if (maskController != null) maskController.onPlayheadMoved(); // the open mask panel shows the values at the playhead
             }
 
@@ -1862,9 +1864,15 @@ public class EditingActivity extends AppCompatActivityImpl {
             @Override public ClipMaskResolver.Easing easing() { return OpenGLEdit.MASK_EASING; }
             @Override public void requestRender() { if (timelineRenderer != null) timelineRenderer.renderNow(currentTime); }
             @Override public void execute(CommandUtils.Command command) { executeCommand(command); }
-            @Override public void maskChanged(Clip clip) { if (maskController != null) maskController.refresh(); }
+            @Override public void maskChanged(Clip clip) {
+                syncMaskKnots(clip);
+                if (maskController != null) maskController.refresh();
+            }
             @Override public void message(String text) { LoggingManager.LogToToast(EditingActivity.this, text); }
         });
+        // Opening the panel turns on canvas editing of the mask (outline and handles over the preview); closing it turns it off.
+        maskEditSpecificAreaScreen.onOpen.add(() -> { if (timelineRenderer != null) timelineRenderer.setMaskEditing(true); });
+        maskEditSpecificAreaScreen.onClose.add(() -> { if (timelineRenderer != null) timelineRenderer.setMaskEditing(false); });
         // ===========================       MASK ZONE       ====================================
 
 
@@ -2896,6 +2904,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             for (Keyframe keyframe : data.keyframes.keyframes) {
                 addKeyframeUi(data, keyframe);
             }
+            syncMaskKnots(data);
         });
 
 
@@ -3025,6 +3034,62 @@ public class EditingActivity extends AppCompatActivityImpl {
         if (clip == null || clip.viewRef == null) return;
         clearKeyframeUi(clip);
         for (Keyframe k : clip.keyframes.keyframes) addKeyframeUi(clip, k);
+    }
+
+    // ---- mask keyframes on the timeline --------------------------------------------------------
+
+    private static final int MASK_KNOT_COLOR = 0xFF2DD4BF, MASK_KNOT_ACTIVE_COLOR = 0xFFFF9F0A;
+
+    private void styleMaskKnot(View knot, boolean active) {
+        knot.setSelected(active);
+        knot.setBackgroundColor(active ? MASK_KNOT_ACTIVE_COLOR : MASK_KNOT_COLOR);
+    }
+
+    /** The playhead is on this mask keyframe (to within half a frame). */
+    private boolean maskKeyAtPlayhead(Clip clip, ClipMask.Key key) {
+        return Math.abs(clip.startTime + key.time - currentTime) <= 0.5f / Math.max(1, settings.frameRate);
+    }
+
+    /** Rebuilds the clip's mask diamonds (small, along the bottom edge, a different colour from the clip's own keyframes). */
+    private void syncMaskKnots(Clip clip) {
+        if (clip == null || clip.viewRef == null) return;
+        for (int i = clip.viewRef.getChildCount() - 1; i >= 0; i--) {
+            View child = clip.viewRef.getChildAt(i);
+            if (child.getTag(R.id.mask_knot_tag) != null) clip.viewRef.removeView(child);
+        }
+        if (clip.mask == null || clip.maskKeys == null) return;
+        int size = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, getResources().getDisplayMetrics());
+        int edge = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, getResources().getDisplayMetrics());
+        int height = clip.viewRef.getHeight() > 0 ? clip.viewRef.getHeight()
+                : (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40, getResources().getDisplayMetrics());
+        for (ClipMask.Key key : clip.maskKeys) {
+            View knot = new View(this);
+            knot.setRotation(45f);
+            knot.setPivotX(size / 2f);
+            knot.setPivotY(size / 2f);
+            knot.setVisibility(selectedClip == clip ? View.VISIBLE : View.GONE);
+            knot.setTag(R.id.mask_knot_tag, key);
+            knot.setTag(R.id.clip_knot_tag, clip);
+            styleMaskKnot(knot, maskKeyAtPlayhead(clip, key));
+            RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(size, size);
+            params.topMargin = height - size - edge;
+            knot.setX(key.time * pixelsPerSecond - size / 2f + 2);
+            knot.setOnClickListener(v -> snapPlayheadTo(clip.startTime + key.time)); // a tap moves the playhead there
+            clip.viewRef.addView(knot, params);
+        }
+    }
+
+    /** The selected clip's mask diamonds: orange while the playhead is on one. */
+    private void refreshMaskKnotHighlight() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.viewRef == null) return;
+        for (int i = 0; i < clip.viewRef.getChildCount(); i++) {
+            View knot = clip.viewRef.getChildAt(i);
+            Object tag = knot.getTag(R.id.mask_knot_tag);
+            if (!(tag instanceof ClipMask.Key)) continue;
+            boolean active = maskKeyAtPlayhead(clip, (ClipMask.Key) tag);
+            if (knot.isSelected() != active) styleMaskKnot(knot, active);
+        }
     }
 
     // ---- clip sheet ----------------------------------------------------------------------
@@ -4160,6 +4225,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                             View child1 = clipViewRef.getChildAt(j);
                             if(child1.getTag(R.id.keyframe_knot_tag) instanceof Keyframe) {
                                 child1.setX(((Keyframe) child1.getTag(R.id.keyframe_knot_tag)).getLocalTime() * pixelsPerSecond);
+                            } else if (child1.getTag(R.id.mask_knot_tag) instanceof ClipMask.Key) {
+                                child1.setX(((ClipMask.Key) child1.getTag(R.id.mask_knot_tag)).time * pixelsPerSecond - child1.getWidth() / 2f + 2);
                             }
                         }
                     }
@@ -5609,7 +5676,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             // Show clip's own keyframes
             for (int i = 0; i < viewRef.getChildCount(); i++) {
                 View child = viewRef.getChildAt(i);
-                if (child.getTag(R.id.keyframe_knot_tag) != null) {
+                if (child.getTag(R.id.keyframe_knot_tag) != null || child.getTag(R.id.mask_knot_tag) != null) {
                     child.setVisibility(View.VISIBLE);
                 }
             }
@@ -5629,7 +5696,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             // Hide clip's own keyframes
             for (int i = 0; i < viewRef.getChildCount(); i++) {
                 View child = viewRef.getChildAt(i);
-                if (child.getTag(R.id.keyframe_knot_tag) != null) {
+                if (child.getTag(R.id.keyframe_knot_tag) != null || child.getTag(R.id.mask_knot_tag) != null) {
                     child.setVisibility(View.GONE);
                 }
             }
@@ -8048,6 +8115,12 @@ frameRate = 60;
         private boolean gpuDisabledThisSession;
         // On-canvas move/scale/rotate overlay for the GPU preview (lives next to the canvas pane, not inside it)
         private PreviewGizmoView gizmo;
+        /** The mask outline and handles (MaskGizmoView), built the first time a mask is edited; hidden otherwise. */
+        private MaskGizmoView maskGizmo;
+        private Context maskGizmoContext;
+        private EditingActivity maskGizmoActivity;
+        private FrameLayout maskGizmoPane;
+        private VideoSettings maskGizmoSettings;
         private View blackBoxView, gpuSurfaceView;
         private FrameLayout canvasPane;
 
@@ -8062,6 +8135,40 @@ frameRate = 60;
         /** Redraws the gizmo box (selection / time / layout changed). */
         public void refreshGizmo() {
             if (gizmo != null) gizmo.refresh();
+            if (maskGizmo != null) maskGizmo.refresh();
+        }
+
+        /** The mask panel opened / closed: the mask's outline and handles replace the transform gizmo on the canvas. */
+        public void setMaskEditing(boolean on) {
+            if (gizmo != null) gizmo.setSuspended(on);
+            if (on && maskGizmo == null) buildMaskGizmo();
+            if (maskGizmo != null) {
+                maskGizmo.setVisibility(on ? View.VISIBLE : View.GONE);
+                maskGizmo.refresh();
+            }
+        }
+
+        private void buildMaskGizmo() {
+            if (maskGizmoPane == null || !(maskGizmoPane.getParent() instanceof ViewGroup)
+                    || maskGizmoActivity == null || maskGizmoActivity.maskController == null) return;
+            final EditingActivity activity = maskGizmoActivity;
+            final int canvasW = maskGizmoSettings.videoWidth, canvasH = maskGizmoSettings.videoHeight;
+            MaskGizmoView.Host host = new MaskGizmoView.Host() {
+                @Override public Clip selectedClip() { return EditingActivity.selectedClip; }
+                @Override public boolean isPlaying() { return activity.isPlaying; }
+                @Override public double[] boxQuad(Clip clip) {
+                    if (clip == null) return null;
+                    // An effect clip's mask works over the whole canvas; any other clip's in its own box.
+                    if (clip.type == ClipType.EFFECT) return new double[]{0, 0, canvasW, 0, canvasW, canvasH, 0, canvasH};
+                    return gizmo == null ? null : gizmo.boxQuad(clip, activity.currentTime);
+                }
+            };
+            maskGizmo = new MaskGizmoView(maskGizmoContext, host, activity.maskController, maskGizmoPane);
+            ViewGroup outer = (ViewGroup) maskGizmoPane.getParent();
+            int above = Math.max(outer.indexOfChild(maskGizmoPane), outer.indexOfChild(gizmo != null ? gizmo : maskGizmoPane));
+            outer.addView(maskGizmo, above + 1,
+                    new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            maskGizmo.setVisibility(View.GONE);
         }
 
         /** True when the GPU preview engine is running (false: the legacy per-clip views are in use). */
@@ -8168,6 +8275,7 @@ frameRate = 60;
             }
             if (engine != null) engine.render(renderedTimeline, time, !isSeekingOnly);
             if (gizmo != null) gizmo.refresh();
+            if (maskGizmo != null) maskGizmo.refresh();
         }
 
         private void attachGizmo(Context context, EditingActivity activity, FrameLayout pane, VideoSettings settings, TextView infoView) {
@@ -8207,6 +8315,10 @@ frameRate = 60;
             gizmo = new PreviewGizmoView(context, host, pane, settings.videoWidth, settings.videoHeight,
                     settings.isStretchToFull(), settings.frameRate);
             gizmo.setSnapEnabled(settings.isSnapGuides());
+            maskGizmoContext = context;
+            maskGizmoActivity = activity;
+            maskGizmoPane = pane;
+            maskGizmoSettings = settings;
             // Directly above the canvas pane, below any alert panels that follow it.
             outer.addView(gizmo, outer.indexOfChild(pane) + 1,
                     new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));

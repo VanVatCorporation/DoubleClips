@@ -207,6 +207,19 @@ public final class PreviewGizmoView extends View {
         });
     }
 
+    private boolean suspended;
+
+    /** While a clip mask is edited on the canvas this overlay draws nothing and leaves the touches to the mask overlay. */
+    public void setSuspended(boolean suspended) {
+        this.suspended = suspended;
+        invalidate();
+    }
+
+    /** The clip's box at time {@code t} in canvas pixels, corners TL, TR, BR, BL (what the mask works in), or null. */
+    public double[] boxQuad(Clip clip, float t) {
+        return clip == null ? null : quadFor(clip, resolve(clip, t));
+    }
+
     /** Snap moves and scales to the canvas and to other clips (preview setting "Snap to guides"). */
     public void setSnapEnabled(boolean enabled) {
         this.snapEnabled = enabled;
@@ -224,6 +237,7 @@ public final class PreviewGizmoView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (suspended) return;
         Clip clip = mode != Mode.NONE ? target : host.selectedClip();
         if (!isGizmoClip(clip) || host.isMultiSelect() || !isActive(clip, host.currentTime())) return;
         VideoProperties p = (mode != Mode.NONE && live != null) ? live : resolve(clip, host.currentTime());
@@ -349,6 +363,7 @@ public final class PreviewGizmoView extends View {
     }
 
     private boolean onDown(MotionEvent e) {
+        if (suspended) return false;
         if (host.isPlaying() || host.isMultiSelect() || mode != Mode.NONE || host.timeline() == null) return false;
         float time = host.currentTime();
         float ox = e.getX(), oy = e.getY();
