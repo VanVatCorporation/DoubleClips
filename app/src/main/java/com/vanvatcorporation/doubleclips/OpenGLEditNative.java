@@ -1867,6 +1867,7 @@ public class OpenGLEditNative {
         OpenGLEdit.textMeasurer = TextRasterizer::measure;
         OpenGLEdit.textUnitProvider = TextRasterizer::units;
         TextRasterizer.setFontRoot(projectPath);
+        TextRasterizer.setCanvasWidth(width); // text wraps at a fraction of the canvas width
         prepareClipAnimations(timeline, listener);
         runOnGlThreadAndWait(() -> {
             java.util.Map<EditingActivity.Clip, ClipFrameSource> activeSources = new java.util.IdentityHashMap<>();

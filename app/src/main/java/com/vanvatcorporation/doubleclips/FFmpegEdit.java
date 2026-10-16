@@ -878,6 +878,11 @@ public class FFmpegEdit {
     private static void collectUnsupportedTextStyle(EditingActivity.Clip clip, java.util.Set<String> found) {
         TextStyle style = textStyleOf(clip);
         if (style.italic) found.add("Italic text");
+        if (style.letterSpacing != 0f) found.add("Letter spacing in text");
+        if (style.lineSpacing != 0f) found.add("Line spacing in text");
+        if (style.hasShadow()) found.add("Text shadow");
+        if (style.hasBackgroundBox()) found.add("Text background box");
+        if (style.wrapWidth > 0.01f) found.add("Text wrap width");
         if (style.bold && TextRasterizer.resolveFont(style) != null) found.add("Bold text in an imported or system font (only the default font has a bold face)");
         if (!TextStyle.ALIGN_LEFT.equals(style.alignmentOrDefault()) && clip.textContent != null && clip.textContent.contains("\n")) {
             found.add("Centre / right aligned text on several lines");

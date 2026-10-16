@@ -760,13 +760,19 @@ public class OpenGLEdit {
         float stagger = Math.max(0f, Math.min(0.95f, clip.textStyle.stagger));
         int[] rank = unitRanks(n, clip.textStyle.order, clip);
 
-        List<DrawCommand> out = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            TextUnit u = units.get(i);
-            float frac = n > 1 ? rank[i] / (float) (n - 1) : 0f;
+        // A background box behind the text stays still while the units animate: it is drawn first, as one more "unit"
+        // the size of the whole block with no animation, so it follows the clip's own position, scale and rotation.
+        boolean hasBox = clip.textStyle.hasBackgroundBox();
+        List<DrawCommand> out = new ArrayList<>(n + 1);
+        for (int i = hasBox ? -1 : 0; i < n; i++) {
+            boolean box = i < 0;
+            TextUnit u = box ? new TextUnit(TextStyle.BOX_UNIT, 0f, 0f, textW, textH) : units.get(i);
+            float frac = !box && n > 1 ? rank[i] / (float) (n - 1) : 0f;
 
             ClipAnimationFrame anim = ClipAnimationFrame.NEUTRAL;
-            if (inOpen) {
+            if (box) {
+                // the box doesn't animate
+            } else if (inOpen) {
                 float window = inDur;
                 float delay = stagger * window * frac;
                 float length = Math.max(window * (1f - stagger), 1e-3f);

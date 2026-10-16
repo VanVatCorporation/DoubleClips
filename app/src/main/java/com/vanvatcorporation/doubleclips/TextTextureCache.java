@@ -40,8 +40,28 @@ public final class TextTextureCache {
         return texture;
     }
 
+    /** Texture of the still background box of a per-letter animated text (the box alone, as big as the whole text block), or 0 without a box. */
+    private int boxTexture(EditingActivity.Clip clip) {
+        String key = "b|" + TextRasterizer.key(clip);
+        Integer hit = textures.get(key);
+        if (hit != null) return hit;
+
+        Bitmap bitmap = TextRasterizer.renderBox(clip);
+        if (bitmap == null) return 0;
+        int texture;
+        try {
+            texture = upload(bitmap);
+        } finally {
+            bitmap.recycle();
+        }
+        textures.put(key, texture);
+        trim(texture);
+        return texture;
+    }
+
     /** Texture for one unit of the clip's text (a character, word or line) in the clip's style, or 0 if there is none. */
     public int unitTexture(EditingActivity.Clip clip, String unitText) {
+        if (TextStyle.BOX_UNIT.equals(unitText)) return boxTexture(clip);
         TextStyle style = clip.textStyle != null ? clip.textStyle : TextStyle.DEFAULT;
         String key = "u|" + TextRasterizer.unitKey(unitText, clip.fontSize, style);
         Integer hit = textures.get(key);

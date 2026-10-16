@@ -3,6 +3,7 @@ package com.vanvatcorporation.doubleclips;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.text.Layout;
 import android.text.StaticLayout;
@@ -40,10 +41,17 @@ public final class TextRasterizer {
     /** Project folder that relative font paths ("Fonts/X.ttf") are resolved against. Set by the editor / exporter. */
     private static volatile String fontRoot;
 
+    /** Canvas width, which a style's wrapWidth is a fraction of. Set by whoever renders (the preview, the export, the editor). */
+    private static volatile int canvasWidth = 1080;
+
     private TextRasterizer() { }
 
     public static void setFontRoot(String projectPath) {
         fontRoot = projectPath;
+    }
+
+    public static void setCanvasWidth(int width) {
+        if (width > 0) canvasWidth = width;
     }
 
     /**
@@ -72,7 +80,11 @@ public final class TextRasterizer {
     private static String key(String text, float fontSize, TextStyle style) {
         String font = resolveFont(style);
         return fontSize + "|" + (font == null ? "" : font) + "|" + style.colorArgb + "|" + style.outlineColorArgb + "|"
-                + style.outlineWidth + "|" + style.bold + "|" + style.italic + "|" + style.alignmentOrDefault() + "|" + text;
+                + style.outlineWidth + "|" + style.bold + "|" + style.italic + "|" + style.alignmentOrDefault() + "|"
+                + style.letterSpacing + "|" + style.lineSpacing + "|" + style.shadowBlur + "|" + style.shadowOffsetX + "|"
+                + style.shadowOffsetY + "|" + style.shadowColorArgb + "|" + style.backgroundColorArgb + "|"
+                + style.backgroundPadding + "|" + style.backgroundRadius + "|"
+                + style.wrapWidth + (style.wrapWidth > 0.01f ? "@" + canvasWidth : "") + "|" + text;
     }
 
     /** Everything that changes the pixels of one unit of text. */
@@ -110,6 +122,8 @@ public final class TextRasterizer {
         TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         p.setTextSize(Math.max(1f, Math.min(1024f, fontSize)));
         p.setTypeface(typeface(resolveFont(style), style.bold, style.italic));
+        // Letter spacing is in em on Android, canvas pixels in the style: extra space after each letter, like iOS's kern.
+        if (style.letterSpacing != 0f) p.setLetterSpacing(style.letterSpacing / p.getTextSize());
         return p;
     }
 
@@ -135,13 +149,91 @@ public final class TextRasterizer {
                 .build();
     }
 
+    /** Room around a piece of text for its outline and shadow (TextLayoutMath: iOS's metrics). */
     private static int padding(TextStyle style) {
-        return (int) Math.ceil(Math.max(0f, style.outlineWidth)) + 2;
+        return TextLayoutMath.pad(style);
     }
 
-    /** Left / right margin of a whole-text bitmap: the outline, plus room for a synthetic italic's slant. */
+    /** Room around a whole text block: the same plus the background box's padding. */
+    private static int blockPad(TextStyle style) {
+        return TextLayoutMath.blockPad(style);
+    }
+
+    /** Left / right margin of a whole-text bitmap: the room above, plus room for a synthetic italic's slant. */
     private static int blockPadX(float fontSize, TextStyle style) {
-        return padding(style) + (style.italic ? (int) Math.ceil(fontSize * 0.15f) : 0);
+        return blockPad(style) + (style.italic ? (int) Math.ceil(fontSize * 0.15f) : 0);
+    }
+
+    /** A text block laid out: wrapped at the style's wrap width, as wide as its widest line, lines spaced as asked. */
+    private static final class Block {
+        final StaticLayout layout;
+        final int width, height;
+
+        Block(StaticLayout layout, int width, int height) {
+            this.layout = layout;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private static Block block(String text, TextPaint paint, TextStyle style) {
+        int desired = blockWidth(text, paint);
+        int limit = TextLayoutMath.wrapLimit(style.wrapWidth, canvasWidth);
+        int width = Math.max(1, Math.min(desired, limit));
+        StaticLayout l = layout(text, paint, width, style);
+        if (width < desired) {
+            // Wrapped: the block is only as wide as its widest wrapped line, so alignment works inside that width.
+            int widest = 1;
+            for (int i = 0; i < l.getLineCount(); i++) widest = Math.max(widest, (int) Math.ceil(l.getLineWidth(i)));
+            if (widest < width) {
+                width = widest;
+                l = layout(text, paint, width, style);
+            }
+        }
+        return new Block(l, width, TextLayoutMath.blockHeight(l.getHeight(), l.getLineCount(), style.lineSpacing));
+    }
+
+    /** Draws every line of the layout with the paint, line spacing added between lines (the layout itself has none). */
+    private static void drawLines(Canvas canvas, StaticLayout l, CharSequence text, TextPaint paint, float lineSpacing) {
+        for (int i = 0; i < l.getLineCount(); i++) {
+            int start = l.getLineStart(i), end = l.getLineVisibleEnd(i);
+            if (end <= start) continue;
+            canvas.drawText(text, start, end, l.getLineLeft(i), l.getLineBaseline(i) + i * lineSpacing, paint);
+        }
+    }
+
+    /** Puts the style's shadow on a paint (a radius of 0 would remove it, so a hard shadow gets a hair of blur). */
+    private static void applyShadow(TextPaint paint, TextStyle style) {
+        paint.setShadowLayer(Math.max(0.01f, style.shadowBlur), style.shadowOffsetX, style.shadowOffsetY, style.shadowColorArgb);
+    }
+
+    /** The text of one block or unit: the outline underneath (carrying the shadow), the fill on top (carrying it when there is no outline). */
+    private static void drawText(Canvas canvas, String text, float fontSize, TextStyle style, StaticLayout l) {
+        boolean outline = style.outlineWidth > 0f;
+        if (outline) {
+            TextPaint stroke = paint(fontSize, style);
+            stroke.setStyle(Paint.Style.STROKE);
+            stroke.setStrokeJoin(Paint.Join.ROUND);
+            stroke.setStrokeWidth(style.outlineWidth * 2f); // half of the stroke is hidden under the fill
+            stroke.setColor(style.outlineColorArgb);
+            if (style.hasShadow()) applyShadow(stroke, style);
+            drawLines(canvas, l, text, stroke, style.lineSpacing);
+        }
+        TextPaint fill = paint(fontSize, style);
+        fill.setColor(style.colorArgb);
+        if (!outline && style.hasShadow()) applyShadow(fill, style);
+        drawLines(canvas, l, text, fill, style.lineSpacing);
+    }
+
+    /** The background box around a text rectangle (x, y, w, h), grown by the style's padding, corners rounded as asked. */
+    private static void drawBox(Canvas canvas, TextStyle style, float x, float y, float w, float h) {
+        float pad = Math.max(0f, style.backgroundPadding);
+        RectF box = new RectF(x - pad, y - pad, x + w + pad, y + h + pad);
+        float radius = TextLayoutMath.boxRadius(style.backgroundRadius, box.width(), box.height());
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(style.backgroundColorArgb);
+        canvas.drawRoundRect(box, radius, radius, paint);
     }
 
     /** {width, height} in canvas pixels of this clip's text bitmap, or null when there is nothing to draw. */
@@ -156,12 +248,10 @@ public final class TextRasterizer {
             int[] hit = SIZES.get(key);
             if (hit != null) return hit.length == 0 ? null : hit;
         }
-        TextPaint p = paint(fontSize, style);
-        int width = blockWidth(text, p);
-        int height = layout(text, p, Math.max(1, width), style).getHeight();
-        int pad = padding(style);
+        Block b = block(text, paint(fontSize, style), style);
+        int pad = blockPad(style);
         int padX = blockPadX(fontSize, style);
-        int[] size = {width + 2 * padX, height + 2 * pad};
+        int[] size = {b.width + 2 * padX, b.height + 2 * pad};
         if (size[0] > MAX_DIMENSION || size[1] > MAX_DIMENSION || size[0] <= 0 || size[1] <= 0) size = new int[0];
         synchronized (SIZES) { SIZES.put(key, size); }
         return size.length == 0 ? null : size;
@@ -198,17 +288,7 @@ public final class TextRasterizer {
         Bitmap bitmap = Bitmap.createBitmap(size[0], size[1], Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         canvas.translate(padX, pad);
-        if (style.outlineWidth > 0f) {
-            TextPaint stroke = paint(fontSize, style);
-            stroke.setStyle(Paint.Style.STROKE);
-            stroke.setStrokeJoin(Paint.Join.ROUND);
-            stroke.setStrokeWidth(style.outlineWidth * 2f);
-            stroke.setColor(style.outlineColorArgb);
-            layout(text, stroke, advance, style).draw(canvas);
-        }
-        TextPaint fill = paint(fontSize, style);
-        fill.setColor(style.colorArgb);
-        layout(text, fill, advance, style).draw(canvas);
+        drawText(canvas, text, fontSize, style, layout(text, measure, advance, style));
         return bitmap;
     }
 
@@ -227,9 +307,11 @@ public final class TextRasterizer {
         }
 
         TextPaint p = paint(clip.fontSize, style);
-        int width = blockWidth(text, p);
-        StaticLayout block = layout(text, p, Math.max(1, width), style);
+        Block laidOut = block(text, p, style);
+        StaticLayout block = laidOut.layout;
         int blockPadX = blockPadX(clip.fontSize, style);
+        int blockPadY = blockPad(style);
+        int padY = padding(style);
         int padX = unitPadX(clip.fontSize, style);
         List<OpenGLEdit.TextUnit> out = new ArrayList<>();
 
@@ -266,7 +348,9 @@ public final class TextRasterizer {
             int line = block.getLineForOffset(r[0]);
             int[] size = unitSize(unit, clip.fontSize, style);
             float x = blockPadX + block.getPrimaryHorizontal(r[0]) - padX;
-            float y = block.getLineTop(line); // = (pad + lineTop) - pad: the unit bitmap starts one pad above the text
+            // Inside the block bitmap: the text starts one block pad down, each line sits its spacing lower than the one
+            // before, and the unit's own bitmap starts one (smaller) unit pad above its text.
+            float y = blockPadY + block.getLineTop(line) + line * style.lineSpacing - padY;
             if (size[0] > MAX_DIMENSION || size[1] > MAX_DIMENSION) continue;
             out.add(new OpenGLEdit.TextUnit(unit, x, y, size[0], size[1]));
         }
@@ -283,25 +367,33 @@ public final class TextRasterizer {
     public static Bitmap renderText(String text, float fontSize, TextStyle style) {
         int[] size = measure(text, fontSize, style);
         if (size == null) return null;
-        int pad = padding(style);
+        int pad = blockPad(style);
         int padX = blockPadX(fontSize, style);
-        int blockW = size[0] - 2 * padX;
+        Block b = block(text, paint(fontSize, style), style);
 
         Bitmap bitmap = Bitmap.createBitmap(size[0], size[1], Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
+        if (style.hasBackgroundBox()) drawBox(canvas, style, padX, pad, b.width, b.height);
         canvas.translate(padX, pad);
+        drawText(canvas, text, fontSize, style, b.layout);
+        return bitmap;
+    }
 
-        if (style.outlineWidth > 0f) {
-            TextPaint stroke = paint(fontSize, style);
-            stroke.setStyle(Paint.Style.STROKE);
-            stroke.setStrokeJoin(Paint.Join.ROUND);
-            stroke.setStrokeWidth(style.outlineWidth * 2f); // half of the stroke is hidden under the fill
-            stroke.setColor(style.outlineColorArgb);
-            layout(text, stroke, blockW, style).draw(canvas);
-        }
-        TextPaint fill = paint(fontSize, style);
-        fill.setColor(style.colorArgb);
-        layout(text, fill, blockW, style).draw(canvas);
+    /**
+     * Just the background box, in a bitmap as big as the whole text block (null without a box). The per-letter animation draws
+     * it as its own still layer under the moving units, like iOS: the box stays where it is while the letters animate.
+     */
+    public static Bitmap renderBox(EditingActivity.Clip clip) {
+        TextStyle style = styleOf(clip);
+        String text = textOf(clip);
+        if (!style.hasBackgroundBox()) return null;
+        int[] size = measure(text, clip.fontSize, style);
+        if (size == null) return null;
+        int pad = blockPad(style);
+        int padX = blockPadX(clip.fontSize, style);
+        Block b = block(text, paint(clip.fontSize, style), style);
+        Bitmap bitmap = Bitmap.createBitmap(size[0], size[1], Bitmap.Config.ARGB_8888);
+        drawBox(new Canvas(bitmap), style, padX, pad, b.width, b.height);
         return bitmap;
     }
 }

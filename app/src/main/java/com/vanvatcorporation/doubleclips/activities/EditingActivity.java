@@ -1843,6 +1843,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         textEditSpecificAreaScreen.projectPath = properties.getProjectPath();
         textEditSpecificAreaScreen.onImportFontRequested = this::importFontFile;
         TextRasterizer.setFontRoot(properties.getProjectPath()); // imported fonts resolve against the project folder
+        if (settings != null) TextRasterizer.setCanvasWidth(settings.videoWidth); // text wraps at a fraction of the canvas width
         scene3dEditSpecificAreaScreen = (Scene3dEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_scene3d, null);
         editingZone.addView(textEditSpecificAreaScreen);
         editingZone.addView(scene3dEditSpecificAreaScreen);

@@ -165,6 +165,7 @@ public final class PreviewEngine {
         this.useProxy = useProxy;
         this.failureListener = failureListener;
         OpenGLEdit.textMeasurer = TextRasterizer::measure;
+        TextRasterizer.setCanvasWidth(canvasW); // text wraps at a fraction of the canvas width
         OpenGLEdit.textUnitProvider = TextRasterizer::units;
 
         glThread = new HandlerThread("Preview-GL");

@@ -42,6 +42,8 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         // The iOS-compatible hex colours win over the old int fields the loader already filled in.
         colorArgb = hexOf(raw, "colorHex", colorArgb);
         outlineColorArgb = hexOf(raw, "outlineColorHex", outlineColorArgb);
+        shadowColorArgb = hexOf(raw, "shadowColorHex", shadowColorArgb);
+        backgroundColorArgb = hexOf(raw, "backgroundColorHex", backgroundColorArgb);
         alignment = alignmentOrDefault();
         // iOS spells these "character" / "centerOut"; in memory they stay CHARACTER / CENTER_OUT (see TextStyleWire).
         unitMode = TextStyleWire.unitModeFromWire(unitMode);
@@ -56,6 +58,8 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         if (unknownKeys != null) {
             unknownKeys.remove("colorHex");
             unknownKeys.remove("outlineColorHex");
+            unknownKeys.remove("shadowColorHex");
+            unknownKeys.remove("backgroundColorHex");
             unknownKeys.remove("fontFile");
             if (unknownKeys.size() == 0) unknownKeys = null;
         }
@@ -65,6 +69,8 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
     public void onSaving(JsonObject tree) {
         tree.addProperty("colorHex", toHex(colorArgb));
         tree.addProperty("outlineColorHex", toHex(outlineColorArgb));
+        tree.addProperty("shadowColorHex", toHex(shadowColorArgb));
+        tree.addProperty("backgroundColorHex", toHex(backgroundColorArgb));
         // iOS's spelling of the per-unit animation keys (this build reads either).
         tree.addProperty("unitMode", TextStyleWire.unitModeToWire(unitMode));
         tree.addProperty("order", TextStyleWire.orderToWire(order));
@@ -115,6 +121,19 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
      * every time, so its own default of "center" never reaches this build as a missing value.
      */
     @Expose public String alignment = ALIGN_LEFT;
+    /** Extra space after each letter / between lines, in canvas pixels, can be negative (iOS keys "letterSpacing", "lineSpacing"). */
+    @Expose public float letterSpacing, lineSpacing;
+    /**
+     * Drop shadow, shown when the blur is above 0 or the offset isn't zero (iOS keys "shadowBlur", "shadowOffsetX", "shadowOffsetY").
+     * Its colour is an ARGB int in memory (default #00000099) and "shadowColorHex" on disk, like the text colours.
+     */
+    @Expose public float shadowBlur, shadowOffsetX, shadowOffsetY;
+    public int shadowColorArgb = 0x99000000;
+    /** A box behind the text, shown when its colour has any alpha (iOS keys "backgroundColorHex", "backgroundPadding", "backgroundRadius"). */
+    public int backgroundColorArgb = 0x00000000;
+    @Expose public float backgroundPadding, backgroundRadius;
+    /** Long lines wrap at this fraction of the canvas width; 0 = never (iOS key "wrapWidth"). */
+    @Expose public float wrapWidth;
     /** Engines this style renders on; null or empty = both. Per-character animation styles list only OPENGL. */
     @Expose public List<String> supportedEngines;
 
@@ -143,6 +162,16 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         this.bold = other.bold;
         this.italic = other.italic;
         this.alignment = other.alignment;
+        this.letterSpacing = other.letterSpacing;
+        this.lineSpacing = other.lineSpacing;
+        this.shadowBlur = other.shadowBlur;
+        this.shadowOffsetX = other.shadowOffsetX;
+        this.shadowOffsetY = other.shadowOffsetY;
+        this.shadowColorArgb = other.shadowColorArgb;
+        this.backgroundColorArgb = other.backgroundColorArgb;
+        this.backgroundPadding = other.backgroundPadding;
+        this.backgroundRadius = other.backgroundRadius;
+        this.wrapWidth = other.wrapWidth;
         copyUnknownKeysFrom(other);
         this.supportedEngines = other.supportedEngines == null ? null : new ArrayList<>(other.supportedEngines);
         this.unitMode = other.unitMode;
@@ -151,6 +180,24 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
         this.inAnimationId = other.inAnimationId;
         this.outAnimationId = other.outAnimationId;
     }
+
+    /** The shadow is drawn when it has any blur or offset. */
+    public boolean hasShadow() {
+        return shadowBlur > 0f || shadowOffsetX != 0f || shadowOffsetY != 0f;
+    }
+
+    /** How far the shadow reaches beyond the letters: the blur plus the larger offset (room the bitmap must keep). */
+    public float shadowReach() {
+        return hasShadow() ? Math.max(0f, shadowBlur) + Math.max(Math.abs(shadowOffsetX), Math.abs(shadowOffsetY)) : 0f;
+    }
+
+    /** The box behind the text is drawn when its colour isn't fully transparent. */
+    public boolean hasBackgroundBox() {
+        return ((backgroundColorArgb >>> 24) & 0xFF) > 0;
+    }
+
+    /** Marks the still background box in the per-unit draw commands (it isn't a piece of text). */
+    public static final String BOX_UNIT = "\u0001box";
 
     public boolean animatesPerUnit() {
         return unitMode != null && !"NONE".equalsIgnoreCase(unitMode);
@@ -171,6 +218,11 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
                 && Math.abs(outlineWidth - o.outlineWidth) < 1e-3f
                 && bold == o.bold && italic == o.italic
                 && alignmentOrDefault().equals(o.alignmentOrDefault())
+                && Math.abs(letterSpacing - o.letterSpacing) < 1e-3f && Math.abs(lineSpacing - o.lineSpacing) < 1e-3f
+                && Math.abs(shadowBlur - o.shadowBlur) < 1e-3f && Math.abs(shadowOffsetX - o.shadowOffsetX) < 1e-3f
+                && Math.abs(shadowOffsetY - o.shadowOffsetY) < 1e-3f && shadowColorArgb == o.shadowColorArgb
+                && backgroundColorArgb == o.backgroundColorArgb && Math.abs(backgroundPadding - o.backgroundPadding) < 1e-3f
+                && Math.abs(backgroundRadius - o.backgroundRadius) < 1e-3f && Math.abs(wrapWidth - o.wrapWidth) < 1e-4f
                 && (fontPath == null ? o.fontPath == null : fontPath.equals(o.fontPath))
                 && java.util.Objects.equals(normMode(unitMode), normMode(o.unitMode))
                 && Math.abs(stagger - o.stagger) < 1e-3f
@@ -184,7 +236,9 @@ public class TextStyle implements Serializable, UnknownKeysHolder {
     /** Key part for texture / measurement caches: everything that changes the pixels. */
     public String cacheKey() {
         return fontPath + "|" + colorArgb + "|" + outlineColorArgb + "|" + outlineWidth
-                + "|" + bold + "|" + italic + "|" + alignmentOrDefault();
+                + "|" + bold + "|" + italic + "|" + alignmentOrDefault()
+                + "|" + letterSpacing + "|" + lineSpacing + "|" + shadowBlur + "|" + shadowOffsetX + "|" + shadowOffsetY
+                + "|" + shadowColorArgb + "|" + backgroundColorArgb + "|" + backgroundPadding + "|" + backgroundRadius + "|" + wrapWidth;
     }
 
     // ---- built-in presets ---------------------------------------------------------------

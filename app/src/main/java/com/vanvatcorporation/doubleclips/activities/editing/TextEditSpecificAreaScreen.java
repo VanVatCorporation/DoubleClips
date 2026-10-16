@@ -32,6 +32,10 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     private boolean dropForeignFields;
     private String alignment = TextStyle.ALIGN_LEFT;
     public EditText staggerContent;
+    /** Spacing, shadow and background box (the iOS text style fields). */
+    private EditText letterSpacingContent, lineSpacingContent, wrapWidthContent;
+    private EditText shadowBlurContent, shadowXContent, shadowYContent, shadowColorContent;
+    private EditText backgroundColorContent, backgroundPaddingContent, backgroundRadiusContent;
     private String unitMode = "NONE", unitOrder = "FORWARD";
     private String inAnimationId, outAnimationId;
     /** Set when the user picks a style that carries in / out animations; the editor puts them on the clip once, on close. */
@@ -81,6 +85,16 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         unitOrderRow = findViewById(R.id.unitOrderRow);
         unitOrderValue = findViewById(R.id.unitOrderValue);
         staggerContent = findViewById(R.id.staggerContent);
+        letterSpacingContent = findViewById(R.id.letterSpacingContent);
+        lineSpacingContent = findViewById(R.id.lineSpacingContent);
+        wrapWidthContent = findViewById(R.id.wrapWidthContent);
+        shadowBlurContent = findViewById(R.id.shadowBlurContent);
+        shadowXContent = findViewById(R.id.shadowXContent);
+        shadowYContent = findViewById(R.id.shadowYContent);
+        shadowColorContent = findViewById(R.id.shadowColorContent);
+        backgroundColorContent = findViewById(R.id.backgroundColorContent);
+        backgroundPaddingContent = findViewById(R.id.backgroundPaddingContent);
+        backgroundRadiusContent = findViewById(R.id.backgroundRadiusContent);
         emphasisRow = findViewById(R.id.emphasisRow);
         emphasisValue = findViewById(R.id.emphasisValue);
         alignRow = findViewById(R.id.alignRow);
@@ -100,6 +114,11 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             outlineWidthContent.clearFocus();
             outlineColorContent.clearFocus();
             staggerContent.clearFocus();
+            for (EditText field : new EditText[]{letterSpacingContent, lineSpacingContent, wrapWidthContent, shadowBlurContent,
+                    shadowXContent, shadowYContent, shadowColorContent, backgroundColorContent, backgroundPaddingContent,
+                    backgroundRadiusContent}) {
+                field.clearFocus();
+            }
         });
     }
 
@@ -179,6 +198,16 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         colorContent.setText(TextStyle.toHex(shown.colorArgb));
         outlineWidthContent.setText(String.valueOf(shown.outlineWidth));
         outlineColorContent.setText(TextStyle.toHex(shown.outlineColorArgb));
+        letterSpacingContent.setText(numberText(shown.letterSpacing));
+        lineSpacingContent.setText(numberText(shown.lineSpacing));
+        wrapWidthContent.setText(numberText(shown.wrapWidth * 100f)); // stored as a fraction of the canvas width
+        shadowBlurContent.setText(numberText(shown.shadowBlur));
+        shadowXContent.setText(numberText(shown.shadowOffsetX));
+        shadowYContent.setText(numberText(shown.shadowOffsetY));
+        shadowColorContent.setText(TextStyle.toHex(shown.shadowColorArgb));
+        backgroundColorContent.setText(TextStyle.toHex(shown.backgroundColorArgb));
+        backgroundPaddingContent.setText(numberText(shown.backgroundPadding));
+        backgroundRadiusContent.setText(numberText(shown.backgroundRadius));
         styleId = shown.id;
         styleName = shown.name;
         styleAuthor = shown.author;
@@ -221,6 +250,16 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             // keep the previous value
         }
         result.outlineWidth = Math.max(0f, Math.min(64f, width));
+        result.letterSpacing = number(letterSpacingContent, base.letterSpacing, -50f, 200f);
+        result.lineSpacing = number(lineSpacingContent, base.lineSpacing, -100f, 400f);
+        result.wrapWidth = number(wrapWidthContent, base.wrapWidth * 100f, 0f, 100f) / 100f;
+        result.shadowBlur = number(shadowBlurContent, base.shadowBlur, 0f, 100f);
+        result.shadowOffsetX = number(shadowXContent, base.shadowOffsetX, -200f, 200f);
+        result.shadowOffsetY = number(shadowYContent, base.shadowOffsetY, -200f, 200f);
+        result.shadowColorArgb = TextStyle.parseHex(shadowColorContent.getText().toString(), base.shadowColorArgb);
+        result.backgroundColorArgb = TextStyle.parseHex(backgroundColorContent.getText().toString(), base.backgroundColorArgb);
+        result.backgroundPadding = number(backgroundPaddingContent, base.backgroundPadding, 0f, 200f);
+        result.backgroundRadius = number(backgroundRadiusContent, base.backgroundRadius, 0f, 500f);
         result.supportedEngines = supportedEngines == null ? null : new ArrayList<>(supportedEngines);
         result.unitMode = "NONE".equals(unitMode) ? null : unitMode;
         result.order = unitOrder;
@@ -252,6 +291,21 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
             result.author = null;
         }
         return result;
+    }
+
+    /** A number typed in a field, clamped into [min, max]; {@code fallback} (also clamped) when the field isn't a number. */
+    private static float number(EditText field, float fallback, float min, float max) {
+        float value = fallback;
+        try {
+            value = Float.parseFloat(field.getText().toString().trim());
+        } catch (NumberFormatException ignored) {
+            // keep the previous value
+        }
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static String numberText(float v) {
+        return Math.abs(v - Math.round(v)) < 1e-3f ? String.valueOf(Math.round(v)) : String.valueOf(v);
     }
 
     /** {@code look} with {@code font} as its font; used so a preset without a font doesn't count as "changed" by the font row. */
