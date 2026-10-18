@@ -36,6 +36,7 @@ import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExport
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
+import com.vanvatcorporation.doubleclips.TemplatePackager;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
 import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
@@ -870,6 +871,22 @@ public class ExportActivity extends AppCompatActivityImpl {
         if(!exportAsTemplate)
             filePickerLauncher.launch(Intent.createChooser(intent, "Select Export"));
         else {
+            // A template is the timeline plus its resources (iOS's format): package it first, so a project that can't be a
+            // template (nothing for a user to replace) is refused before anything else happens.
+            TemplatePackager.Draft draft;
+            try {
+                String timelineJson = IOHelper.readFromFile(this, IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_TIMELINE_FILENAME));
+                draft = TemplatePackager.make(properties.getProjectPath(),
+                        IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY), timelineJson,
+                        settings.getVideoWidth(), settings.getVideoHeight(), settings.getFrameRate(), settings.isStretchToFull());
+            } catch (TemplatePackager.PackageException e) {
+                LoggingManager.LogToToast(this, e.getMessage());
+                finishExportRendering();
+                return;
+            }
+            String timelineFilePath = IOHelper.CombinePath(properties.getProjectPath(), "template_timeline.json");
+            IOHelper.writeToFile(this, timelineFilePath, draft.timelineJson); // too big for an Intent: the post screen reads it from here
+
             new File(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_EXPORT_CLIP_FILENAME))
                     .renameTo(new File(IOHelper.CombinePath(properties.getProjectPath(), "preview.mp4")));
 
@@ -877,14 +894,21 @@ public class ExportActivity extends AppCompatActivityImpl {
             ffmpegCommand = FFmpegEdit.generateCmdFull(this, renderSettings);
 
             ArrayList<String> strVideoFiles = new ArrayList<>();
-            for (File file : videoFiles) strVideoFiles.add(file.getAbsolutePath());
+            ArrayList<String> strVideoNames = new ArrayList<>();
+            for (TemplatePackager.PostFile post : draft.contentFiles) {
+                strVideoFiles.add(post.file.getAbsolutePath());
+                strVideoNames.add(post.name);
+            }
 
             ArrayList<String> strPreviewFiles = new ArrayList<>();
             for (File file : previewFiles) strPreviewFiles.add(file.getAbsolutePath());
 
             Intent templateIntent = new Intent(this, PostTemplateActivity.class);
             templateIntent.putExtra("ffmpegCommand", ffmpegCommand);
-            templateIntent.putExtra("totalClip", totalClip);
+            templateIntent.putExtra("totalClip", draft.replaceableCount);
+            templateIntent.putExtra("templateTimelinePath", timelineFilePath);
+            templateIntent.putStringArrayListExtra("videoFileNames", strVideoNames);
+            templateIntent.putStringArrayListExtra("templateWarnings", new ArrayList<>(draft.warnings));
             templateIntent.putStringArrayListExtra("videoFilePaths", strVideoFiles);
             templateIntent.putStringArrayListExtra("previewFilePaths", strPreviewFiles);
             templateIntent.putExtra("defaultTitle", properties.getProjectTitle());
@@ -1029,6 +1053,20 @@ public class ExportActivity extends AppCompatActivityImpl {
                                                     List<File> videoFiles,
                                                     List<File> previewFiles,
                                                     UploadCallback callback) {
+        List<TemplatePackager.PostFile> content = new ArrayList<>();
+        if (videoFiles != null) for (File f : videoFiles) content.add(new TemplatePackager.PostFile(f, f.getName()));
+        List<TemplatePackager.PostFile> previews = new ArrayList<>();
+        if (previewFiles != null) for (File f : previewFiles) previews.add(new TemplatePackager.PostFile(f, f.getName()));
+        uploadTemplatePackage(context, serverUrl, fields, content, previews, callback);
+    }
+
+    /** Posts a template: the text fields, the resources ("videoFiles") and the previews, each file under its posted name and MIME type. */
+    public static void uploadTemplatePackage(Context context,
+                                             String serverUrl,
+                                             Map<String, String> fields,
+                                             List<TemplatePackager.PostFile> contentFiles,
+                                             List<TemplatePackager.PostFile> previewFiles,
+                                             UploadCallback callback) {
         OkHttpClient client = new OkHttpClient();
         try {
             // Build multipart body
@@ -1041,18 +1079,18 @@ public class ExportActivity extends AppCompatActivityImpl {
             }
 
             // Add video files
-            if (videoFiles != null) {
-                for (File file : videoFiles) {
-                    RequestBody fileBody = RequestBody.create(file, MediaType.parse("video/mp4"));
-                    multipartBuilder.addFormDataPart("videoFiles", file.getName(), fileBody);
+            if (contentFiles != null) {
+                for (TemplatePackager.PostFile post : contentFiles) {
+                    RequestBody fileBody = RequestBody.create(post.file, MediaType.parse(post.mimeType()));
+                    multipartBuilder.addFormDataPart("videoFiles", post.name, fileBody);
                 }
             }
 
             // Add preview files
             if (previewFiles != null) {
-                for (File file : previewFiles) {
-                    RequestBody fileBody = RequestBody.create(file, MediaType.parse("video/mp4"));
-                    multipartBuilder.addFormDataPart("previewFiles", file.getName(), fileBody);
+                for (TemplatePackager.PostFile post : previewFiles) {
+                    RequestBody fileBody = RequestBody.create(post.file, MediaType.parse(post.mimeType()));
+                    multipartBuilder.addFormDataPart("previewFiles", post.name, fileBody);
                 }
             }
 

@@ -15,6 +15,8 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
 
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.TemplatePackager;
+import com.vanvatcorporation.doubleclips.helper.IOHelper;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 
@@ -52,6 +54,10 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
     private int totalClip;
     private ArrayList<String> videoFilePaths;
     private ArrayList<String> previewFilePaths;
+    /** The posted names of the resources (parallel to videoFilePaths), the timeline file and what the packager wants the author to know. */
+    private ArrayList<String> videoFileNames;
+    private String templateTimelinePath;
+    private ArrayList<String> templateWarnings;
     private String defaultTitle;
 
     @Override
@@ -64,11 +70,20 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         totalClip = getIntent().getIntExtra("totalClip", 0);
         videoFilePaths = getIntent().getStringArrayListExtra("videoFilePaths");
         previewFilePaths = getIntent().getStringArrayListExtra("previewFilePaths");
+        videoFileNames = getIntent().getStringArrayListExtra("videoFileNames");
+        templateTimelinePath = getIntent().getStringExtra("templateTimelinePath");
+        templateWarnings = getIntent().getStringArrayListExtra("templateWarnings");
         defaultTitle = getIntent().getStringExtra("defaultTitle");
 
         initViews();
         setupPreview();
         setupDetails();
+
+        if (templateWarnings != null && !templateWarnings.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Before you post")
+                    .setMessage(android.text.TextUtils.join("\n", templateWarnings))
+                    .setPositiveButton("OK", null).show();
+        }
     }
 
     private void initViews() {
@@ -184,17 +199,21 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
             return;
         }
 
-        List<File> videoFiles = new ArrayList<>();
+        // The resources go up under their posted (server-safe) names; an old-style post has no names: the file's own.
+        List<TemplatePackager.PostFile> videoFiles = new ArrayList<>();
         if (videoFilePaths != null) {
-            for (String path : videoFilePaths) {
-                videoFiles.add(new File(path));
+            for (int i = 0; i < videoFilePaths.size(); i++) {
+                File file = new File(videoFilePaths.get(i));
+                String name = videoFileNames != null && i < videoFileNames.size() ? videoFileNames.get(i) : file.getName();
+                videoFiles.add(new TemplatePackager.PostFile(file, name));
             }
         }
 
-        List<File> previewFiles = new ArrayList<>();
+        List<TemplatePackager.PostFile> previewFiles = new ArrayList<>();
         if (previewFilePaths != null) {
             for (String path : previewFilePaths) {
-                previewFiles.add(new File(path));
+                File file = new File(path);
+                previewFiles.add(new TemplatePackager.PostFile(file, file.getName()));
             }
         }
 
@@ -213,7 +232,13 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         field.put("accountPassword", "********");
         field.put("templateTitle", templateTitle);
         field.put("templateDescription", templateDesc);
-        field.put("ffmpegCommand", ffmpegCommand);
+        // Either can be absent (never both): the timeline is the template for apps that read it, the FFmpeg command for the
+        // ones that only know that.
+        if (ffmpegCommand != null && !ffmpegCommand.isEmpty()) field.put("ffmpegCommand", ffmpegCommand);
+        if (templateTimelinePath != null) {
+            String timelineJson = IOHelper.readFromFile(this, templateTimelinePath);
+            if (timelineJson != null && !timelineJson.isEmpty()) field.put("templateTimelineJson", timelineJson);
+        }
         field.put("templateTotalClips", String.valueOf(totalClip));
 
         // Only advance if we are coming from the Details screen (Index 1)
@@ -227,7 +252,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         uploadFailedActionContainer.setVisibility(View.GONE);
         uploadProgressFill.setBackgroundColor(getColor(R.color.ios_blue));
 
-        ExportActivity.uploadTemplateNecessityItems(
+        ExportActivity.uploadTemplatePackage(
                 this,
                 "https://app.vanvatcorp.com/doubleclips/api/post-template",
                 field,

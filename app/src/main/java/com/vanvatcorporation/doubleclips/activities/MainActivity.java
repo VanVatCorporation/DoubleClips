@@ -5,6 +5,7 @@ import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -201,15 +202,7 @@ public class MainActivity extends AppCompatActivityImpl {
                     if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
                     Uri uri = result.getData().getData();
                     if (uri == null) return;
-
-                    final int[] imported = {0};
-                    runArchiveJob(getString(R.string.alert_processing_decompression), "Extracting project...",
-                            (listener, cancel) -> imported[0] = ProgressCompressionHelper.importProject(
-                                    this, uri, new File(Constants.DEFAULT_PROJECT_DIRECTORY(this)), listener, cancel).size(),
-                            () -> {
-                                homeAreaScreen.reloadingProject();
-                                LoggingManager.LogToToast(this, imported[0] == 1 ? "Project imported" : imported[0] + " projects imported");
-                            });
+                    importProjectArchive(uri);
                 }
         );
 
@@ -228,6 +221,47 @@ public class MainActivity extends AppCompatActivityImpl {
                             () -> LoggingManager.LogToToast(this, "Project exported"));
                 }
         );
+
+        // Opened in the app from Files, Mail, a chat... ("Open in DoubleClips"): import the project ZIP it carries.
+        if (savedInstanceState == null) handleIncomingArchive(getIntent());
+    }
+
+    /** Imports a project ZIP (from the file picker, or opened / shared from another app) through the normal import. */
+    private void importProjectArchive(Uri uri) {
+        final int[] imported = {0};
+        runArchiveJob(getString(R.string.alert_processing_decompression), "Extracting project...",
+                (listener, cancel) -> imported[0] = ProgressCompressionHelper.importProject(
+                        this, uri, new File(Constants.DEFAULT_PROJECT_DIRECTORY(this)), listener, cancel).size(),
+                () -> {
+                    homeAreaScreen.reloadingProject();
+                    LoggingManager.LogToToast(this, imported[0] == 1 ? "Project imported" : imported[0] + " projects imported");
+                });
+    }
+
+    /**
+     * "Open in DoubleClips": a project ZIP opened (VIEW) or shared (SEND) from Files, Mail, a chat app... is imported like one
+     * chosen in the app. The intent is cleared afterwards so a rotation or a return to the app doesn't import it again.
+     */
+    private void handleIncomingArchive(Intent intent) {
+        if (intent == null) return;
+        Uri uri = null;
+        if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+            uri = intent.getData();
+        } else if (Intent.ACTION_SEND.equals(intent.getAction())) {
+            uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+        }
+        if (uri == null) return;
+        intent.setAction(Intent.ACTION_MAIN);
+        intent.setData(null);
+        intent.removeExtra(Intent.EXTRA_STREAM);
+        importProjectArchive(uri);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (homeAreaScreen != null) handleIncomingArchive(intent);
     }
 
     /** What an export or import does; runs on a worker thread. */

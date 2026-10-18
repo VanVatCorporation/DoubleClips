@@ -5079,6 +5079,29 @@ public class EditingActivity extends AppCompatActivityImpl {
         /** The mask's keyframes (panel units, clip-local seconds), or null / empty. */
         public transient List<ClipMask.Key> maskKeys;
 
+        // The editor hands the timeline to the export screen in an Intent, which is Java serialization, and that skips transient
+        // fields: carry the mask and the other platform's unknown keys along, or an exported video would have no masks.
+        private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+            out.defaultWriteObject();
+            out.writeObject(mask);
+            out.writeObject(maskKeys == null ? null : new ArrayList<>(maskKeys));
+            out.writeObject(getUnknownKeys() == null ? null : getUnknownKeys().toString());
+        }
+
+        @SuppressWarnings("unchecked")
+        private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+            in.defaultReadObject();
+            try {
+                mask = (ClipMask) in.readObject();
+                maskKeys = (List<ClipMask.Key>) in.readObject();
+                String unknown = (String) in.readObject();
+                if (unknown != null) setUnknownKeys(com.google.gson.JsonParser.parseString(unknown).getAsJsonObject());
+            } catch (java.io.OptionalDataException e) {
+                mask = null; // a stream from before clips carried a mask
+                maskKeys = null;
+            }
+        }
+
         @Override
         public void onLoaded(JsonObject raw) {
             if (type == ClipType.TEXT && textStyle == null) textStyle = TextStyleInterop.fromDesktopKeys(raw);
