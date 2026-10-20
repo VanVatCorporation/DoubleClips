@@ -2,6 +2,10 @@ package com.vanvatcorporation.doubleclips.activities.editing;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.TypedArray;
+import android.text.format.Formatter;
+import android.view.Gravity;
+import android.widget.LinearLayout;
 import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
 import android.os.Build;
@@ -38,6 +42,7 @@ import java.io.Serializable;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 
@@ -52,6 +57,15 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
 
     public EditText hexColorField;
+
+    /** Every file of the project's Clips folder; {@link #projectFilesList} is what the open filter shows of them. */
+    private final List<ProjectFilesData> allFiles = new ArrayList<>();
+    private enum Filter { ALL("All"), VIDEO("Video"), IMAGE("Image"), AUDIO("Audio"), UNUSED("Unused");
+        final String title;
+        Filter(String title) { this.title = title; }
+    }
+    private Filter filter = Filter.ALL;
+    private final List<TextView> filterChips = new ArrayList<>();
 
 
 
@@ -92,8 +106,15 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
         projectFilesSwipeRefreshLayout.setOnRefreshListener(this::reloadingProject);
 
+        buildFilterChips();
+        findViewById(R.id.importFilesButton).setOnClickListener(v -> {
+            if (activityInstance != null) activityInstance.importFilesToProject();
+        });
+        findViewById(R.id.deleteUnusedButton).setOnClickListener(v -> confirmDeleteUnused());
+
         findViewById(R.id.createButton).setOnClickListener(v -> {
             FFmpegEdit.generateSolidColorImage(getContext(), IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY), hexColorField.getText().toString());
+            postDelayed(this::reloadingProject, 1500); // the image is made by FFmpeg in the background: show it once it is there
         });
 
         onClose.add(() -> {
@@ -108,10 +129,116 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
     }
     public void reloadingProject()
     {
+        allFiles.clear();
         projectFilesList.clear();
         projectFilesAdapter.notifyDataSetChanged();
 
         fetchClipsFolder();
+    }
+
+    // ---- filters ---------------------------------------------------------------------------------
+
+    private void buildFilterChips() {
+        LinearLayout row = findViewById(R.id.projectFilesFilterRow);
+        for (final Filter f : Filter.values()) {
+            TextView chip = new TextView(getContext());
+            chip.setText(f.title);
+            chip.setTextSize(14f);
+            chip.setGravity(Gravity.CENTER);
+            float d = getResources().getDisplayMetrics().density;
+            chip.setPadding(Math.round(12 * d), Math.round(8 * d), Math.round(12 * d), Math.round(8 * d));
+            chip.setOnClickListener(v -> {
+                filter = f;
+                applyFilter();
+            });
+            filterChips.add(chip);
+            row.addView(chip);
+        }
+        styleFilterChips();
+    }
+
+    private void styleFilterChips() {
+        TypedArray a = getContext().obtainStyledAttributes(new int[]{android.R.attr.textColorSecondary});
+        int secondary = a.getColor(0, 0xFF888888);
+        a.recycle();
+        for (int i = 0; i < filterChips.size(); i++) {
+            boolean selected = Filter.values()[i] == filter;
+            filterChips.get(i).setTextColor(selected ? getContext().getColor(R.color.ios_blue) : secondary);
+            filterChips.get(i).setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+    }
+
+    /** What each file is used by (clips on the timeline), then the list the open filter shows. */
+    private void applyFilter() {
+        Map<String, Integer> usage = activityInstance != null ? activityInstance.projectFileUsage() : new java.util.HashMap<>();
+        projectFilesList.clear();
+        for (ProjectFilesData file : allFiles) {
+            Integer n = usage.get(file.fileTitle);
+            file.usedBy = n == null ? 0 : n;
+            boolean show;
+            switch (filter) {
+                case VIDEO: show = file.kind == ProjectFilesData.Kind.VIDEO; break;
+                case IMAGE: show = file.kind == ProjectFilesData.Kind.IMAGE; break;
+                case AUDIO: show = file.kind == ProjectFilesData.Kind.AUDIO; break;
+                case UNUSED: show = file.usedBy == 0; break;
+                default: show = true; break;
+            }
+            if (show) projectFilesList.add(file);
+        }
+        projectFilesAdapter.notifyDataSetChanged();
+        styleFilterChips();
+    }
+
+    // ---- delete unused ---------------------------------------------------------------------------
+
+    /** Files no clip uses (and nothing else in the timeline mentions): what "Delete unused files" removes. */
+    private List<ProjectFilesData> unusedFiles() {
+        List<ProjectFilesData> unused = new ArrayList<>();
+        if (activityInstance == null) return unused;
+        Map<String, Integer> usage = activityInstance.projectFileUsage();
+        List<String> candidates = new ArrayList<>();
+        for (ProjectFilesData file : allFiles) {
+            if (usage.get(file.fileTitle) == null) candidates.add(file.fileTitle);
+        }
+        java.util.Set<String> mentioned = activityInstance.projectFilesMentionedInTimeline(candidates);
+        for (ProjectFilesData file : allFiles) {
+            if (candidates.contains(file.fileTitle) && !mentioned.contains(file.fileTitle)) unused.add(file);
+        }
+        return unused;
+    }
+
+    private void confirmDeleteUnused() {
+        final List<ProjectFilesData> unused = unusedFiles();
+        if (unused.isEmpty()) {
+            LoggingManager.LogToToast(getContext(), "Every file is used by a clip.");
+            return;
+        }
+        long bytes = 0;
+        for (ProjectFilesData file : unused) bytes += file.bytes;
+        new AlertDialog.Builder(getContext())
+                .setTitle("Delete unused files?")
+                .setMessage((unused.size() == 1 ? "1 file is" : unused.size() + " files are") + " not used by any clip. Deleting "
+                        + (unused.size() == 1 ? "it" : "them") + " frees " + Formatter.formatShortFileSize(getContext(), bytes)
+                        + " and can't be undone.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    for (ProjectFilesData file : unused) deleteFileFromProject(file.fileTitle);
+                    reloadingProject();
+                    LoggingManager.LogToToast(getContext(), "Freed " + Formatter.formatShortFileSize(getContext(), unusedBytes(unused)));
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private static long unusedBytes(List<ProjectFilesData> files) {
+        long total = 0;
+        for (ProjectFilesData file : files) total += file.bytes;
+        return total;
+    }
+
+    /** The file and its preview copy. */
+    private void deleteFileFromProject(String fileName) {
+        IOHelper.deleteFile(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY, fileName));
+        IOHelper.deleteFile(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, fileName));
     }
 
     public void fetchClipsFolder()
@@ -131,6 +258,9 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
                 Bitmap previewBitmap;
 
                 MimeHelper.MimeType mimeType = MimeHelper.getMimeTypeFromPath(childPath);
+                ProjectFilesData.Kind kind = mimeType.isVideo() ? ProjectFilesData.Kind.VIDEO
+                        : mimeType.isImage() ? ProjectFilesData.Kind.IMAGE
+                        : mimeType.isAudio() ? ProjectFilesData.Kind.AUDIO : ProjectFilesData.Kind.OTHER;
 
 
                 if (mimeType.isAudio()) {
@@ -174,11 +304,14 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
 
 
-                projectFilesList.add(new ProjectFilesData(childPath, child, previewBitmap));
-                projectFilesAdapter.notifyItemInserted(projectFilesList.size() - 1);
+                ProjectFilesData entry = new ProjectFilesData(childPath, child, previewBitmap);
+                entry.bytes = new File(childPath).length();
+                entry.kind = kind;
+                allFiles.add(entry);
             }
         }
 
+        applyFilter();
         projectFilesSwipeRefreshLayout.setRefreshing(false);
     }
 
@@ -191,9 +324,15 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
     public static class ProjectFilesData implements Serializable {
 
+        public enum Kind { VIDEO, IMAGE, AUDIO, OTHER }
+
         public String filePath;
         public String fileTitle;
         public Bitmap filePreview;
+        /** Size on disk, what kind of media it is, and how many clips use it (set when the list is filtered). */
+        public long bytes;
+        public Kind kind = Kind.OTHER;
+        public int usedBy;
 
         public ProjectFilesData(String filePath, String fileTitle, Bitmap filePreview) {
             this.filePath = filePath;
@@ -244,6 +383,8 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
             ProjectFilesData projectItem = projectFilesList.get(position);
 
             holder.projectFilesTitle.setText(projectItem.getFileTitle());
+            holder.projectFilesDetail.setText((projectItem.usedBy > 0 ? "×" + projectItem.usedBy : "Unused") + " · "
+                    + Formatter.formatShortFileSize(context, projectItem.bytes));
 
             Executors.newSingleThreadExecutor().execute(() -> {
                 try {
@@ -299,18 +440,17 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
                         {
                             new AlertDialog.Builder(context)
                                     .setTitle(context.getString(R.string.alert_delete_media_confirmation_title))
-                                    .setMessage(context.getString(R.string.alert_delete_media_confirmation_description))
+                                    .setMessage(context.getString(R.string.alert_delete_media_confirmation_description)
+                                            + (projectItem.usedBy > 0 ? "\n\n" + (projectItem.usedBy == 1 ? "1 clip uses" : projectItem.usedBy + " clips use")
+                                            + " this file and will be removed from the timeline too." : ""))
 
                                     // Specifying a listener allows you to take an action before dismissing the dialog.
                                     // The dialog is automatically dismissed when a dialog button is clicked.
                                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                                         // Continue with delete operation
                                         activityInstance.deleteAllClipWithName(projectItem.getFileTitle());
-
-                                        IOHelper.deleteFile(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY, projectItem.getFileTitle()));
-                                        IOHelper.deleteFile(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, projectItem.getFileTitle()));
-                                        projectFilesList.remove(position);
-                                        notifyItemRemoved(position);
+                                        deleteFileFromProject(projectItem.getFileTitle());
+                                        reloadingProject();
 
                                     })
 
@@ -333,6 +473,7 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
 
 
+                            LoggingManager.LogToToast(context, "Replacing a file isn't available yet.");
                             return true;
                         }
                         return false;
@@ -366,7 +507,29 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
             // Set button click listeners
             okButton.setOnClickListener(vok -> {
-                activityInstance.renameProjectFile(projectFile.getFileTitle(), editText.getText().toString());
+                String oldName = projectFile.getFileTitle();
+                String newName = editText.getText().toString().trim();
+                int oldDot = oldName.lastIndexOf('.');
+                String extension = oldDot > 0 ? oldName.substring(oldDot) : "";
+                // The extension is what tells the kind of media: renaming never changes it.
+                if (!extension.isEmpty() && !newName.toLowerCase().endsWith(extension.toLowerCase())) newName += extension;
+
+                String problem = null;
+                if (newName.isEmpty() || newName.equals(extension)) problem = "The name can't be empty.";
+                else if (newName.contains("/") || newName.contains("\\")) problem = "The name can't contain / or \\.";
+                else if (!newName.equals(oldName)) {
+                    for (ProjectFilesData other : allFiles) {
+                        if (other.fileTitle.equalsIgnoreCase(newName)) problem = "A file named " + newName + " already exists.";
+                    }
+                }
+                if (problem != null) {
+                    LoggingManager.LogToToast(context, problem);
+                    return;
+                }
+                if (!newName.equals(oldName)) {
+                    activityInstance.renameProjectFile(oldName, newName);
+                    reloadingProject();
+                }
 
                 dialog.dismiss();
             });
@@ -390,6 +553,7 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
     }
     public static class ProjectFilesViewHolder extends RecyclerView.ViewHolder {
         TextView projectFilesTitle;
+        TextView projectFilesDetail;
         ImageView projectFilesPreview;
         View wholeView;
         public ProjectFilesViewHolder(@NonNull View itemView) {
@@ -397,6 +561,7 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
             wholeView = itemView;
 
             projectFilesTitle = itemView.findViewById(R.id.titleText);
+            projectFilesDetail = itemView.findViewById(R.id.detailText);
             projectFilesPreview = itemView.findViewById(R.id.previewImage);
         }
     }

@@ -12,6 +12,130 @@ import java.util.Objects;
 
 public class AudioUtils {
 
+    /**
+     * The sound of a clip as a thin waveform band for the bottom of its timeline thumbnail (iOS draws one on video clips):
+     * a translucent dark strip with light bars centred on its middle line. Width = clip.duration * pixelsPerSecond
+     * (clamped 64..4096), height = bandHeight. Throws when the file has no audio track (the caller then draws no band).
+     */
+    public static Bitmap generateWaveformBand(String filePath, EditingActivity.Clip clip,
+                                              float pixelsPerSecond, int bandHeight,
+                                              int barWidth, int barGap) throws Exception {
+        final int bmpW = (int) Math.max(64, Math.min(4096, clip.duration * pixelsPerSecond));
+        final int bmpH = Math.max(8, bandHeight);
+        final int stride = Math.max(1, barWidth + barGap);
+        final int barCount = Math.max(1, bmpW / stride);
+        float[] levels = decodeBarLevels(filePath, clip, barCount);
+
+        Bitmap bmp = Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        canvas.drawColor(0x66000000); // translucent: the frames still show through
+
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setStyle(Paint.Style.FILL);
+        float mid = bmpH / 2f;
+        float maxHalf = mid - 1.5f;
+        for (int b = 0; b < barCount; b++) {
+            // sqrt: quiet passages stay visible, like most editors' waveforms
+            float half = Math.max(1f, (float) Math.sqrt(Math.min(1f, levels[b] * 2f)) * maxHalf);
+            int alpha = 120 + (int) (120 * Math.min(1f, levels[b] * 2f));
+            paint.setColor(android.graphics.Color.argb(alpha, 255, 255, 255));
+            float left = b * stride;
+            canvas.drawRoundRect(left, mid - half, left + Math.max(1, barWidth), mid + half, 1f, 1f, paint);
+        }
+        return bmp;
+    }
+
+    /**
+     * Loudness (RMS, 0..1) of each of {@code barCount} equal slices of the clip's audio. The samples are folded into the
+     * bars as they are decoded, so memory doesn't grow with the clip's length (a long video decodes as cheaply as a short one).
+     */
+    static float[] decodeBarLevels(String filePath, EditingActivity.Clip clip, int barCount) throws Exception {
+        MediaExtractor extractor = new MediaExtractor();
+        android.media.MediaCodec codec = null;
+        try {
+            extractor.setDataSource(filePath);
+            int audioTrack = TimelineUtils.findMediaTrackIndex(extractor, EditingActivity.ClipType.AUDIO);
+            extractor.selectTrack(audioTrack);
+            MediaFormat format = extractor.getTrackFormat(audioTrack);
+            int channels = format.containsKey(MediaFormat.KEY_CHANNEL_COUNT) ? Math.max(1, format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)) : 2;
+            int sampleRate = format.containsKey(MediaFormat.KEY_SAMPLE_RATE) ? Math.max(8000, format.getInteger(MediaFormat.KEY_SAMPLE_RATE)) : 44100;
+
+            long startUs = (long) (clip.startClipTrim * 1_000_000L);
+            long spanUs = Math.max(1L, (long) (clip.duration * 1_000_000L));
+            long endUs = startUs + spanUs;
+            extractor.seekTo(startUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+
+            codec = android.media.MediaCodec.createDecoderByType(Objects.requireNonNull(format.getString(MediaFormat.KEY_MIME)));
+            codec.configure(format, null, null, 0);
+            codec.start();
+
+            // Looking at every 200th sample or so per bar is plenty for a loudness estimate.
+            double framesPerBar = spanUs / 1_000_000.0 * sampleRate / barCount;
+            int step = Math.max(1, (int) (framesPerBar / 200.0));
+
+            double[] sumSquares = new double[barCount];
+            long[] counts = new long[barCount];
+            android.media.MediaCodec.BufferInfo info = new android.media.MediaCodec.BufferInfo();
+            boolean inputDone = false, outputDone = false;
+            int idleSpins = 0;
+
+            while (!outputDone && idleSpins < 600) {
+                if (!inputDone) {
+                    int inIdx = codec.dequeueInputBuffer(5_000);
+                    if (inIdx >= 0) {
+                        java.nio.ByteBuffer in = codec.getInputBuffer(inIdx);
+                        int size = extractor.readSampleData(in, 0);
+                        long presentUs = extractor.getSampleTime();
+                        if (size < 0 || presentUs > endUs) {
+                            codec.queueInputBuffer(inIdx, 0, 0, 0, android.media.MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                            inputDone = true;
+                        } else {
+                            codec.queueInputBuffer(inIdx, 0, size, presentUs, 0);
+                            extractor.advance();
+                        }
+                    }
+                }
+                int outIdx = codec.dequeueOutputBuffer(info, 5_000);
+                if (outIdx >= 0) {
+                    idleSpins = 0;
+                    java.nio.ByteBuffer pcm = codec.getOutputBuffer(outIdx);
+                    if (pcm != null && info.size > 0) {
+                        pcm.order(java.nio.ByteOrder.LITTLE_ENDIAN);
+                        java.nio.ShortBuffer shorts = pcm.asShortBuffer();
+                        int frames = shorts.remaining() / channels;
+                        for (int f = 0; f < frames; f += step) {
+                            long timeUs = info.presentationTimeUs + f * 1_000_000L / sampleRate;
+                            if (timeUs < startUs) continue;
+                            if (timeUs >= endUs) break;
+                            int bar = (int) Math.min(barCount - 1, (timeUs - startUs) * barCount / spanUs);
+                            double sum = 0;
+                            for (int c = 0; c < channels; c++) sum += shorts.get(f * channels + c);
+                            double mono = sum / channels / 32768.0;
+                            sumSquares[bar] += mono * mono;
+                            counts[bar]++;
+                        }
+                    }
+                    codec.releaseOutputBuffer(outIdx, false);
+                    if ((info.flags & android.media.MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outputDone = true;
+                } else {
+                    idleSpins++; // a decoder that never answers must not hang the thumbnail thread
+                }
+            }
+
+            float[] levels = new float[barCount];
+            for (int b = 0; b < barCount; b++) {
+                levels[b] = counts[b] > 0 ? (float) Math.sqrt(sumSquares[b] / counts[b]) : 0f;
+            }
+            return levels;
+        } finally {
+            if (codec != null) {
+                try { codec.stop(); } catch (Exception ignored) { }
+                codec.release();
+            }
+            extractor.release();
+        }
+    }
+
 
     /**
      * Decode audio samples from [filePath] and render a waveform Bitmap sized to the clip.

@@ -827,6 +827,101 @@ public class EditingActivity extends AppCompatActivityImpl {
                 ; // Operation failed
         }
     }
+    /** How many clips use each project file, by file name: the files panel shows it as "x2" and uses it for "Unused". */
+    public Map<String, Integer> projectFileUsage()
+    {
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        for (Track track : timeline.tracks) {
+            for (Clip clip : track.clips) {
+                if (clip.clipName == null) continue;
+                if (clip.type == ClipType.VIDEO || clip.type == ClipType.IMAGE || clip.type == ClipType.AUDIO) {
+                    Integer n = counts.get(clip.clipName);
+                    counts.put(clip.clipName, n == null ? 1 : n + 1);
+                }
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * Which of these file names the timeline mentions anywhere (as saved), a safety net before an "unused" file is deleted for
+     * good: a feature that refers to a file by name without being a clip of it must keep the file.
+     */
+    public java.util.Set<String> projectFilesMentionedInTimeline(java.util.Collection<String> names)
+    {
+        java.util.Set<String> mentioned = new java.util.HashSet<>();
+        String json = ProjectGson.forSave().toJson(timeline);
+        for (String name : names) if (json.contains("\"" + name + "\"")) mentioned.add(name);
+        return mentioned;
+    }
+
+    /** "Import files to project": picks files and copies them into the project's Clips folder without touching the timeline. */
+    public void importFilesToProject()
+    {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"video/*", "image/*", "audio/*"});
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        projectFilesImportLauncher.launch(Intent.createChooser(intent, "Import files to project"));
+    }
+
+    private final ActivityResultLauncher<Intent> projectFilesImportLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+                Intent data = result.getData();
+                List<Uri> uris = new ArrayList<>();
+                if (data.getClipData() != null) {
+                    for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri());
+                } else if (data.getData() != null) {
+                    uris.add(data.getData());
+                }
+                copyIntoProjectClips(uris);
+            });
+
+    private void copyIntoProjectClips(List<Uri> uris)
+    {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            File dir = new File(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY));
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            int copied = 0;
+            for (Uri uri : uris) {
+                try {
+                    File target = uniqueFileIn(dir, getFileName(uri));
+                    try (java.io.InputStream in = getContentResolver().openInputStream(uri);
+                         java.io.OutputStream out = new java.io.FileOutputStream(target)) {
+                        if (in == null) continue;
+                        byte[] buffer = new byte[64 * 1024]; // streamed: a big video doesn't have to fit in memory
+                        int n;
+                        while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                    }
+                    copied++;
+                } catch (Exception e) {
+                    LoggingManager.LogExceptionToNoteOverlay(this, e);
+                }
+            }
+            final int total = copied;
+            runOnUiThread(() -> {
+                LoggingManager.LogToToast(this, total == 1 ? "Imported 1 file" : "Imported " + total + " files");
+                if (projectFilesEditSpecificAreaScreen != null) projectFilesEditSpecificAreaScreen.reloadingProject();
+            });
+        });
+    }
+
+    /** A file in {@code dir} named like {@code name}, or "name (1).ext", "name (2).ext"... when that is taken (never overwrites). */
+    private static File uniqueFileIn(File dir, String name)
+    {
+        String safe = new File(name == null || name.isEmpty() ? "file" : name).getName();
+        int dot = safe.lastIndexOf('.');
+        String stem = dot > 0 ? safe.substring(0, dot) : safe;
+        String extension = dot > 0 ? safe.substring(dot) : "";
+        File file = new File(dir, safe);
+        for (int i = 1; file.exists(); i++) file = new File(dir, stem + " (" + i + ")" + extension);
+        return file;
+    }
+
     public void deleteAllClipWithName(String name)
     {
         for (Track track : timeline.tracks) {
@@ -1046,7 +1141,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         {
                             // After preview process, render the thumbnail
                             Executors.newSingleThreadExecutor().execute(() -> {
-                                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
+                                Bitmap retrieveBitmap = thumbnailStrip(clip);
                                 clip.viewRef.post(() -> {
                                     clip.viewRef.setFilledImageBitmap(retrieveBitmap);
                                 });
@@ -2527,7 +2622,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             clip.viewRef.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF000000));
             clip.viewRef.showLoading();
             Executors.newSingleThreadExecutor().execute(() -> {
-                Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
+                Bitmap retrieveBitmap = thumbnailStrip(clip);
                 clip.viewRef.post(() -> {
                     clip.viewRef.setFilledImageBitmap(retrieveBitmap);
                 });
@@ -2885,7 +2980,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         clipView.showLoading();
         // Set the thumbnail using preview for less resource consumption.
         Executors.newSingleThreadExecutor().execute(() -> {
-            Bitmap retrieveBitmap = combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), data));
+            Bitmap retrieveBitmap = thumbnailStrip(data);
             clipView.post(() -> {
                 clipView.setFilledImageBitmap(retrieveBitmap);
             });
@@ -4642,6 +4737,26 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         return thumbnails;
 
+    }
+
+    /**
+     * The clip's thumbnail strip (its frames side by side). A video clip also gets its sound as a thin waveform band along the
+     * bottom, like on iOS; a video without an audio track just has none. Runs on a background thread (decodes audio).
+     */
+    private Bitmap thumbnailStrip(Clip clip)
+    {
+        Bitmap strip = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
+        if (clip.type != ClipType.VIDEO || strip == null) return strip;
+        try {
+            int bandHeight = Math.round(strip.getHeight() * 0.3f);
+            Bitmap band = AudioUtils.generateWaveformBand(clip.getAbsolutePath(properties), clip, pixelsPerSecond,
+                    Math.round(TRACK_HEIGHT * 0.3f), thumbnailAudioBarWidth, thumbnailAudioBarGap);
+            new Canvas(strip).drawBitmap(band, null, new android.graphics.RectF(0, strip.getHeight() - bandHeight, strip.getWidth(), strip.getHeight()), null);
+            band.recycle();
+        } catch (Exception | OutOfMemoryError e) {
+            // No audio track (or it couldn't be decoded): the clip just has no waveform band.
+        }
+        return strip;
     }
 
     private static Bitmap combineThumbnails(List<Bitmap> frames)

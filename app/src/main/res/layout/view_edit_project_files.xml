@@ -77,6 +77,22 @@
             android:orientation="vertical"
             android:paddingBottom="32dp">
 
+            <!-- Filters: All, Video, Image, Audio, Unused (built in code) -->
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/projectFilesFilterRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp" />
+            </HorizontalScrollView>
+
             <!-- Files List -->
             <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
                 android:id="@+id/projectFilesSwipeRefreshLayout"
@@ -158,6 +174,39 @@
                     android:textColor="@color/white"
                     app:backgroundTint="@color/ios_blue"
                     app:cornerRadius="12dp" />
+
+            </com.vanvatcorporation.doubleclips.impl.SectionView>
+
+            <com.vanvatcorporation.doubleclips.impl.SectionView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:sectionTitle="Manage">
+
+                <!-- Copies files into the project without putting them on the timeline -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/importFilesButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginTop="8dp"
+                    android:text="Import files to project"
+                    android:textAllCaps="false"
+                    android:textColor="@color/ios_blue"
+                    app:cornerRadius="12dp" />
+
+                <!-- Frees the space of files no clip uses -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/deleteUnusedButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="Delete unused files"
+                    android:textAllCaps="false"
+                    android:textColor="#FF3B30" />
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
