@@ -31,6 +31,7 @@ import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
 import com.vanvatcorporation.doubleclips.ProjectZip;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.main.StorageAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
@@ -61,6 +62,7 @@ public class MainActivity extends AppCompatActivityImpl {
     MainAreaScreen homeAreaScreen;
     TemplateAreaScreen templateAreaScreen;
     ProfileAreaScreen profileAreaScreen;
+    StorageAreaScreen storageAreaScreen;
 
 
     @Override
@@ -152,12 +154,12 @@ public class MainActivity extends AppCompatActivityImpl {
         homeAreaScreen = (MainAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_homepage, null);
         templateAreaScreen = (TemplateAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_template, null);
         View View3 = getLayoutInflater().inflate(R.layout.pager_main_search, null);
-        View View4 = getLayoutInflater().inflate(R.layout.pager_main_storage, null);
+        storageAreaScreen = (StorageAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_storage, null);
         profileAreaScreen = (ProfileAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_profile, null);
 
 
         viewPager = findViewById(R.id.mainViewPager);
-        viewPager.insertView(homeAreaScreen, templateAreaScreen, View3, View4, profileAreaScreen);
+        viewPager.insertView(homeAreaScreen, templateAreaScreen, View3, storageAreaScreen, profileAreaScreen);
         viewPager.setupActions(
                 new RunnableImpl2() {
                     @Override
@@ -186,6 +188,7 @@ public class MainActivity extends AppCompatActivityImpl {
                         if (menuItemId != -1) {
                             bottomNavigationView.getMenu().findItem(menuItemId).setChecked(true);
                         }
+                        if (position == 3 && storageAreaScreen != null) storageAreaScreen.onShown();
                     }
                 }
         );
@@ -203,6 +206,15 @@ public class MainActivity extends AppCompatActivityImpl {
                     Uri uri = result.getData().getData();
                     if (uri == null) return;
                     importProjectArchive(uri);
+                }
+        );
+
+        // Storage tab (OpenEditz): files chosen to upload.
+        storageAreaScreen.filePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) return;
+                    storageAreaScreen.uploadPicked(result.getData());
                 }
         );
 
@@ -227,7 +239,7 @@ public class MainActivity extends AppCompatActivityImpl {
     }
 
     /** Imports a project ZIP (from the file picker, or opened / shared from another app) through the normal import. */
-    private void importProjectArchive(Uri uri) {
+    public void importProjectArchive(Uri uri) {
         final int[] imported = {0};
         runArchiveJob(getString(R.string.alert_processing_decompression), "Extracting project...",
                 (listener, cancel) -> imported[0] = ProgressCompressionHelper.importProject(
@@ -265,7 +277,7 @@ public class MainActivity extends AppCompatActivityImpl {
     }
 
     /** What an export or import does; runs on a worker thread. */
-    private interface ArchiveJob {
+    public interface ArchiveJob {
         void run(ProjectZip.Listener progress, ProjectZip.Cancellation cancel) throws Exception;
     }
 
@@ -273,7 +285,7 @@ public class MainActivity extends AppCompatActivityImpl {
      * Runs an export / import behind the progress dialog: progress and Cancel are wired up, the dialog is always
      * closed (also after a failure, which used to leave it stuck on screen), and the outcome is reported.
      */
-    private void runArchiveJob(String title, String description, ArchiveJob job, Runnable onSuccess) {
+    public void runArchiveJob(String title, String description, ArchiveJob job, Runnable onSuccess) {
         CompressionPopup popup = new CompressionPopup(this, title, description);
         ProjectZip.Cancellation cancel = new ProjectZip.Cancellation();
         popup.setOnCancel(cancel::cancel);

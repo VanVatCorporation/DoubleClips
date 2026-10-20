@@ -59,6 +59,16 @@ public class RetrofitClient {
         return retrofit.create(ApiService.class);
     }
 
+    /** The account JWT (cookie "authToken") the login stored in the cookie jar; null when signed out. The Drive API takes it as a Bearer token. */
+    public String getAuthToken() {
+        if (!(retrofit.callFactory() instanceof OkHttpClient)) return null;
+        CookieJar jar = ((OkHttpClient) retrofit.callFactory()).cookieJar();
+        for (okhttp3.Cookie cookie : jar.loadForRequest(okhttp3.HttpUrl.get(BASE_URL + "/"))) {
+            if ("authToken".equals(cookie.name())) return cookie.value();
+        }
+        return null;
+    }
+
     public void clearCookies() {
         if (retrofit.callFactory() instanceof OkHttpClient) {
             CookieJar jar = ((OkHttpClient) retrofit.callFactory()).cookieJar();
