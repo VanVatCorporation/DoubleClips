@@ -25,6 +25,13 @@ public final class Models {
     public static class Usage {
         public long uploadedBytes, downloadedBytes, uploadLimit, downloadLimit;
         public String resetsAt;
+        /** Account-wide compute quota in credits, shared with every Van Vat service (absent on older servers). */
+        public Double computeUsed, computeLimit;
+    }
+
+    /** The subscription tier of the account (free, personal, pro...). */
+    public static class Plan {
+        public String key, name, expiresAt;
     }
 
     public static class Me {
@@ -32,6 +39,9 @@ public final class Models {
         public long quotaBytes, usedBytes;
         public int chunkSize;
         public Usage usage;
+        /** Largest single file the plan allows (0 on older servers). */
+        public long maxFileBytes;
+        public Plan plan;
     }
 
     public static class Listing {
@@ -81,6 +91,9 @@ public final class Models {
         public long totalBytes, remainingBytes;
         public boolean allowed;
         public String resetsAt;
+        /** Separate verdicts (null from older servers): the daily download cap and the compute quota. */
+        public Boolean downloadAllowed, computeAllowed;
+        public Double computeCredits, computeRemainingCredits;
     }
 
     /** Dates arrive as ISO-8601 UTC ("2026-10-19T02:45:00.1234567Z"). */

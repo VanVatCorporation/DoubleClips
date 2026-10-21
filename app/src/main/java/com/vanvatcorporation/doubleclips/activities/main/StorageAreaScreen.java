@@ -43,6 +43,8 @@ import com.vanvatcorporation.drivekit.DriveClient;
 import com.vanvatcorporation.drivekit.DriveException;
 import com.vanvatcorporation.drivekit.Models;
 import com.vanvatcorporation.drivekit.OpenEditzClient;
+import com.vanvatcorporation.drivekit.Quota;
+import com.vanvatcorporation.drivekit.QuotaUi;
 import com.vanvatcorporation.drivekit.ResumableUpload;
 
 import java.io.File;
@@ -86,6 +88,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
     private RecyclerView recycler;
     private TextView quotaText, pathText, emptyText;
     private ProgressBar quotaBar;
+    private android.widget.LinearLayout usageBars;
     private Adapter adapter;
 
     public StorageAreaScreen(Context context) { super(context); }
@@ -98,6 +101,8 @@ public class StorageAreaScreen extends BaseAreaScreen {
         recycler = findViewById(R.id.storageRecyclerView);
         quotaText = findViewById(R.id.storageQuotaText);
         quotaBar = findViewById(R.id.storageQuotaBar);
+        usageBars = findViewById(R.id.storageUsageBars);
+        findViewById(R.id.storageMoreResources).setOnClickListener(v -> QuotaUi.openPlans(getContext()));
         pathText = findViewById(R.id.storagePathText);
         emptyText = findViewById(R.id.storageEmptyText);
 
@@ -155,7 +160,8 @@ public class StorageAreaScreen extends BaseAreaScreen {
             } catch (Exception e) {
                 ui.post(() -> {
                     swipe.setRefreshing(false);
-                    toast(e instanceof DriveException ? e.getMessage() : "Storage: " + e.getMessage());
+                    if (Quota.isQuotaLimit(e)) QuotaUi.blocked(getContext(), "Limit reached", e.getMessage());
+                    else toast(e instanceof DriveException ? e.getMessage() : "Storage: " + e.getMessage());
                 });
             }
         });
@@ -218,18 +224,28 @@ public class StorageAreaScreen extends BaseAreaScreen {
         for (Models.Node n : trail) path.append("  ›  ").append(n.name);
         pathText.setText(trail.isEmpty() ? path : "‹  " + path + "   (tap to go back)");
 
+        usageBars.removeAllViews();
         if (me == null) {
             quotaText.setText("");
             quotaBar.setProgress(0);
             return;
         }
-        String text = bytes(me.usedBytes) + " of " + bytes(me.quotaBytes) + " used";
-        if (me.usage != null) {
-            text += "\nToday: ↑ " + bytes(me.usage.uploadedBytes) + " / " + bytes(me.usage.uploadLimit)
-                    + "  ·  ↓ " + bytes(me.usage.downloadedBytes) + " / " + bytes(me.usage.downloadLimit);
-        }
+        String text = (me.plan == null || me.plan.name == null ? "" : "Plan: " + me.plan.name + "  ·  ")
+                + bytes(me.usedBytes) + " of " + bytes(me.quotaBytes) + " used";
         quotaText.setText(text);
-        quotaBar.setProgress(me.quotaBytes <= 0 ? 0 : (int) Math.min(1000, me.usedBytes * 1000 / me.quotaBytes));
+        QuotaUi.apply(quotaBar, me.usedBytes, me.quotaBytes);
+
+        if (me.usage != null) {
+            QuotaUi.addBar(usageBars, me.usage.uploadedBytes, me.usage.uploadLimit,
+                    "Today: ↑ " + bytes(me.usage.uploadedBytes) + " / " + bytes(me.usage.uploadLimit));
+            QuotaUi.addBar(usageBars, me.usage.downloadedBytes, me.usage.downloadLimit,
+                    "Today: ↓ " + bytes(me.usage.downloadedBytes) + " / " + bytes(me.usage.downloadLimit));
+            if (me.usage.computeLimit != null) {
+                double used = me.usage.computeUsed == null ? 0 : me.usage.computeUsed;
+                QuotaUi.addBar(usageBars, used, me.usage.computeLimit,
+                        "Today: compute " + Quota.credits(used) + " / " + Quota.credits(me.usage.computeLimit) + " credits");
+            }
+        }
     }
 
     // ── actions ─────────────────────────────────────────────────────────────
@@ -328,15 +344,22 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
         long total = 0;
         for (Uri u : uris) total += sizeOf(u);
-        if (me != null) {
-            long free = Math.max(0, me.quotaBytes - me.usedBytes);
-            if (total > free) { toast("Not enough space: " + bytes(free) + " left."); return; }
-            if (me.usage != null && total > Math.max(0, me.usage.uploadLimit - me.usage.uploadedBytes)) {
-                toast("Daily upload limit: only " + bytes(Math.max(0, me.usage.uploadLimit - me.usage.uploadedBytes)) + " left today.");
-                return;
-            }
+        // Not enough storage cannot work: stop and offer an upgrade. The daily cap only warns, like the web Drive.
+        if (me != null && total > Quota.storageFree(me)) {
+            QuotaUi.blocked(getContext(), "Not enough space", Quota.notEnoughSpace(Quota.storageFree(me), me.quotaBytes));
+            return;
         }
+        final long finalTotal = total;
+        long freeToday = Quota.uploadFree(me);
+        if (total > freeToday) {
+            QuotaUi.warn(getContext(), Quota.uploadWarnTitle(), Quota.uploadWarnMessage(total, freeToday),
+                    () -> startUpload(uris, finalTotal), null);
+            return;
+        }
+        startUpload(uris, total);
+    }
 
+    private void startUpload(ArrayList<Uri> uris, long total) {
         final long totalBytes = Math.max(1, total);
         final Models.Node target = currentFolder();
         MainActivity act = activity();
@@ -418,6 +441,27 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     /** Packs the project (the same ZIP as "Export project") and uploads it to OpenEditz/Projects. */
     private void backUp(MainAreaScreen.ProjectData project) {
+        // The ZIP is never bigger than the project folder, so that is the size to warn about before packing.
+        async(() -> folderSize(new File(project.getProjectPath())), size -> {
+            long free = Quota.uploadFree(me);
+            if (size > free) {
+                QuotaUi.warn(getContext(), Quota.uploadWarnTitle(), Quota.uploadWarnMessage(size, free),
+                        () -> doBackUp(project), null);
+            } else {
+                doBackUp(project);
+            }
+        });
+    }
+
+    private static long folderSize(File f) {
+        if (f.isFile()) return f.length();
+        File[] kids = f.listFiles();
+        long total = 0;
+        if (kids != null) for (File k : kids) total += folderSize(k);
+        return total;
+    }
+
+    private void doBackUp(MainAreaScreen.ProjectData project) {
         MainActivity act = activity();
         if (act == null) return;
         act.runArchiveJob("Backing up…", project.getProjectTitle(), (listener, cancel) -> {
@@ -434,11 +478,6 @@ public class StorageAreaScreen extends BaseAreaScreen {
                 if (size > Math.max(0, fresh.quotaBytes - fresh.usedBytes)) {
                     throw new IOException("The backup is " + bytes(size) + " but only " + bytes(Math.max(0, fresh.quotaBytes - fresh.usedBytes)) + " of storage is left.");
                 }
-                if (fresh.usage != null && size > Math.max(0, fresh.usage.uploadLimit - fresh.usage.uploadedBytes)) {
-                    throw new IOException("Daily upload limit: the backup is " + bytes(size) + " but only "
-                            + bytes(Math.max(0, fresh.usage.uploadLimit - fresh.usage.uploadedBytes)) + " is left today.");
-                }
-
                 Models.Node folder = openEditz().ensureFolder("Projects");
                 String stamp = new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.US).format(new Date());
                 ResumableUpload.Cancel uc = new ResumableUpload.Cancel();
@@ -458,6 +497,15 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     /** Downloads a project ZIP from OpenEditz and hands it to the normal import. */
     private void restore(Models.Node node) {
+        long free = Quota.downloadFree(me);
+        if (node.size > free) {
+            QuotaUi.warn(getContext(), Quota.downloadWarnTitle(), Quota.downloadWarnMessage(node.size, free), () -> doRestore(node), null);
+            return;
+        }
+        doRestore(node);
+    }
+
+    private void doRestore(Models.Node node) {
         MainActivity act = activity();
         if (act == null) return;
         final File[] saved = new File[1];
@@ -467,6 +515,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
                 if (total > 0) listener.onProgress(done / (double) total, node.name);
             });
         }, () -> {
+            reload();                                   // refresh the numbers: the download spent part of today's allowance
             if (saved[0] != null) activity().importProjectArchive(Uri.fromFile(saved[0]));
         });
     }
@@ -474,6 +523,15 @@ public class StorageAreaScreen extends BaseAreaScreen {
     // ── save a file to Downloads ────────────────────────────────────────────
 
     private void saveToDownloads(Models.Node node) {
+        long free = Quota.downloadFree(me);
+        if (node.size > free) {
+            QuotaUi.warn(getContext(), Quota.downloadWarnTitle(), Quota.downloadWarnMessage(node.size, free), () -> doSaveToDownloads(node), null);
+            return;
+        }
+        doSaveToDownloads(node);
+    }
+
+    private void doSaveToDownloads(Models.Node node) {
         toast("Downloading…");
         async(() -> {
             File f = openEditz().download(node, new File(getContext().getCacheDir(), "openeditz-download"), null);
@@ -481,7 +539,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
             //noinspection ResultOfMethodCallIgnored
             f.delete();
             return Boolean.TRUE;
-        }, ok -> toast("Saved to Downloads/OpenEditz"));
+        }, ok -> { toast("Saved to Downloads/OpenEditz"); reload(); });
     }
 
     private void copyToDownloads(File src, String name, String mime) throws IOException {

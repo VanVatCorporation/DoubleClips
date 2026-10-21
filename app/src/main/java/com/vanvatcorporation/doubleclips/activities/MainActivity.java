@@ -306,11 +306,14 @@ public class MainActivity extends AppCompatActivityImpl {
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     popup.dismissSafely();
-                    new android.app.AlertDialog.Builder(this)
+                    android.app.AlertDialog.Builder failed = new android.app.AlertDialog.Builder(this)
                             .setTitle(title.replace("…", ""))
                             .setMessage("It didn't finish: " + ProgressCompressionHelper.describe(e))
-                            .setPositiveButton(R.string.ok, null)
-                            .show();
+                            .setPositiveButton(R.string.ok, null);
+                    // A storage/daily limit: the useful next step is the account tier upgrade.
+                    if (com.vanvatcorporation.drivekit.Quota.isQuotaLimit(e))
+                        failed.setNeutralButton("Get more resources", (d, w) -> com.vanvatcorporation.drivekit.QuotaUi.openPlans(this));
+                    failed.show();
                     LoggingManager.LogExceptionToNoteOverlay(this, e);
                 });
             } finally {
