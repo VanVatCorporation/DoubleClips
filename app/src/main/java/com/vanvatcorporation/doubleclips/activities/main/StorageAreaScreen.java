@@ -86,7 +86,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     private SwipeRefreshLayout swipe;
     private RecyclerView recycler;
-    private TextView quotaText, pathText, emptyText;
+    private TextView quotaText, pathText, emptyText, planText;
     private ProgressBar quotaBar;
     private android.widget.LinearLayout usageBars;
     private Adapter adapter;
@@ -102,7 +102,10 @@ public class StorageAreaScreen extends BaseAreaScreen {
         quotaText = findViewById(R.id.storageQuotaText);
         quotaBar = findViewById(R.id.storageQuotaBar);
         usageBars = findViewById(R.id.storageUsageBars);
+        planText = findViewById(R.id.storagePlanText);
         findViewById(R.id.storageMoreResources).setOnClickListener(v -> QuotaUi.openPlans(getContext()));
+        QuotaUi.bindCollapse(findViewById(R.id.storageQuotaCard), findViewById(R.id.storageQuotaHeader),
+                findViewById(R.id.storageQuotaDetails), findViewById(R.id.storageQuotaArrow));
         pathText = findViewById(R.id.storagePathText);
         emptyText = findViewById(R.id.storageEmptyText);
 
@@ -230,9 +233,10 @@ public class StorageAreaScreen extends BaseAreaScreen {
             quotaBar.setProgress(0);
             return;
         }
-        String text = (me.plan == null || me.plan.name == null ? "" : "Plan: " + me.plan.name + "  ·  ")
-                + bytes(me.usedBytes) + " of " + bytes(me.quotaBytes) + " used";
-        quotaText.setText(text);
+        quotaText.setText(bytes(me.usedBytes) + " of " + bytes(me.quotaBytes) + " used");
+        boolean hasPlan = me.plan != null && me.plan.name != null;
+        planText.setVisibility(hasPlan ? VISIBLE : GONE);
+        if (hasPlan) planText.setText("Plan: " + me.plan.name);
         QuotaUi.apply(quotaBar, me.usedBytes, me.quotaBytes);
 
         if (me.usage != null) {
