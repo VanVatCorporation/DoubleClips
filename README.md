@@ -3,7 +3,7 @@
     <h1 style="margin: 0; font-size: 2em; color: #666;">OpenEditz (prev: DoubleClips)</h1>
 
 [![Discord](https://img.shields.io/discord/1402598564152086538?label=Discord&logo=discord&logoColor=fff&color=5865F2&style=flat)](https://discord.gg/aT3MDFKpMj)
-[![X](https://img.shields.io/badge/follow-%40doublecliper-000?logo=x&logoColor=fff&style=flat)](https://x.com/doublecliper)
+[![X](https://img.shields.io/badge/follow-%40openeditz-000?logo=x&logoColor=fff&style=flat)](https://x.com/openeditz)
 [![License: GNU](https://img.shields.io/badge/license-GNU-green?style=flat)](LICENSE)
     <p style="margin: 5px 0 0; font-size: 1.1em; color: #555;">
       🎥 A free, open-source, cross-platform video editor for creators.
