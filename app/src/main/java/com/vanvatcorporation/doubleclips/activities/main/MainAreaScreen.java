@@ -59,20 +59,19 @@ public class MainAreaScreen extends BaseAreaScreen {
     public ProjectData currentExportingProject;
 
     // Sort preference keys
-    private static final String PREF_SORT_BY    = "project_sort_by";
+    private static final String PREF_SORT_BY = "project_sort_by";
     private static final String PREF_SORT_ORDER = "project_sort_order";
     // Sort-by values
-    public static final String SORT_BY_DATE     = "date";
-    public static final String SORT_BY_NAME     = "name";
+    public static final String SORT_BY_DATE = "date";
+    public static final String SORT_BY_NAME = "name";
     public static final String SORT_BY_DURATION = "duration";
-    public static final String SORT_BY_SIZE     = "size";
+    public static final String SORT_BY_SIZE = "size";
     // Sort-order values
-    public static final String SORT_ORDER_DESC  = "desc"; // newest / A→Z / largest
-    public static final String SORT_ORDER_ASC   = "asc";  // oldest / Z→A / smallest
+    public static final String SORT_ORDER_DESC = "desc"; // newest / A→Z / largest
+    public static final String SORT_ORDER_ASC = "asc"; // oldest / Z→A / smallest
 
     public ActivityResultLauncher<Intent> filePickerLauncher;
     public ActivityResultLauncher<Intent> fileCreatorLauncher;
-
 
     public List<ProjectData> projectList;
     public RecyclerView projectListView;
@@ -99,19 +98,17 @@ public class MainAreaScreen extends BaseAreaScreen {
         super(context, attrs, defStyleAttr, defStyleRes);
     }
 
-
     @Override
     public void init() {
         super.init();
 
         projectListView = findViewById(R.id.projectList);
-        //progressBarFetchingBook = view.findViewById(R.id.progressBarFetchingBook);
+        // progressBarFetchingBook = view.findViewById(R.id.progressBarFetchingBook);
         projectSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         titleText = findViewById(R.id.title);
         addNewProjectButton = findViewById(R.id.addProjectButton);
         sortButton = findViewById(R.id.sortButton);
         sortButton.setOnClickListener(v -> showSortDialog());
-
 
         titleText.setOnClickListener(v -> {
             Intent intent = new Intent(getContext(), DebugActivity.class);
@@ -126,7 +123,8 @@ public class MainAreaScreen extends BaseAreaScreen {
 
         addNewProjectButton.setOnClickListener(v -> {
             // Two-step bottom-sheet: Option Picker → Name Form (with slide animation)
-            android.app.Dialog dialog = new android.app.Dialog(getContext(), com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
+            android.app.Dialog dialog = new android.app.Dialog(getContext(),
+                    com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
             View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.popup_add_project, null);
             dialog.setContentView(dialogView);
 
@@ -137,8 +135,10 @@ public class MainAreaScreen extends BaseAreaScreen {
             }
 
             android.widget.ViewFlipper viewFlipper = dialogView.findViewById(R.id.viewFlipper);
-            com.google.android.material.textfield.TextInputEditText projectTitleInput = dialogView.findViewById(R.id.projectTitleInput);
-            com.google.android.material.button.MaterialButton createProjectButton = dialogView.findViewById(R.id.createProjectButton);
+            com.google.android.material.textfield.TextInputEditText projectTitleInput = dialogView
+                    .findViewById(R.id.projectTitleInput);
+            com.google.android.material.button.MaterialButton createProjectButton = dialogView
+                    .findViewById(R.id.createProjectButton);
 
             // Step 1 → Step 2: slide left (forward)
             dialogView.findViewById(R.id.newProjectCard).setOnClickListener(vok -> {
@@ -147,8 +147,10 @@ public class MainAreaScreen extends BaseAreaScreen {
                 viewFlipper.showNext();
                 // Auto-focus the text field
                 projectTitleInput.requestFocus();
-                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-                if (imm != null) imm.showSoftInput(projectTitleInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+                android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getContext()
+                        .getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+                if (imm != null)
+                    imm.showSoftInput(projectTitleInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
             });
 
             // Import option
@@ -189,8 +191,6 @@ public class MainAreaScreen extends BaseAreaScreen {
             dialog.show();
         });
 
-
-
         projectListView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         projectList = new ArrayList<>();
@@ -199,62 +199,57 @@ public class MainAreaScreen extends BaseAreaScreen {
 
         projectSwipeRefreshLayout.setOnRefreshListener(this::reloadingProject);
 
-
     }
 
-
-
-
     public void addNewProject() {
-        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
+        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(),
+                Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
         String projectName = projectPath.substring(projectPath.lastIndexOf("/") + 1);
         addNewProjectWithName(projectName);
     }
 
     public void addNewProjectWithName(String title) {
-//        String projectPath = IOHelper.getNextIndexPathInFolder(getContext(), Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
+        // String projectPath = IOHelper.getNextIndexPathInFolder(getContext(),
+        // Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), "project_", "", false);
         String projectPath = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(getContext()), title);
 
         File file = new File(projectPath);
-        if(file.mkdirs()) //If directory created operation was success
+        if (file.mkdirs()) // If directory created operation was success
         {
             ProjectData data = new ProjectData(projectPath, title, new Date().getTime(), 31122007, 8032007);
             data.version = BuildConfig.VERSION_NAME;
             projectList.add(data);
             projectAdapter.notifyItemInserted(projectList.size() - 1);
 
-            File basicDir = new File(IOHelper.CombinePath(projectPath, Constants.DEFAULT_CLIP_TEMP_DIRECTORY, "frames"));
-            if(!basicDir.exists())
+            File basicDir = new File(
+                    IOHelper.CombinePath(projectPath, Constants.DEFAULT_CLIP_TEMP_DIRECTORY, "frames"));
+            if (!basicDir.exists())
                 basicDir.mkdirs();
 
             File previewDir = new File(IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY));
-            if(!previewDir.exists())
+            if (!previewDir.exists())
                 previewDir.mkdirs();
-
 
             applySortAndRefresh();
             enterEditing(getContext(), data);
         }
     }
 
-    public void reloadingProject()
-    {
+    public void reloadingProject() {
         int beforeRange = projectList.size();
         projectList.clear();
         projectAdapter.notifyItemRangeRemoved(0, beforeRange);
         String projectsFolderPath = IOHelper.CombinePath(IOHelper.getPersistentDataPath(getContext()), "projects");
         File file = new File(projectsFolderPath);
-        if(file.listFiles() == null) {
+        if (file.listFiles() == null) {
             projectSwipeRefreshLayout.setRefreshing(false);
             return;
         }
         for (File directory : Objects.requireNonNull(file.listFiles())) {
-            if(directory.isDirectory())
-            {
+            if (directory.isDirectory()) {
                 ProjectData data = ProjectData.loadProperties(getContext(), directory.getAbsolutePath());
 
-                if(data != null)
-                {
+                if (data != null) {
                     projectList.add(data);
                     projectAdapter.notifyItemInserted(projectList.size() - 1);
                 }
@@ -268,7 +263,8 @@ public class MainAreaScreen extends BaseAreaScreen {
 
     /** Shows the sort bottom-sheet and saves the chosen preference. */
     private void showSortDialog() {
-        android.app.Dialog dialog = new android.app.Dialog(getContext(), com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
+        android.app.Dialog dialog = new android.app.Dialog(getContext(),
+                com.google.android.material.R.style.ThemeOverlay_Material3_BottomSheetDialog);
         View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_sort_projects, null);
         dialog.setContentView(dialogView);
         if (dialog.getWindow() != null) {
@@ -277,19 +273,28 @@ public class MainAreaScreen extends BaseAreaScreen {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
 
-        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext());
-        String currentSortBy    = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager
+                .getDefaultSharedPreferences(getContext());
+        String currentSortBy = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
         String currentSortOrder = prefs.getString(PREF_SORT_ORDER, SORT_ORDER_DESC);
 
-        com.google.android.material.chip.ChipGroup sortByGroup    = dialogView.findViewById(R.id.sortByChipGroup);
+        com.google.android.material.chip.ChipGroup sortByGroup = dialogView.findViewById(R.id.sortByChipGroup);
         com.google.android.material.chip.ChipGroup sortOrderGroup = dialogView.findViewById(R.id.sortOrderChipGroup);
 
         // Pre-select current sort-by chip
         switch (currentSortBy) {
-            case SORT_BY_NAME:     sortByGroup.check(R.id.chipSortName);     break;
-            case SORT_BY_DURATION: sortByGroup.check(R.id.chipSortDuration); break;
-            case SORT_BY_SIZE:     sortByGroup.check(R.id.chipSortSize);     break;
-            default:               sortByGroup.check(R.id.chipSortDate);     break;
+            case SORT_BY_NAME:
+                sortByGroup.check(R.id.chipSortName);
+                break;
+            case SORT_BY_DURATION:
+                sortByGroup.check(R.id.chipSortDuration);
+                break;
+            case SORT_BY_SIZE:
+                sortByGroup.check(R.id.chipSortSize);
+                break;
+            default:
+                sortByGroup.check(R.id.chipSortDate);
+                break;
         }
         // Pre-select current order chip
         if (SORT_ORDER_ASC.equals(currentSortOrder)) {
@@ -302,14 +307,19 @@ public class MainAreaScreen extends BaseAreaScreen {
             // Resolve chosen sort-by
             String chosenSortBy;
             int checkedSortById = sortByGroup.getCheckedChipId();
-            if      (checkedSortById == R.id.chipSortName)     chosenSortBy = SORT_BY_NAME;
-            else if (checkedSortById == R.id.chipSortDuration) chosenSortBy = SORT_BY_DURATION;
-            else if (checkedSortById == R.id.chipSortSize)     chosenSortBy = SORT_BY_SIZE;
-            else                                               chosenSortBy = SORT_BY_DATE;
+            if (checkedSortById == R.id.chipSortName)
+                chosenSortBy = SORT_BY_NAME;
+            else if (checkedSortById == R.id.chipSortDuration)
+                chosenSortBy = SORT_BY_DURATION;
+            else if (checkedSortById == R.id.chipSortSize)
+                chosenSortBy = SORT_BY_SIZE;
+            else
+                chosenSortBy = SORT_BY_DATE;
 
             // Resolve chosen order
             String chosenOrder = (sortOrderGroup.getCheckedChipId() == R.id.chipOrderOldest)
-                    ? SORT_ORDER_ASC : SORT_ORDER_DESC;
+                    ? SORT_ORDER_ASC
+                    : SORT_ORDER_DESC;
 
             // Persist
             prefs.edit()
@@ -324,10 +334,14 @@ public class MainAreaScreen extends BaseAreaScreen {
         dialog.show();
     }
 
-    /** Sorts projectList in-place according to the saved preference and notifies the adapter. */
+    /**
+     * Sorts projectList in-place according to the saved preference and notifies the
+     * adapter.
+     */
     public void applySortAndRefresh() {
-        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext());
-        String sortBy    = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager
+                .getDefaultSharedPreferences(getContext());
+        String sortBy = prefs.getString(PREF_SORT_BY, SORT_BY_DATE);
         String sortOrder = prefs.getString(PREF_SORT_ORDER, SORT_ORDER_DESC);
         boolean descending = SORT_ORDER_DESC.equals(sortOrder);
 
@@ -336,51 +350,44 @@ public class MainAreaScreen extends BaseAreaScreen {
             case SORT_BY_NAME:
                 comparator = java.util.Comparator.comparing(ProjectData::getProjectTitle,
                         String.CASE_INSENSITIVE_ORDER);
-                if (descending) comparator = comparator.reversed();
+                if (descending)
+                    comparator = comparator.reversed();
                 break;
             case SORT_BY_DURATION:
                 comparator = java.util.Comparator.comparingLong(ProjectData::getProjectDuration);
-                if (descending) comparator = comparator.reversed();
+                if (descending)
+                    comparator = comparator.reversed();
                 break;
             case SORT_BY_SIZE:
                 comparator = java.util.Comparator.comparingLong(ProjectData::getProjectSize);
-                if (descending) comparator = comparator.reversed();
+                if (descending)
+                    comparator = comparator.reversed();
                 break;
             default: // SORT_BY_DATE
                 comparator = java.util.Comparator.comparingLong(ProjectData::getProjectTimestamp);
-                if (descending) comparator = comparator.reversed();
+                if (descending)
+                    comparator = comparator.reversed();
                 break;
         }
 
         projectList.sort(comparator);
         projectAdapter.notifyDataSetChanged();
     }
-    public static void enterEditing(Context context, MainAreaScreen.ProjectData projectItem)
-    {
+
+    public static void enterEditing(Context context, MainAreaScreen.ProjectData projectItem) {
         Intent intent = new Intent(context, EditingActivity.class);
         intent.putExtra("ProjectProperties", projectItem);
         context.startActivity(intent);
     }
 
-
-
-
-
-
-
-    void importContent()
-    {
+    void importContent() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("application/zip");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         filePickerLauncher.launch(Intent.createChooser(intent, "Select Import Zip"));
     }
 
-
-
-
-    public void zippingProject(ProjectData data)
-    {
+    public void zippingProject(ProjectData data) {
         currentExportingProject = data;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.setType("application/zip");
@@ -388,13 +395,6 @@ public class MainAreaScreen extends BaseAreaScreen {
         intent.putExtra(Intent.EXTRA_TITLE, "export_" + data.projectTitle + ".zip");
         fileCreatorLauncher.launch(Intent.createChooser(intent, "Select Export"));
     }
-
-
-
-
-
-
-
 
     public static class ProjectData implements Serializable {
 
@@ -405,7 +405,8 @@ public class MainAreaScreen extends BaseAreaScreen {
         private long projectSize;
         private long projectDuration;
 
-        public ProjectData(String projectPath, String projectTitle, long projectTimestamp, long projectSize, long projectDuration) {
+        public ProjectData(String projectPath, String projectTitle, long projectTimestamp, long projectSize,
+                long projectDuration) {
             this.projectPath = projectPath;
             this.projectTitle = projectTitle;
             this.projectTimestamp = projectTimestamp;
@@ -413,19 +414,22 @@ public class MainAreaScreen extends BaseAreaScreen {
             this.projectDuration = projectDuration;
         }
 
-
         public String getProjectPath() {
             return projectPath;
         }
+
         public String getProjectTitle() {
             return projectTitle;
         }
+
         public long getProjectTimestamp() {
             return projectTimestamp;
         }
+
         public long getProjectSize() {
             return projectSize;
         }
+
         public long getProjectDuration() {
             return projectDuration;
         }
@@ -433,6 +437,7 @@ public class MainAreaScreen extends BaseAreaScreen {
         public void setProjectPath(String projectPath) {
             this.projectPath = projectPath;
         }
+
         public void setProjectTitle(Context context, String projectTitle, boolean changeFilePath) {
             // Provide a fallback if the operation failed
             String oldProjectTitle = this.projectTitle;
@@ -440,18 +445,19 @@ public class MainAreaScreen extends BaseAreaScreen {
 
             this.projectTitle = projectTitle;
 
-            if(!changeFilePath) return;
+            if (!changeFilePath)
+                return;
 
             // Change the path along the way
             String newDir = IOHelper.CombinePath(Constants.DEFAULT_PROJECT_DIRECTORY(context), projectTitle);
             File newName = new File(newDir);
-            if(!new File(getProjectPath()).renameTo(newName)) {
+            if (!new File(getProjectPath()).renameTo(newName)) {
                 this.projectPath = oldProjectTitle;
                 LoggingManager.LogToToast(context, "Rename failed (1)");
                 return;
             }
             setProjectPath(newDir);
-            if(!new File(getProjectPath()).exists()) {
+            if (!new File(getProjectPath()).exists()) {
                 this.projectPath = oldProjectTitle;
                 setProjectPath(oldDir);
                 LoggingManager.LogToToast(context, "Rename failed (2)");
@@ -461,26 +467,26 @@ public class MainAreaScreen extends BaseAreaScreen {
             // Re-update properties after renaming the entire folder
             savePropertiesAtProject(context);
         }
+
         public void setProjectTimestamp(long projectTimestamp) {
             this.projectTimestamp = projectTimestamp;
         }
+
         public void setProjectSize(long projectSize) {
             this.projectSize = projectSize;
         }
+
         public void setProjectDuration(long projectDuration) {
             this.projectDuration = projectDuration;
         }
 
-
-
-
-
-        public void savePropertiesAtProject(Context context)
-        {
-            IOHelper.writeToFile(context, IOHelper.CombinePath(getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME), new Gson().toJson(this));
+        public void savePropertiesAtProject(Context context) {
+            IOHelper.writeToFile(context,
+                    IOHelper.CombinePath(getProjectPath(), Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME),
+                    new Gson().toJson(this));
         }
-        public void loadPropertiesFromProject(Context context)
-        {
+
+        public void loadPropertiesFromProject(Context context) {
             ProjectData data = loadProperties(context, getProjectPath());
             this.version = data.version;
             this.projectPath = data.projectPath;
@@ -489,12 +495,13 @@ public class MainAreaScreen extends BaseAreaScreen {
             this.projectSize = data.projectSize;
             this.projectDuration = data.projectDuration;
         }
-        public static ProjectData loadProperties(Context context, String path)
-        {
-            return new Gson().fromJson(IOHelper.readFromFile(context, IOHelper.CombinePath(path, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)), ProjectData.class);
+
+        public static ProjectData loadProperties(Context context, String path) {
+            return new Gson().fromJson(
+                    IOHelper.readFromFile(context,
+                            IOHelper.CombinePath(path, Constants.DEFAULT_PROJECT_PROPERTIES_FILENAME)),
+                    ProjectData.class);
         }
-
-
 
         @NonNull
         @Override
@@ -502,8 +509,8 @@ public class MainAreaScreen extends BaseAreaScreen {
             return new ProjectData(projectPath, projectTitle, projectTimestamp, projectSize, projectDuration);
         }
     }
-    public class ProjectDataAdapter extends RecyclerView.Adapter<ProjectDataViewHolder>
-    {
+
+    public class ProjectDataAdapter extends RecyclerView.Adapter<ProjectDataViewHolder> {
 
         private List<ProjectData> projectList;
         private Context context;
@@ -513,6 +520,7 @@ public class MainAreaScreen extends BaseAreaScreen {
             this.context = context;
             this.projectList = projectList;
         }
+
         @Override
         public ProjectDataViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(context).inflate(R.layout.cpn_project_element, parent, false);
@@ -525,16 +533,21 @@ public class MainAreaScreen extends BaseAreaScreen {
             ProjectData projectItem = projectList.get(position);
 
             holder.projectTitle.setText(projectItem.getProjectTitle());
-            //holder.projectDatetime.setText(new Date(projectItem.getProjectTimestamp()).toString());
-            holder.projectDatetime.setText(DateHelper.convertTimestampToDateTimeStringFormat(projectItem.getProjectTimestamp()));
-            holder.projectSize.setText(StringFormatHelper.smartRound((projectItem.getProjectSize() / 1024d / 1024d), 2, true) + "MB");
+            // holder.projectDatetime.setText(new
+            // Date(projectItem.getProjectTimestamp()).toString());
+            holder.projectDatetime
+                    .setText(DateHelper.convertTimestampToDateTimeStringFormat(projectItem.getProjectTimestamp()));
+            holder.projectSize.setText(
+                    StringFormatHelper.smartRound((projectItem.getProjectSize() / 1024d / 1024d), 2, true) + "MB");
             holder.projectDuration.setText(DateHelper.convertTimestampToHHMMSSFormat(projectItem.getProjectDuration()));
 
-            if(!IOHelper.isFileExist(IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png")))
-                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png"), ImageHelper.createBitmapFromDrawable(AppCompatResources.getDrawable(context, R.drawable.logo)));
-            Bitmap iconBitmap = IOImageHelper.LoadFileAsPNGImage(context, IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png"));
-            if(iconBitmap != null)
-            {
+            if (!IOHelper.isFileExist(IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png")))
+                IOImageHelper.SaveFileAsPNGImage(context,
+                        IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png"),
+                        ImageHelper.createBitmapFromDrawable(AppCompatResources.getDrawable(context, R.drawable.logo)));
+            Bitmap iconBitmap = IOImageHelper.LoadFileAsPNGImage(context,
+                    IOHelper.CombinePath(projectItem.getProjectPath(), "preview.png"));
+            if (iconBitmap != null) {
                 holder.projectPreview.setImageBitmap((iconBitmap));
             }
             holder.projectTitle.setOnLongClickListener(v -> {
@@ -549,41 +562,40 @@ public class MainAreaScreen extends BaseAreaScreen {
                 popup.getMenuInflater().inflate(R.menu.menu_cpn_project_element_more, popup.getMenu());
 
                 popup.setOnMenuItemClickListener(item -> {
-                    if(item.getItemId() == R.id.action_edit)
-                    {
+                    if (item.getItemId() == R.id.action_edit) {
                         EditProjectTitle(projectItem);
                         return true;
-                    }
-                    else if(item.getItemId() == R.id.action_share)
-                    {
-                        // Add ffmpeg cmd for ready-to-use rendering in other platform. Can be made into template
-                        EditingActivity.VideoSettings videoSettings = new EditingActivity.VideoSettings(1920, 1080, 30, 18, Integer.MAX_VALUE,
+                    } else if (item.getItemId() == R.id.action_share) {
+                        // Add ffmpeg cmd for ready-to-use rendering in other platform. Can be made into
+                        // template
+                        EditingActivity.VideoSettings videoSettings = new EditingActivity.VideoSettings(1920, 1080, 30,
+                                18, Integer.MAX_VALUE,
                                 EditingActivity.VideoSettings.FfmpegPreset.MEDIUM,
                                 EditingActivity.VideoSettings.FfmpegTune.ZEROLATENCY);
-                        EditingActivity.Timeline timeline = EditingActivity.Timeline.loadRawTimeline(context, projectItem);
+                        EditingActivity.Timeline timeline = EditingActivity.Timeline.loadRawTimeline(context,
+                                projectItem);
                         String ffmpegCmdPath = IOHelper.CombinePath(projectItem.getProjectPath(), "ffmpegCmd.txt");
-                        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(videoSettings, timeline, new EditingActivity.Clip[0], projectItem, 0, false, false, false);
-                        IOHelper.writeToFile(context, ffmpegCmdPath, FFmpegEdit.generateCmdFull(context, renderSettings));
-
+                        FFmpegEdit.RenderSettings renderSettings = new FFmpegEdit.RenderSettings(videoSettings,
+                                timeline, new EditingActivity.Clip[0], projectItem, 0, false, false, false);
+                        IOHelper.writeToFile(context, ffmpegCmdPath,
+                                FFmpegEdit.generateCmdFull(context, renderSettings));
 
                         zippingProject(projectItem);
 
-
-
-
                         return true;
-                    }
-                    else if(item.getItemId() == R.id.action_upload)
-                    {
-
+                    } else if (item.getItemId() == R.id.action_upload) {
+                        Context c = context;
+                        while (c instanceof ContextWrapper) {
+                            if (c instanceof MainActivity) {
+                                ((MainActivity) c).storageAreaScreen.backUp(projectItem);
+                                break;
+                            }
+                            c = ((ContextWrapper) c).getBaseContext();
+                        }
                         return true;
-                    }
-                    else if(item.getItemId() == R.id.action_clone)
-                    {
+                    } else if (item.getItemId() == R.id.action_clone) {
                         String projectPath = IOHelper.CombinePath(projectItem.projectPath + "_clone");
                         String oldProjectPath = projectItem.projectPath;
-
-
 
                         IOHelper.copyDir(context, oldProjectPath, projectPath);
 
@@ -597,16 +609,14 @@ public class MainAreaScreen extends BaseAreaScreen {
 
                         reloadingProject();
 
-
                         return true;
-                    }
-                    else if(item.getItemId() == R.id.action_delete)
-                    {
+                    } else if (item.getItemId() == R.id.action_delete) {
                         new AlertDialog.Builder(context)
                                 .setTitle(context.getString(R.string.alert_delete_project_confirmation_title))
                                 .setMessage(context.getString(R.string.alert_delete_project_confirmation_description))
 
-                                // Specifying a listener allows you to take an action before dismissing the dialog.
+                                // Specifying a listener allows you to take an action before dismissing the
+                                // dialog.
                                 // The dialog is automatically dismissed when a dialog button is clicked.
                                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                                     // Continue with delete operation
@@ -617,7 +627,8 @@ public class MainAreaScreen extends BaseAreaScreen {
 
                                 })
 
-                                // A null listener allows the button to dismiss the dialog and take no further action.
+                                // A null listener allows the button to dismiss the dialog and take no further
+                                // action.
                                 .setNegativeButton(android.R.string.cancel, null)
                                 .setIconAttribute(android.R.attr.alertDialogIcon)
                                 .show();
@@ -629,9 +640,7 @@ public class MainAreaScreen extends BaseAreaScreen {
                 popup.show();
             });
 
-
             MainActivity.MigrationHelper.migrate(projectItem);
-
 
             holder.wholeView.setOnClickListener(v -> {
                 enterEditing(context, projectItem);
@@ -677,7 +686,6 @@ public class MainAreaScreen extends BaseAreaScreen {
             // Show the dialog
             dialog.show();
 
-
         }
 
         @Override
@@ -685,11 +693,13 @@ public class MainAreaScreen extends BaseAreaScreen {
             return projectList.size();
         }
     }
+
     public static class ProjectDataViewHolder extends RecyclerView.ViewHolder {
         TextView projectTitle, projectDatetime, projectSize, projectDuration;
         ImageView projectPreview;
         ImageButton moreButton;
         View wholeView;
+
         public ProjectDataViewHolder(@NonNull View itemView) {
             super(itemView);
             wholeView = itemView;

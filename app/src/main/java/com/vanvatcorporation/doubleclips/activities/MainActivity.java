@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivityImpl {
     MainAreaScreen homeAreaScreen;
     TemplateAreaScreen templateAreaScreen;
     ProfileAreaScreen profileAreaScreen;
-    StorageAreaScreen storageAreaScreen;
+    public StorageAreaScreen storageAreaScreen;
 
 
     @Override

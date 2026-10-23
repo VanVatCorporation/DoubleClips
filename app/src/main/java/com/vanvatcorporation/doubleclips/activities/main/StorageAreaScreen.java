@@ -466,9 +466,12 @@ public class StorageAreaScreen extends BaseAreaScreen {
     }
 
     /** Packs the project (the same ZIP as "Export project") and uploads it to OpenEditz/Projects. */
-    private void backUp(MainAreaScreen.ProjectData project) {
+    public void backUp(MainAreaScreen.ProjectData project) {
+        if (!hasSession()) { toast("Sign in from the Profile tab first."); return; }
         if (termsPending()) { showTerms(); return; }
         // The ZIP is never bigger than the project folder, so that is the size to warn about before packing.
+        // If me is null (Storage tab not yet loaded) skip the pre-check; doBackUp fetches a fresh /me anyway.
+        if (me == null) { doBackUp(project); return; }
         async(() -> folderSize(new File(project.getProjectPath())), size -> {
             long free = Quota.uploadFree(me);
             if (size > free) {
