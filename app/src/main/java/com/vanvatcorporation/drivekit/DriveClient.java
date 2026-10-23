@@ -34,6 +34,8 @@ public class DriveClient {
         String token();
         void onRefreshed(String token);
         void onUnauthorized();
+        /** 403 tos_required: new terms were published; refresh /me (its `legal` then shows the popup). Optional. */
+        default void onTosRequired() {}
     }
 
     public interface Progress { void onProgress(long done, long total); }
@@ -65,8 +67,10 @@ public class DriveClient {
 
     // ── plumbing ────────────────────────────────────────────────────────────
 
-    private Request.Builder req(String path, boolean authed) {
-        Request.Builder b = new Request.Builder().url(base + "/api/v2/drive" + path);
+    private Request.Builder req(String path, boolean authed) { return reqAt("/api/v2/drive", path, authed); }
+
+    private Request.Builder reqAt(String prefix, String path, boolean authed) {
+        Request.Builder b = new Request.Builder().url(base + prefix + path);
         if (authed) {
             String h = authHeader();
             if (h != null) b.header("Authorization", h);
@@ -92,6 +96,7 @@ public class DriveClient {
             if (o.has("code") && !o.get("code").isJsonNull()) code = o.get("code").getAsString();
         } catch (Exception ignored) { /* not JSON */ }
         if (status == 401 && auth != null) auth.onUnauthorized();
+        if (status == 403 && "tos_required".equals(code) && auth != null) auth.onTosRequired();
         return new DriveException(status, code, message);
     }
 
@@ -124,6 +129,26 @@ public class DriveClient {
         Map<String, Object> m = new HashMap<>();
         for (int i = 0; i + 1 < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
         return m;
+    }
+
+    // ── legal (Terms of Service / Privacy Policy) ───────────────────────────
+
+    /** Public. The language falls back: lang -> Accept-Language -> English. */
+    public Models.LegalDocument legalDocument(String key, String lang) throws DriveException {
+        String path = "/documents/" + key + (lang == null || lang.isEmpty() ? "" : "?lang=" + lang.replaceAll("[^A-Za-z-]", ""));
+        return gson.fromJson(obj(exec(reqAt("/api/v2/legal", path, false).get())).get("document"), Models.LegalDocument.class);
+    }
+
+    /** Records that the user accepted exactly the versions they were shown. 409 version_changed = new terms were published meanwhile. */
+    public Models.LegalStatus acceptLegal(Map<String, String> versions, String lang) throws DriveException {
+        Map<String, Object> body = map("versions", versions, "lang", lang);
+        String res = exec(reqAt("/api/v2/legal", "/accept", true).header("X-Client", "android").post(json(body)));
+        return gson.fromJson(obj(res).get("status"), Models.LegalStatus.class);
+    }
+
+    /** The full page in the web app: /terms or /privacy. */
+    public String legalPageUrl(String slug, String lang) {
+        return base + "/" + slug + (lang == null || lang.isEmpty() ? "" : "?lang=" + lang);
     }
 
     // ── account ─────────────────────────────────────────────────────────────
@@ -167,6 +192,19 @@ public class DriveClient {
         return node(send("PATCH", "/nodes/" + id, destinationId == null ? map("moveToRoot", true) : map("parentId", destinationId)));
     }
 
+    /**
+     * Copies an item (a folder recursively) into another folder, on the server's disk: no download/upload allowance is
+     * used, but the copy needs free storage. destinationId null = the root of My Drive.
+     */
+    public Models.Node copy(String id, String destinationId) throws DriveException {
+        return node(send("POST", "/nodes/" + id + "/copy", destinationId == null ? map() : map("parentId", destinationId)));
+    }
+
+    /** Turns image thumbnails in folders on/off for this account (shared with the web and Soprise's picker). */
+    public void updateSettings(boolean previewThumbnails) throws DriveException {
+        send("PUT", "/settings", map("previewThumbnails", previewThumbnails));
+    }
+
     public void trash(String id) throws DriveException { send("DELETE", "/nodes/" + id, null); }
     public void restore(String id) throws DriveException { send("POST", "/nodes/" + id + "/restore", null); }
     public void purge(String id) throws DriveException { send("DELETE", "/trash/" + id, null); }
@@ -204,6 +242,9 @@ public class DriveClient {
     // ── downloads ───────────────────────────────────────────────────────────
 
     public String contentUrl(String id) { return base + "/api/v2/drive/files/" + id + "/content"; }
+
+    /** The same file served inline (images show in place); this is what a thumbnail loads. */
+    public String inlineContentUrl(String id) { return contentUrl(id) + "?inline=1"; }
 
     /** ZIP of files/folders, built on the fly by the server. Send the Authorization header (DownloadManager can). */
     public String zipUrl(List<String> ids) { return base + "/api/v2/drive/download/zip?ids=" + join(ids); }

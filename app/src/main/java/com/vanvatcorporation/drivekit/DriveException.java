@@ -21,4 +21,7 @@ public class DriveException extends IOException {
 
     public boolean isUnauthorized() { return status == 401; }
     public boolean isLimit() { return status == 429; }
+
+    /** New terms were published and the user has not accepted them yet. */
+    public boolean isTosRequired() { return status == 403 && "tos_required".equals(code); }
 }

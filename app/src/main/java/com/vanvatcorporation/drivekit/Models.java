@@ -42,6 +42,49 @@ public final class Models {
         /** Largest single file the plan allows (0 on older servers). */
         public long maxFileBytes;
         public Plan plan;
+        /** Per-account Drive preferences (null from older servers). */
+        public Settings settings;
+        /** Terms of Service / Privacy Policy: what this user still has to accept (a blocking popup when required). */
+        public LegalStatus legal;
+    }
+
+    // ── Terms of Service / Privacy Policy (backend LegalApp). The server parses the Markdown into blocks of styled runs. ──
+
+    public static class LegalSpan {
+        public String t;
+        public Boolean b, i, c;
+        public String href;
+    }
+
+    /** type: h (heading, level), p, li (depth, ordered, number), quote, rule. */
+    public static class LegalBlock {
+        public String type;
+        public List<LegalSpan> spans;
+        public Integer level, depth, number;
+        public Boolean ordered;
+    }
+
+    public static class LegalDocument {
+        public String key, slug, version, lastUpdated, lang, title;
+        public boolean fallback;
+        public List<String> languages;
+        public List<LegalBlock> blocks;
+    }
+
+    public static class LegalStatusDoc {
+        public String key, slug, version, lastUpdated, title;
+        public boolean accepted;
+    }
+
+    public static class LegalStatus {
+        public String product, inline;
+        public boolean required;
+        public List<LegalStatusDoc> documents;
+    }
+
+    public static class Settings {
+        /** Null = default (on). */
+        public Boolean previewThumbnails;
     }
 
     public static class Listing {

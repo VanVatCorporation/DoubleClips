@@ -45,6 +45,8 @@ import com.vanvatcorporation.drivekit.Models;
 import com.vanvatcorporation.drivekit.OpenEditzClient;
 import com.vanvatcorporation.drivekit.Quota;
 import com.vanvatcorporation.drivekit.QuotaUi;
+import com.vanvatcorporation.drivekit.TermsGate;
+import com.vanvatcorporation.drivekit.Thumbs;
 import com.vanvatcorporation.drivekit.ResumableUpload;
 
 import java.io.File;
@@ -147,6 +149,8 @@ public class StorageAreaScreen extends BaseAreaScreen {
                 @Override public String token() { return RetrofitClient.getInstance(getContext()).getAuthToken(); }
                 @Override public void onRefreshed(String token) { /* the cookie jar stays the source of truth */ }
                 @Override public void onUnauthorized() { ui.post(() -> toast("Your session expired. Please sign in again from the Profile tab.")); }
+                // New terms were published while the app was open: reloading reads /me, whose `legal` shows the popup.
+                @Override public void onTosRequired() { ui.post(StorageAreaScreen.this::reload); }
             });
             openEditz = new OpenEditzClient(drive);
         }
@@ -188,6 +192,15 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     // ── load ────────────────────────────────────────────────────────────────
 
+    /** The user still has to accept the current Terms of Service / Privacy Policy (from /me). */
+    private boolean termsPending() { return me != null && me.legal != null && me.legal.required; }
+
+    /** The blocking popup; once accepted the list loads. */
+    private void showTerms() {
+        MainActivity act = activity();
+        if (act != null && termsPending()) TermsGate.show(act, drive, me.legal, this::reload);
+    }
+
     private void reload() {
         if (!hasSession()) {
             swipe.setRefreshing(false);
@@ -199,13 +212,21 @@ public class StorageAreaScreen extends BaseAreaScreen {
         swipe.setRefreshing(true);
         final Models.Node folder = currentFolder();
         async(() -> {
+            // /me first: until the Terms of Service are accepted the listing is refused, and /me says what to show.
+            Models.Me fresh = openEditz().client().me();
+            if (fresh.legal != null && fresh.legal.required) return new Object[]{null, fresh};
             List<Models.Node> list = new ArrayList<>(openEditz().list(folder));
             Collections.sort(list, (a, b) -> a.isFolder != b.isFolder ? (a.isFolder ? -1 : 1) : a.name.compareToIgnoreCase(b.name));
-            Models.Me fresh = drive.me();
             return new Object[]{list, fresh};
         }, r -> {
             loadedOnce = true;
             swipe.setRefreshing(false);
+            if (r[0] == null) {                              // terms not accepted yet: nothing to list, show the popup
+                me = (Models.Me) r[1];
+                renderHeader();
+                showTerms();
+                return;
+            }
             items.clear();
             @SuppressWarnings("unchecked") List<Models.Node> list = (List<Models.Node>) r[0];
             items.addAll(list);
@@ -340,6 +361,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     /** Called by MainActivity with the picker result. */
     public void uploadPicked(Intent data) {
+        if (termsPending()) { showTerms(); return; }
         final ArrayList<Uri> uris = new ArrayList<>();
         ClipData clip = data.getClipData();
         if (clip != null) for (int i = 0; i < clip.getItemCount(); i++) uris.add(clip.getItemAt(i).getUri());
@@ -445,6 +467,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     /** Packs the project (the same ZIP as "Export project") and uploads it to OpenEditz/Projects. */
     private void backUp(MainAreaScreen.ProjectData project) {
+        if (termsPending()) { showTerms(); return; }
         // The ZIP is never bigger than the project folder, so that is the size to warn about before packing.
         async(() -> folderSize(new File(project.getProjectPath())), size -> {
             long free = Quota.uploadFree(me);
@@ -501,6 +524,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
 
     /** Downloads a project ZIP from OpenEditz and hands it to the normal import. */
     private void restore(Models.Node node) {
+        if (termsPending()) { showTerms(); return; }
         long free = Quota.downloadFree(me);
         if (node.size > free) {
             QuotaUi.warn(getContext(), Quota.downloadWarnTitle(), Quota.downloadWarnMessage(node.size, free), () -> doRestore(node), null);
@@ -527,6 +551,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
     // ── save a file to Downloads ────────────────────────────────────────────
 
     private void saveToDownloads(Models.Node node) {
+        if (termsPending()) { showTerms(); return; }
         long free = Quota.downloadFree(me);
         if (node.size > free) {
             QuotaUi.warn(getContext(), Quota.downloadWarnTitle(), Quota.downloadWarnMessage(node.size, free), () -> doSaveToDownloads(node), null);
@@ -596,7 +621,11 @@ public class StorageAreaScreen extends BaseAreaScreen {
             h.name.setText(n.name);
             String date = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(new Date(Models.parseDate(n.updatedAt)));
             h.meta.setText(n.isFolder ? date : bytes(n.size) + "  ·  " + date);
-            h.icon.setImageResource(n.isFolder ? R.drawable.baseline_folder_24 : R.drawable.baseline_file_copy_24);
+            // Image thumbnails follow the account's "Preview thumbnails" setting (Settings > Van Vat Drive); each is downloaded once.
+            Thumbs.bind(h.icon, drive, n, Thumbs.enabled(me), n.isFolder ? R.drawable.baseline_folder_24 : R.drawable.baseline_file_copy_24,
+                    android.content.res.ColorStateList.valueOf(com.google.android.material.color.MaterialColors.getColor(h.icon,
+                            com.google.android.material.R.attr.colorOnSurfaceVariant)),
+                    (int) (6 * h.icon.getResources().getDisplayMetrics().density));
             h.itemView.setOnClickListener(v -> {
                 if (n.isFolder) { trail.add(n); reload(); } else showMenu(n);
             });

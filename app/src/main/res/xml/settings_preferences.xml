@@ -24,5 +24,28 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Van Vat Drive">
+
+        <!-- Lives on the account (shared with the web and the Drive apps), so it is not stored on this device. -->
+        <SwitchPreference
+            android:defaultValue="true"
+            android:key="drive_preview_thumbnails"
+            android:persistent="false"
+            android:summary="Shows small previews of your images in the Storage tab. Every preview downloads the image once, so it uses your daily download allowance."
+            android:title="Preview thumbnails" />
+
+        <Preference
+            android:key="drive_terms"
+            android:title="Terms of Service">
+            <intent android:action="android.intent.action.VIEW" android:data="https://drive.vanvatcorp.com/terms" />
+        </Preference>
+
+        <Preference
+            android:key="drive_privacy"
+            android:title="Privacy Policy">
+            <intent android:action="android.intent.action.VIEW" android:data="https://drive.vanvatcorp.com/privacy" />
+        </Preference>
+
+    </PreferenceCategory>
 
 </PreferenceScreen>

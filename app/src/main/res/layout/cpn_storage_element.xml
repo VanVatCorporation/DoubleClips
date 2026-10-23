@@ -20,12 +20,11 @@
 
         <ImageView
             android:id="@+id/storageIcon"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_centerVertical="true"
             android:padding="6dp"
-            android:src="@drawable/baseline_file_copy_24"
-            app:tint="?attr/colorOnSurfaceVariant" />
+            android:src="@drawable/baseline_file_copy_24" />
 
         <LinearLayout
             android:layout_width="match_parent"

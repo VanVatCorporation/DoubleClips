@@ -59,7 +59,7 @@
     <string name="menu_cpn_project_element_edit">Edit title</string>
     <string name="menu_cpn_project_element_delete">Delete project</string>
     <string name="menu_cpn_project_element_share">Share project</string>
-    <string name="menu_cpn_project_element_upload">Upload project</string>
+    <string name="menu_cpn_project_element_upload">Back up to Drive</string>
     <string name="menu_cpn_project_element_clone">Clone project</string>
 
     <string name="menu_cpn_project_files_delete">Delete media</string>
