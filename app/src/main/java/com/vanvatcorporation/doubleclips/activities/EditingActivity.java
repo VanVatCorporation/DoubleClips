@@ -4745,7 +4745,17 @@ public class EditingActivity extends AppCompatActivityImpl {
      */
     private Bitmap thumbnailStrip(Clip clip)
     {
-        Bitmap strip = combineThumbnails(extractThumbnail(this, clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), clip));
+        Bitmap strip;
+        try {
+            // Only picture / sound clips have a file behind them; an effect, text or 3D clip has none (its thumbnail is a tint).
+            boolean hasFile = clip.type == ClipType.VIDEO || clip.type == ClipType.IMAGE || clip.type == ClipType.AUDIO;
+            String path = hasFile ? clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION) : "";
+            strip = combineThumbnails(extractThumbnail(this, path, clip));
+        } catch (Exception | OutOfMemoryError e) {
+            // Whatever goes wrong, the caller (a background thread) must still get a bitmap: without one the clip's loading
+            // circle never stops and the drag ghost, which copies that bitmap, is invisible.
+            strip = ImageHelper.createSolidColorBitmap(100, 100, 0xFF333333);
+        }
         if (clip.type != ClipType.VIDEO || strip == null) return strip;
         try {
             int bandHeight = Math.round(strip.getHeight() * 0.3f);
@@ -4761,6 +4771,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     private static Bitmap combineThumbnails(List<Bitmap> frames)
     {
+        frames.removeIf(java.util.Objects::isNull); // a frame that failed to decode is skipped
+        if (frames.isEmpty()) return ImageHelper.createSolidColorBitmap(100, 100, 0xFF333333);
         int totalWidth = frames.size() * frames.get(0).getWidth();
         int height = frames.get(0).getHeight();
 
@@ -5993,7 +6005,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         // TODO: Raise a Popup consent to user to regenerate Preview media if not available.
         //  before that, check if it was VIDEO or AUDIO type, IMAGE and other don't need preview.
         public String getAbsolutePreviewPath(String projectPath, String previewExtension) {
-            String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, getClipName().substring(0, getClipName().lastIndexOf('.')) + previewExtension);
+            // Effect / text / 3D clips are named "EFFECT", "TEXT", "3DScene": no extension, and no preview file either.
+            String name = getClipName() == null ? "" : getClipName();
+            int dot = name.lastIndexOf('.');
+            String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, (dot > 0 ? name.substring(0, dot) : name) + previewExtension);
             // Fallback if not available yet.
             // TODO: Temporary fix for the soon preview loading. Consider block main thread for preview to have time to load first
             if(!IOHelper.isFileExist(path))

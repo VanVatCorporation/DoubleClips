@@ -3,6 +3,7 @@ package com.vanvatcorporation.doubleclips.activities.main;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;

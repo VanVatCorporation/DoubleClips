@@ -22,6 +22,7 @@ import com.vanvatcorporation.doubleclips.activities.EditingActivity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
@@ -110,8 +111,8 @@ public class TransitionEditSpecificAreaScreen extends BaseEditSpecificAreaScreen
                     renderer.staticTile(StyleTileRenderer.Kind.TRANSITION, id, onReady::accept);
                 }
 
-                @Override public void loopFrames(Consumer<List<Bitmap>> onReady) {
-                    renderer.loopFrames(StyleTileRenderer.Kind.TRANSITION, id, onReady::accept);
+                @Override public void loopFrames(BooleanSupplier wanted, Consumer<List<Bitmap>> onReady) {
+                    renderer.loopFrames(StyleTileRenderer.Kind.TRANSITION, id, wanted, onReady::accept);
                 }
             }, false));
         }

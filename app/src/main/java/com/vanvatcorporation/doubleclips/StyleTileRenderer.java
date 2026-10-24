@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * Draws the preview tiles of the style pickers (iOS TransitionTileRenderer / the effect tiles): every tile shows its
@@ -100,7 +101,8 @@ public final class StyleTileRenderer {
             callback.onReady(cached);
             return;
         }
-        worker.post(() -> {
+        // Front of the queue: a tile that just scrolled into view must not wait behind the loops of the tiles before it.
+        worker.postAtFrontOfQueue(() -> {
             Bitmap made = null;
             try {
                 List<Bitmap> gif = gifFrames(kind, styleId);
@@ -115,21 +117,28 @@ public final class StyleTileRenderer {
         });
     }
 
-    /** The frames of the selected tile's loop ({@link #LOOP_FPS} fps, {@link #LOOP_SECONDS} s), or null. */
-    public void loopFrames(Kind kind, String styleId, Callback<List<Bitmap>> callback) {
+    /**
+     * The frames of a tile's loop ({@link #LOOP_FPS} fps, {@link #LOOP_SECONDS} s), or null (cannot be drawn, or no longer
+     * {@code wanted}). {@code wanted} is asked before every frame, from the worker thread: a tile that scrolled out of
+     * view stops costing GPU time at once.
+     */
+    public void loopFrames(Kind kind, String styleId, BooleanSupplier wanted, Callback<List<Bitmap>> callback) {
         worker.post(() -> {
             List<Bitmap> frames = null;
             try {
-                frames = gifFrames(kind, styleId);
-                if (frames == null && ensureGl()) {
-                    int count = Math.round(LOOP_SECONDS * LOOP_FPS);
-                    frames = new ArrayList<>(count);
-                    for (int i = 0; i < count; i++) {
-                        float phase = i / (float) count;
-                        float p = phase < LOOP_REST ? 0f : (phase > 1f - LOOP_REST ? 1f : (phase - LOOP_REST) / (1f - 2f * LOOP_REST));
-                        Bitmap f = renderAt(kind, styleId, p);
-                        if (f == null) { frames = null; break; }
-                        frames.add(f);
+                if (wanted.getAsBoolean()) {
+                    frames = gifFrames(kind, styleId);
+                    if (frames == null && ensureGl()) {
+                        int count = Math.round(LOOP_SECONDS * LOOP_FPS);
+                        frames = new ArrayList<>(count);
+                        for (int i = 0; i < count; i++) {
+                            if (!wanted.getAsBoolean()) { frames = null; break; }
+                            float phase = i / (float) count;
+                            float p = phase < LOOP_REST ? 0f : (phase > 1f - LOOP_REST ? 1f : (phase - LOOP_REST) / (1f - 2f * LOOP_REST));
+                            Bitmap f = renderAt(kind, styleId, p);
+                            if (f == null) { frames = null; break; }
+                            frames.add(f);
+                        }
                     }
                 }
             } catch (RuntimeException e) {
@@ -368,7 +377,9 @@ public final class StyleTileRenderer {
                 tc.duration = TRANSITION_SECONDS;
                 tc.mode = EditingActivity.TransitionClip.TransitionMode.OVERLAP;
                 clipA.endTransition = tc;
-                clipA.setEndTransitionEnabled(true);
+                // The field, not setEndTransitionEnabled(): that also shows the timeline knot view, which this stand-in clip
+                // doesn't have (it would throw, and every transition tile would stay an empty placeholder).
+                clipA.endTransitionEnabled = true;
             }
             // The OVERLAP window is [cut - d, cut): p = 0 is the start of A's last second, p = 1 is B alone just after the cut.
             t = p >= 0.999f ? 2.02f : (2f - TRANSITION_SECONDS) + p * TRANSITION_SECONDS;

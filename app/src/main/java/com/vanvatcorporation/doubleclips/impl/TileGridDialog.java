@@ -11,6 +11,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -25,7 +26,14 @@ import com.vanvatcorporation.doubleclips.StyleTileRenderer;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -41,8 +49,11 @@ public final class TileGridDialog {
         /** The tile's still picture. */
         void staticFrame(Consumer<Bitmap> onReady);
 
-        /** The frames of its loop (played while this tile is the selected one), or null when it has none. */
-        void loopFrames(Consumer<List<Bitmap>> onReady);
+        /**
+         * The frames of its loop (played while the tile is on screen), or null when it has none or {@code wanted} turned
+         * false first (asked from the drawing thread: the tile scrolled out of view or the dialog closed).
+         */
+        void loopFrames(BooleanSupplier wanted, Consumer<List<Bitmap>> onReady);
     }
 
     public static final class Tile {
@@ -260,30 +271,85 @@ public final class TileGridDialog {
 
         dialog.show();
 
-        // The selected live tile loops (the others stay frozen halfway).
-        int selectedIndex = -1;
-        for (int i = 0; i < tiles.size(); i++) if (tiles.get(i).id != null && tiles.get(i).id.equals(selectedId)) selectedIndex = i;
-        if (selectedIndex >= 0 && tiles.get(selectedIndex).async != null) {
-            final int index = selectedIndex;
-            final boolean[] stopped = {false};
-            dialog.setOnDismissListener(d -> stopped[0] = true);
-            tiles.get(index).async.loopFrames(frames -> {
-                if (frames == null || frames.isEmpty() || stopped[0]) return;
-                final Handler handler = new Handler(Looper.getMainLooper());
-                handler.post(new Runnable() {
-                    int frameIndex = 0;
+        // Every live tile ON SCREEN plays its loop (like iOS), not only the selected one. Loops are drawn only for the visible
+        // tiles (the GPU does it, one tile at a time, and stops for a tile that scrolls away), and only a bounded number of them
+        // is kept in memory (about 4 MB each): the ones far from the screen are dropped first and drawn again when scrolled back.
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final boolean[] stopped = {false};
+        final AtomicInteger firstVisible = new AtomicInteger(0), visibleCount = new AtomicInteger(0);
+        final Map<Integer, List<Bitmap>> loops = new LinkedHashMap<>();
+        final Set<Integer> loopRequested = new HashSet<>(), loopFailed = new HashSet<>();
+        final int margin = 2, maxLoops = 15;
+        final int[] tick = {0};
 
-                    @Override
-                    public void run() {
-                        if (stopped[0]) return;
-                        ImageView shown = imageViews.get(index);
-                        if (shown != null) shown.setImageBitmap(frames.get(frameIndex % frames.size()));
-                        frameIndex++;
-                        handler.postDelayed(this, 1000L / StyleTileRenderer.LOOP_FPS);
+        final java.util.function.IntPredicate nearScreen = pos ->
+                pos >= firstVisible.get() - margin && pos < firstVisible.get() + visibleCount.get() + margin;
+
+        final Runnable requestLoops = () -> {
+            if (stopped[0]) return;
+            if (loops.size() > maxLoops) {
+                for (Iterator<Integer> it = loops.keySet().iterator(); it.hasNext(); ) {
+                    int pos = it.next();
+                    if (nearScreen.test(pos)) continue;
+                    it.remove();
+                    loopRequested.remove(pos);
+                }
+            }
+            int first = firstVisible.get(), last = Math.min(tiles.size(), first + visibleCount.get());
+            for (int pos = Math.max(0, first); pos < last; pos++) {
+                final Tile tile = tiles.get(pos);
+                if (tile.async == null || loopRequested.contains(pos) || loopFailed.contains(pos)) continue;
+                loopRequested.add(pos);
+                final int position = pos;
+                tile.async.loopFrames(() -> !stopped[0] && nearScreen.test(position), frames -> {
+                    if (stopped[0]) return;
+                    if (frames == null || frames.isEmpty()) {
+                        // null: the style cannot be drawn (do not ask again), or the tile left the screen first (ask again later)
+                        if (nearScreen.test(position)) loopFailed.add(position);
+                        loopRequested.remove(position);
+                    } else if (nearScreen.test(position)) {
+                        loops.put(position, frames);
+                    } else {
+                        loopRequested.remove(position);
                     }
                 });
-            });
-        }
+            }
+        };
+
+        grid.setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override public void onScrollStateChanged(AbsListView view, int scrollState) { }
+
+            @Override public void onScroll(AbsListView view, int first, int visible, int total) {
+                firstVisible.set(first);
+                visibleCount.set(visible);
+                requestLoops.run();
+            }
+        });
+
+        // One shared clock: every playing tile shows the same frame number, so the grid moves in step.
+        final Runnable ticker = new Runnable() {
+            @Override public void run() {
+                if (stopped[0]) return;
+                tick[0]++;
+                for (Map.Entry<Integer, List<Bitmap>> entry : loops.entrySet()) {
+                    ImageView shown = imageViews.get(entry.getKey());
+                    List<Bitmap> frames = entry.getValue();
+                    if (shown != null) shown.setImageBitmap(frames.get(tick[0] % frames.size()));
+                }
+                handler.postDelayed(this, 1000L / StyleTileRenderer.LOOP_FPS);
+            }
+        };
+        dialog.setOnDismissListener(d -> {
+            stopped[0] = true;
+            handler.removeCallbacks(ticker);
+            loops.clear();
+        });
+        handler.post(ticker);
+        grid.post(() -> {
+            firstVisible.set(grid.getFirstVisiblePosition());
+            visibleCount.set(grid.getChildCount());
+            requestLoops.run();
+        });
         return dialog;
     }
 }

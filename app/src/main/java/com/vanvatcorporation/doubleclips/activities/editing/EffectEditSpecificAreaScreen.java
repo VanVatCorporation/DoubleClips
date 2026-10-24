@@ -20,6 +20,7 @@ import com.vanvatcorporation.doubleclips.impl.TileGridDialog;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -190,8 +191,8 @@ public class EffectEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
                     renderer.staticTile(StyleTileRenderer.Kind.EFFECT, id, onReady::accept);
                 }
 
-                @Override public void loopFrames(Consumer<List<Bitmap>> onReady) {
-                    renderer.loopFrames(StyleTileRenderer.Kind.EFFECT, id, onReady::accept);
+                @Override public void loopFrames(BooleanSupplier wanted, Consumer<List<Bitmap>> onReady) {
+                    renderer.loopFrames(StyleTileRenderer.Kind.EFFECT, id, wanted, onReady::accept);
                 }
             }, false));
         }
