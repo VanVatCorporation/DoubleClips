@@ -47,6 +47,9 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
     public Spinner easingSpinner, inAnimationTypeSpinner, outAnimationTypeSpinner;
     public AnimationPicker inAnimationPicker, outAnimationPicker;
+    /** The "Effect" section: an effect for this clip only (Clip.clipEffect). */
+    public ClipEffectPicker clipEffectPicker;
+    public View clipEffectSection;
     public android.view.View animationPacksButton;
     public NavigationIconLayout importKeyframesButton, exportKeyframesButton;
 
@@ -129,6 +132,9 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         inAnimationPicker = new AnimationPicker(getContext(), inAnimationTypeSpinner, inAnimationDurationField, ClipAnimation.Direction.IN);
         outAnimationPicker = new AnimationPicker(getContext(), outAnimationTypeSpinner, outAnimationDurationField, ClipAnimation.Direction.OUT);
         animationPacksButton = findViewById(R.id.animationPacksButton);
+
+        clipEffectSection = findViewById(R.id.clipEffectSection);
+        clipEffectPicker = new ClipEffectPicker(getContext(), clipEffectSection);
 
         opacitySeekbar.setDecimalScale(2);
         speedSeekbar.setDecimalScale(2);

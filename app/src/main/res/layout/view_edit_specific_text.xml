@@ -970,6 +970,9 @@
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <!-- Effect (this clip only): shared with the clip screen -->
+            <include layout="@layout/view_clip_effect_section" />
+
         </LinearLayout>
     </ScrollView>
 

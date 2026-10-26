@@ -1321,6 +1321,10 @@ public class OpenGLEditNative {
             return textureId;
         }
 
+        public int getFramebufferId() {
+            return framebufferId;
+        }
+
         /** Must be called on the GL thread. */
         public void release() {
             if (framebufferId != -1) {
@@ -1890,6 +1894,8 @@ public class OpenGLEditNative {
             GaussianBlurShader blurShader = null;
             PostFxShader postFxShader = null; // whole-picture effects (data-driven transition channels), same lazy pattern
             EffectLayerRenderer effectRenderer = null; // effect clips (adjustment layers), same lazy pattern
+            OffscreenTarget clipFxTarget = null;       // a clip with its own effect (Clip.clipEffect) is drawn here first
+            int screenFbo = 0;                         // where "the frame" draws go: 0, or clipFxTarget while a clip's layer is built
             TransitionMaskRenderer maskRenderer = null; // data-driven mask transitions, same lazy pattern
             ExportEncoder encoder = new ExportEncoder();
 
@@ -1979,7 +1985,35 @@ public class OpenGLEditNative {
                     // Draw layers in EXACT order — this is track stacking order,
                     // and simple/transition layers must interleave correctly, not
                     // be grouped into two passes (see OpenGLEdit.computeFrameForTimestamp).
+                    OpenGLEdit.EffectCommand groupEffect = null; // the own effect of the clip whose layers are being drawn into clipFxTarget
                     for (OpenGLEdit.FrameLayer layer : layers) {
+                        if (layer.beginClipEffect != null) {
+                            // A clip with its own effect: its layers (one, or a text clip's units) are drawn, blur / post passes
+                            // included, into a transparent layer; the effect filters that layer alone; then the layer goes onto the
+                            // frame (at the matching end marker).
+                            if (clipFxTarget == null) {
+                                clipFxTarget = new OffscreenTarget();
+                                clipFxTarget.create(width, height);
+                            }
+                            clipFxTarget.bindForDrawing();
+                            clipFxTarget.clearTransparent();
+                            screenFbo = clipFxTarget.getFramebufferId();
+                            // True alpha in the layer (plain SRC_ALPHA would square it): the clip keeps its opacity.
+                            GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA, GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                            groupEffect = layer.beginClipEffect;
+                            continue;
+                        }
+                        if (layer.endClipEffect) {
+                            if (groupEffect != null) {
+                                screenFbo = 0;
+                                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                                if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                                effectRenderer.applyToLayer(groupEffect, clipFxTarget.getFramebufferId(), width, height);
+                                effectRenderer.composite(clipFxTarget.getTextureId(), width, height);
+                                groupEffect = null;
+                            }
+                            continue;
+                        }
                         if (layer.effect != null) {
                             // Adjustment layer: filter everything drawn so far, in place.
                             if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
@@ -2023,11 +2057,11 @@ public class OpenGLEditNative {
                                     other.clearTransparent();
                                     blurShader.draw(source.getTextureId(), 1f, 0f, width, height, layer.simpleDraw.blurSigmaPixels);
 
-                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, screenFbo);
                                     GLES20.glViewport(0, 0, width, height);
                                     blurShader.draw(other.getTextureId(), 0f, 1f, width, height, layer.simpleDraw.blurSigmaPixels);
                                 } else {
-                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                                    GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, screenFbo);
                                     GLES20.glViewport(0, 0, width, height);
                                     postFxShader.draw(source.getTextureId(), layer.simpleDraw.post, width, height);
                                 }
@@ -2057,15 +2091,28 @@ public class OpenGLEditNative {
                         transitionLayerA.bindForDrawing();
                         transitionLayerA.clearTransparent();
                         if (transition.clipACommand != null) {
+                            if (transition.clipAEffect != null) GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA, GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
                             renderDrawCommand(transition.clipACommand, shader, imageShader, activeSources, activeImageSources,
                                     reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                            if (transition.clipAEffect != null) {
+                                // Its own effect filters this side's layer alone, before the two are blended.
+                                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                                if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                                effectRenderer.applyToLayer(transition.clipAEffect, transitionLayerA.getFramebufferId(), width, height);
+                            }
                         }
 
                         transitionLayerB.bindForDrawing();
                         transitionLayerB.clearTransparent();
                         if (transition.clipBCommand != null) {
+                            if (transition.clipBEffect != null) GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA, GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
                             renderDrawCommand(transition.clipBCommand, shader, imageShader, activeSources, activeImageSources,
                                     reportedNoFrame, reversedClipPaths, projectPath, timeoutUsPerStep, outputTimeSeconds, listener);
+                            if (transition.clipBEffect != null) {
+                                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                                if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                                effectRenderer.applyToLayer(transition.clipBEffect, transitionLayerB.getFramebufferId(), width, height);
+                            }
                         }
 
                         // Back to the main frame's own framebuffer - still the
@@ -2122,6 +2169,7 @@ public class OpenGLEditNative {
                 if (blurScratchA != null) blurScratchA.release();
                 if (blurScratchB != null) blurScratchB.release();
                 if (effectRenderer != null) effectRenderer.release();
+                if (clipFxTarget != null) clipFxTarget.release();
                 if (maskRenderer != null) maskRenderer.release();
                 encoder.close();
             }

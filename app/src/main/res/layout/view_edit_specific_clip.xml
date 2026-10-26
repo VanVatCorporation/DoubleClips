@@ -919,6 +919,9 @@
 
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
+            <!-- ── Effect (this clip only): shared with the text screen ── -->
+            <include layout="@layout/view_clip_effect_section" />
+
             <!-- ── Colour Grading ──────────────────────────────────── -->
             <com.vanvatcorporation.doubleclips.impl.SectionView
                 android:layout_width="match_parent"

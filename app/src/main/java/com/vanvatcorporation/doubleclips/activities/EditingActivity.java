@@ -89,6 +89,7 @@ import com.vanvatcorporation.doubleclips.OpenGLEdit;
 import com.vanvatcorporation.doubleclips.activities.editing.AnimationPackDialog;
 import com.vanvatcorporation.doubleclips.activities.editing.BaseEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.editing.ClipEffectPicker;
 import com.vanvatcorporation.doubleclips.activities.editing.MaskEditController;
 import com.vanvatcorporation.doubleclips.activities.editing.MaskEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.ClipsEditSpecificAreaScreen;
@@ -2014,6 +2015,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.textContent = textEditSpecificAreaScreen.textEditContent.getText().toString();
                 selectedClip.fontSize = ParserHelper.TryParse(textEditSpecificAreaScreen.textSizeContent.getText().toString(), 28f);
                 if (selectedClip.type == ClipType.TEXT) {
+                    textEditSpecificAreaScreen.clipEffectPicker.applyTimingTo(selectedClip);
                     selectedClip.textStyle = textEditSpecificAreaScreen.readStyle(selectedClip.textStyle);
                     TextStyle animated = textEditSpecificAreaScreen.takePendingAnimationStyle();
                     if (animated != null) {
@@ -2045,6 +2047,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                 textEditSpecificAreaScreen.textEditContent.setText(selectedClip.textContent);
                 textEditSpecificAreaScreen.textSizeContent.setText(String.valueOf(selectedClip.fontSize));
                 textEditSpecificAreaScreen.showStyle(selectedClip.textStyle);
+                textEditSpecificAreaScreen.clipEffectPicker.show(selectedClip, clipFxStrengthAt(selectedClip, currentTime));
+                refreshClipEffectStrengthKey();
             }
         });
 
@@ -2089,6 +2093,17 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
         };
         effectEditSpecificAreaScreen.onStrengthDiamond = this::onEffectStrengthDiamond;
+
+        // A clip's own effect (the "Effect" section of the clip and the text screens): one set of handlers for both pickers.
+        for (ClipEffectPicker picker : new ClipEffectPicker[]{clipEditSpecificAreaScreen.clipEffectPicker, textEditSpecificAreaScreen.clipEffectPicker}) {
+            picker.onStyleChanged = this::onClipEffectStyleChanged;
+            picker.onStrengthEdited = () -> {
+                applyClipEffectStrength();
+                refreshClipEffectStrengthKey();
+                if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+            };
+            picker.onStrengthDiamond = this::onClipEffectStrengthDiamond;
+        }
 
         // ===========================       EFFECT ZONE       ====================================
 
@@ -2197,6 +2212,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                 clipEditSpecificAreaScreen.inAnimationPicker.applyTo(selectedClip.inAnimation);
                 if (selectedClip.outAnimation == null) selectedClip.outAnimation = new AnimationClip("none", 0.5f);
                 clipEditSpecificAreaScreen.outAnimationPicker.applyTo(selectedClip.outAnimation);
+                // (The effect itself and its strength are written as they are picked; here the typed window.)
+                if (clipEditSpecificAreaScreen.clipEffectSection.getVisibility() == View.VISIBLE) {
+                    clipEditSpecificAreaScreen.clipEffectPicker.applyTimingTo(selectedClip);
+                }
 
                 updateClipLayouts();
                 updateCurrentClipEnd();
@@ -2229,6 +2248,15 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.inAnimationPicker.show(selectedClip.inAnimation);
             if (selectedClip.outAnimation == null) selectedClip.outAnimation = new AnimationClip("none", 0.5f);
             clipEditSpecificAreaScreen.outAnimationPicker.show(selectedClip.outAnimation);
+
+            // Sound has nothing to filter (an effect clip has its own screen, and is itself the effect).
+            boolean canHaveClipEffect = selectedClip.type != ClipType.AUDIO && selectedClip.type != ClipType.EFFECT
+                    && selectedClip.type != ClipType.TRANSITION;
+            clipEditSpecificAreaScreen.clipEffectSection.setVisibility(canHaveClipEffect ? View.VISIBLE : View.GONE);
+            if (canHaveClipEffect) {
+                clipEditSpecificAreaScreen.clipEffectPicker.show(selectedClip, clipFxStrengthAt(selectedClip, currentTime));
+                refreshClipEffectStrengthKey();
+            }
 
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 if (selectedClip != null) {
@@ -3376,6 +3404,113 @@ public class EditingActivity extends AppCompatActivityImpl {
         syncKeyframeKnots(clip);
         effectEditSpecificAreaScreen.setStrengthValue(effectStrengthAt(clip, currentTime));
         refreshEffectStrengthKey();
+        if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+    }
+
+    // ---- a clip's own effect (Clip.clipEffect): strength and keyframes, like an effect clip's ---------
+
+    /** The picker of the screen that edits this clip (text has its own screen, the rest share the clip screen). */
+    private ClipEffectPicker clipEffectPickerFor(Clip clip) {
+        return clip.type == ClipType.TEXT ? textEditSpecificAreaScreen.clipEffectPicker : clipEditSpecificAreaScreen.clipEffectPicker;
+    }
+
+    private static float clipFxStaticStrength(Clip clip) {
+        Object v = clip.clipEffect == null || clip.clipEffect.params == null ? null : clip.clipEffect.params.get("intensity");
+        return v instanceof Number ? ((Number) v).floatValue() : 1f;
+    }
+
+    private static void setClipFxStaticStrength(Clip clip, float value) {
+        if (clip.clipEffect == null) return;
+        if (clip.clipEffect.params == null) clip.clipEffect.params = new java.util.HashMap<>();
+        clip.clipEffect.params.put("intensity", (double) value);
+    }
+
+    /** The strength at a global time: keyframed when some keyframe holds it, else the static one. */
+    private static float clipFxStrengthAt(Clip clip, float time) {
+        return clip.keyframes.isAnimated(VideoProperties.ValueType.Strength)
+                ? clip.keyframes.getValueAtTime(clip, time, VideoProperties.ValueType.Strength)
+                : clipFxStaticStrength(clip);
+    }
+
+    /**
+     * The user picked a style (or "None") in a clip's Effect section: write it into the clip right away, so the preview and the
+     * strength keyframes work at once. A new style starts at its own default strength, written statically (keyframes stay, like
+     * an effect clip). "None" takes the effect and its strength keyframes off.
+     */
+    private void onClipEffectStyleChanged() {
+        Clip clip = selectedClip;
+        if (clip == null) return;
+        ClipEffectPicker picker = clipEffectPickerFor(clip);
+        String style = picker.getStyleId();
+        if (style.isEmpty()) {
+            clip.clipEffect = null;
+            for (Keyframe k : new ArrayList<>(clip.keyframes.keyframes)) {
+                k.animate(VideoProperties.ValueType.Strength, false);
+                if (KeyframeChannels.holdsNothing(k.channels)) clip.keyframes.keyframes.remove(k);
+            }
+            picker.clearStyleChanged();
+        } else {
+            if (clip.clipEffect == null) clip.clipEffect = new EffectTemplate(style, 0, 0);
+            clip.clipEffect.style = style;
+            picker.applyTimingTo(clip); // the window the section shows (the whole clip until it was changed)
+            setClipFxStaticStrength(clip, picker.getStrength());
+            picker.clearStyleChanged();
+        }
+        syncKeyframeKnots(clip);
+        refreshClipEffectStrengthKey();
+        if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
+    }
+
+    /**
+     * Writes the strength the Effect section shows: into the keyframe at the playhead when the strength is animated (a key is
+     * added there when none is), else into the static strength.
+     */
+    private void applyClipEffectStrength() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.clipEffect == null) return;
+        ClipEffectPicker picker = clipEffectPickerFor(clip);
+        if (EffectStyleLoader.get(EffectStyleLoader.canonical(picker.getStyleId())) == null) return; // unknown style: keeps its strength
+        float edited = picker.getStrength();
+        if (Math.abs(edited - clipFxStrengthAt(clip, currentTime)) <= KeyframeChannels.SAME_VALUE_TOLERANCE * 0.2f) return;
+        if (clip.keyframes.isAnimated(VideoProperties.ValueType.Strength)) {
+            if (!sheetPlayheadInsideClip()) return; // a keyframe can't be placed outside the clip
+            clip.keyframes.setKey(VideoProperties.ValueType.Strength, sheetLocalTime(), edited, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+            syncKeyframeKnots(clip);
+        } else {
+            setClipFxStaticStrength(clip, edited);
+        }
+    }
+
+    /** Shows the strength diamond's state at the playhead (hollow / half / filled). */
+    private void refreshClipEffectStrengthKey() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.type == ClipType.AUDIO || clip.type == ClipType.EFFECT) return;
+        VideoProperties.ValueType type = VideoProperties.ValueType.Strength;
+        ClipEditSpecificAreaScreen.KeyMode mode = !clip.keyframes.isAnimated(type) ? ClipEditSpecificAreaScreen.KeyMode.OFF
+                : (clip.keyframes.keyframeIndex(sheetLocalTime(), type) >= 0 ? ClipEditSpecificAreaScreen.KeyMode.ON_KEY
+                : ClipEditSpecificAreaScreen.KeyMode.ANIMATED);
+        clipEffectPickerFor(clip).setStrengthKeyMode(mode, sheetPlayheadInsideClip());
+    }
+
+    /** The strength diamond: animate the strength from here on, or take the keyframe at the playhead off. */
+    private void onClipEffectStrengthDiamond() {
+        Clip clip = selectedClip;
+        if (clip == null || clip.clipEffect == null || !sheetPlayheadInsideClip()) return;
+        ClipEffectPicker picker = clipEffectPickerFor(clip);
+        if (EffectStyleLoader.get(EffectStyleLoader.canonical(picker.getStyleId())) == null) return;
+        VideoProperties.ValueType type = VideoProperties.ValueType.Strength;
+        applyClipEffectStrength(); // a slider move that wasn't applied yet comes first
+        float local = sheetLocalTime();
+        if (clip.keyframes.keyframeIndex(local, type) >= 0) {
+            Float removed = clip.keyframes.removeKey(type, local);
+            // No longer animated: the strength stays where it was.
+            if (removed != null && !clip.keyframes.isAnimated(type)) setClipFxStaticStrength(clip, removed);
+        } else {
+            clip.keyframes.setKey(type, local, clipFxStrengthAt(clip, currentTime), clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
+        }
+        syncKeyframeKnots(clip);
+        picker.setStrengthValue(clipFxStrengthAt(clip, currentTime));
+        refreshClipEffectStrengthKey();
         if (timelineRenderer != null) timelineRenderer.renderNow(currentTime);
     }
 
@@ -5336,6 +5471,14 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public AnimationClip comboAnimation = null;
 
+        /**
+         * An effect applied to THIS clip only (CapCut's "Effects" inside a clip), as opposed to an EFFECT clip, which filters
+         * every layer below it. Same styles as an effect clip (EffectStyleLoader); the strength is params["intensity"].
+         * null = none (and every project saved before this existed).
+         */
+        @Expose
+        public EffectTemplate clipEffect = null;
+
 
         //Not serializing
         public transient View leftHandle, rightHandle;
@@ -5402,6 +5545,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.inAnimation = new AnimationClip(clip.inAnimation);
             this.outAnimation = new AnimationClip(clip.outAnimation);
             this.comboAnimation = new AnimationClip(clip.comboAnimation);
+            if (clip.clipEffect != null) {
+                this.clipEffect = new EffectTemplate(clip.clipEffect.style, clip.clipEffect.duration, clip.clipEffect.offset);
+                this.clipEffect.type = clip.clipEffect.type;
+                this.clipEffect.params = clip.clipEffect.params == null ? null : new java.util.HashMap<>(clip.clipEffect.params);
+            }
 
 
             if(clip.type == ClipType.TEXT)

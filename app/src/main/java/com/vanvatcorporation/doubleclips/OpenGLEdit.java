@@ -124,6 +124,14 @@ public class OpenGLEdit {
                 }
                 if (!SUPPORTS_REVERSE && clip.isReverse()) found.add("Reversed clips");
                 if (!SUPPORTS_KEYFRAMES && clip.hasAnimatedProperties()) found.add("Keyframe animations");
+                if (clip.clipEffect != null && clip.clipEffect.style != null) {
+                    if (clip.type == EditingActivity.ClipType.AUDIO || clip.type == EditingActivity.ClipType.EFFECT) {
+                        found.add("Clip effects on " + clip.type.name().toLowerCase() + " clips (not drawn)");
+                    } else {
+                        String problem = effectProblem(clip.clipEffect);
+                        if (problem != null) found.add(problem);
+                    }
+                }
             }
         }
         return new ArrayList<>(found);
@@ -131,9 +139,13 @@ public class OpenGLEdit {
 
     /** Why the OpenGL engine can't draw this effect clip completely, or null when it can (unknown style: nothing is drawn anywhere). */
     private static String effectProblem(EditingActivity.Clip clip) {
-        if (clip.effect == null || clip.effect.style == null) return null;
-        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(clip.effect.style));
-        if (style == null) return "The '" + clip.effect.style + "' effect (not known to this version, it is left out)";
+        return effectProblem(clip.effect);
+    }
+
+    private static String effectProblem(EditingActivity.EffectTemplate effect) {
+        if (effect == null || effect.style == null) return null;
+        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(effect.style));
+        if (style == null) return "The '" + effect.style + "' effect (not known to this version, it is left out)";
         for (EffectFilterOps.Filter filter : style.getFilters()) {
             if (!SUPPORTED_EFFECT_OPS.contains(filter.getOp())) {
                 return "The '" + style.getName() + "' effect (its " + filter.getOp() + " filter is not drawn by the OpenGL export yet)";
@@ -352,6 +364,8 @@ public class OpenGLEdit {
         public final float progress;
         /** Set for a data-driven {@code mask} transition: B is revealed through this shape instead of a built-in blend style. */
         public final MaskSpec mask;
+        /** The own effect (Clip.clipEffect) of each side, applied to that side's layer before the two are blended; null = none. */
+        public EffectCommand clipAEffect, clipBEffect;
 
         /** A data-driven mask transition (either command may be null). */
         public TransitionCommand(DrawCommand clipACommand, DrawCommand clipBCommand, MaskSpec mask, float progress) {
@@ -494,14 +508,26 @@ public class OpenGLEdit {
         public final TransitionCommand transition;
         /** An adjustment layer: filters everything drawn before it. */
         public final EffectCommand effect;
-        private FrameLayer(DrawCommand simpleDraw, TransitionCommand transition, EffectCommand effect) {
+        /**
+         * A clip's OWN effect (Clip.clipEffect), as a pair of markers around the layers that make up that clip (one layer, or
+         * a text clip's units): from here until the matching {@link #endClipEffect} everything is drawn into a transparent layer
+         * of its own, the effect then filters that layer alone, and the result goes onto the frame - the layers below stay untouched.
+         */
+        public final EffectCommand beginClipEffect;
+        public final boolean endClipEffect;
+        private FrameLayer(DrawCommand simpleDraw, TransitionCommand transition, EffectCommand effect,
+                           EffectCommand beginClipEffect, boolean endClipEffect) {
             this.simpleDraw = simpleDraw;
             this.transition = transition;
             this.effect = effect;
+            this.beginClipEffect = beginClipEffect;
+            this.endClipEffect = endClipEffect;
         }
-        static FrameLayer of(DrawCommand d) { return new FrameLayer(d, null, null); }
-        static FrameLayer of(TransitionCommand t) { return new FrameLayer(null, t, null); }
-        static FrameLayer of(EffectCommand e) { return new FrameLayer(null, null, e); }
+        static FrameLayer of(DrawCommand d) { return new FrameLayer(d, null, null, null, false); }
+        static FrameLayer of(TransitionCommand t) { return new FrameLayer(null, t, null, null, false); }
+        static FrameLayer of(EffectCommand e) { return new FrameLayer(null, null, e, null, false); }
+        static FrameLayer beginClipEffect(EffectCommand e) { return new FrameLayer(null, null, null, e, false); }
+        static FrameLayer endClipEffect() { return new FrameLayer(null, null, null, null, true); }
     }
 
     /**
@@ -542,11 +568,14 @@ public class OpenGLEdit {
                         toLook, null);
                 if (a != null || b != null) {
                     if (style.isMask()) {
-                        layers.add(FrameLayer.of(new TransitionCommand(a, b, new MaskSpec(style.getMask(), p), p)));
+                        TransitionCommand tc = new TransitionCommand(a, b, new MaskSpec(style.getMask(), p), p);
+                        tc.clipAEffect = a == null ? null : ownEffectOf(both.clipA, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                        tc.clipBEffect = b == null ? null : ownEffectOf(both.clipB, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                        layers.add(FrameLayer.of(tc));
                     } else {
                         // B over A, the style's looks (slides, cross fades) do the rest.
-                        if (a != null) layers.add(FrameLayer.of(a));
-                        if (b != null) layers.add(FrameLayer.of(b));
+                        if (a != null) addClipLayers(layers, both.clipA, java.util.Collections.singletonList(a), outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                        if (b != null) addClipLayers(layers, both.clipB, java.util.Collections.singletonList(b), outputTimeSeconds, canvasWidth, canvasHeight, projection);
                     }
                     continue;
                 }
@@ -559,7 +588,7 @@ public class OpenGLEdit {
                 DrawCommand cmd = buildDrawCommand(dataHit.clip, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
                         dataHit.extra, dataHit.outWindow);
                 if (cmd != null) {
-                    layers.add(FrameLayer.of(cmd));
+                    addClipLayers(layers, dataHit.clip, java.util.Collections.singletonList(cmd), outputTimeSeconds, canvasWidth, canvasHeight, projection);
                     continue;
                 }
                 // Unsupported clip type on that side: fall through to the normal handling.
@@ -570,7 +599,10 @@ public class OpenGLEdit {
                 DrawCommand cmdA = buildDrawCommand(window.clipA, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection);
                 DrawCommand cmdB = buildDrawCommand(window.clipB, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection);
                 if (cmdA != null && cmdB != null) {
-                    layers.add(FrameLayer.of(new TransitionCommand(cmdA, cmdB, window.style, window.progress)));
+                    TransitionCommand tc = new TransitionCommand(cmdA, cmdB, window.style, window.progress);
+                    tc.clipAEffect = ownEffectOf(window.clipA, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                    tc.clipBEffect = ownEffectOf(window.clipB, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+                    layers.add(FrameLayer.of(tc));
                     continue;
                 }
                 // One side has an unsupported clip type (e.g. text/3D) - fall
@@ -589,16 +621,37 @@ public class OpenGLEdit {
             // Per-character / word / line text animation: one layer per unit, in reading order.
             List<DrawCommand> unitCommands = buildTextUnitCommands(activeClip, outputTimeSeconds, canvasWidth, canvasHeight, projection);
             if (unitCommands != null) {
-                for (DrawCommand unit : unitCommands) layers.add(FrameLayer.of(unit));
+                addClipLayers(layers, activeClip, unitCommands, outputTimeSeconds, canvasWidth, canvasHeight, projection);
                 continue;
             }
             // A clip that ends in a data-driven transition runs its out animation over the transition's window.
             DrawCommand cmd = buildDrawCommand(activeClip, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
                     null, outgoingWindowOf(track, activeClip));
-            if (cmd != null) layers.add(FrameLayer.of(cmd));
+            if (cmd != null) {
+                addClipLayers(layers, activeClip, java.util.Collections.singletonList(cmd), outputTimeSeconds, canvasWidth, canvasHeight, projection);
+            }
         }
 
         return layers;
+    }
+
+    /** The clip's own effect (Clip.clipEffect) as a command for this frame, or null when it has none, it is outside its window, or it changes nothing. */
+    private EffectCommand ownEffectOf(EditingActivity.Clip clip, float outputTimeSeconds, int canvasWidth, int canvasHeight, float[] projection) {
+        if (clip == null || clip.clipEffect == null) return null;
+        EffectCommand own = buildEffectCommand(clip, clip.clipEffect, false, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+        return own != null && !own.isNoOp() ? own : null;
+    }
+
+    /**
+     * Adds one clip's draw commands (one, or a text clip's units) as layers; when the clip has an effect of its own that shows
+     * now, they sit between begin / end markers so the engine draws them into a layer the effect then filters alone.
+     */
+    private void addClipLayers(List<FrameLayer> layers, EditingActivity.Clip clip, List<DrawCommand> commands, float outputTimeSeconds,
+                               int canvasWidth, int canvasHeight, float[] projection) {
+        EffectCommand own = ownEffectOf(clip, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+        if (own != null) layers.add(FrameLayer.beginClipEffect(own));
+        for (DrawCommand command : commands) layers.add(FrameLayer.of(command));
+        if (own != null) layers.add(FrameLayer.endClipEffect());
     }
 
     /** Detects an active OVERLAP-mode, supported-style transition on this track at t, if any. */
@@ -854,21 +907,45 @@ public class OpenGLEdit {
      */
     private EffectCommand buildEffectCommand(EditingActivity.Clip clip, float outputTimeSeconds, int canvasWidth, int canvasHeight,
                                              float[] projection) {
-        if (clip.effect == null || clip.effect.style == null) return null;
-        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(clip.effect.style));
+        return buildEffectCommand(clip, clip.effect, true, outputTimeSeconds, canvasWidth, canvasHeight, projection);
+    }
+
+    /**
+     * @param adjustmentLayer true for an EFFECT clip (its keyframed strength and its mask count); false for a clip's own
+     *                        effect (Clip.clipEffect): the clip's mask is already applied when the clip itself is drawn, and
+     *                        the Strength keyframes belong to effect clips.
+     */
+    private EffectCommand buildEffectCommand(EditingActivity.Clip clip, EditingActivity.EffectTemplate template, boolean adjustmentLayer,
+                                             float outputTimeSeconds, int canvasWidth, int canvasHeight, float[] projection) {
+        if (template == null || template.style == null) return null;
+        EffectStyle style = EffectStyleLoader.get(EffectStyleLoader.canonical(template.style));
         if (style == null) return null;
 
         float strength = 1f;
-        if (clip.effect.params != null && clip.effect.params.get("intensity") instanceof Number) {
-            strength = ((Number) clip.effect.params.get("intensity")).floatValue();
+        if (template.params != null && template.params.get("intensity") instanceof Number) {
+            strength = ((Number) template.params.get("intensity")).floatValue();
         }
         // Keyframed strength (K2): when some keyframe holds it, it is read per frame like any other animated property.
+        // (An effect clip's strength, or the strength of a clip's own effect: the same keyframe channel, a clip never has both.)
         if (clip.keyframes != null && clip.keyframes.isAnimated(EditingActivity.VideoProperties.ValueType.Strength)) {
             strength = clip.keyframes.getValueAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Strength);
         }
         strength = Math.max(strength, 0f);
-        float elapsed = Math.max(outputTimeSeconds - clip.startTime, 0f);
-        float duration = clip.duration;
+        float elapsed, duration;
+        if (adjustmentLayer) {
+            elapsed = Math.max(outputTimeSeconds - clip.startTime, 0f);
+            duration = clip.duration;
+        } else {
+            // A clip's own effect has a window inside the clip: template.offset seconds after the clip's start, template.duration
+            // long (<= 0 = until the clip's end, whatever its length becomes). Time-based looks run from the window's start.
+            float offset = (float) Math.max(template.offset, 0.0);
+            float room = Math.max(clip.duration - offset, 0f);
+            float length = template.duration > 0.0 ? (float) Math.min(template.duration, room) : room;
+            float local = outputTimeSeconds - clip.startTime - offset;
+            if (length <= 0f || local < 0f || local >= length) return null; // not showing right now
+            elapsed = local;
+            duration = length;
+        }
 
         ClipAnimationFrame look = style.hasChannels() ? style.frameAt(elapsed, duration, strength) : null;
         float[] mvp = null;
@@ -897,7 +974,7 @@ public class OpenGLEdit {
         }
         EffectCommand command = new EffectCommand(clip, style, strength, elapsed, duration, outputTimeSeconds, look, lookPass, mvp, post,
                 steps, style.filterMix(strength));
-        command.mask = maskFrameOf(clip, outputTimeSeconds, canvasWidth, canvasHeight);
+        if (adjustmentLayer) command.mask = maskFrameOf(clip, outputTimeSeconds, canvasWidth, canvasHeight);
         return command;
     }
 

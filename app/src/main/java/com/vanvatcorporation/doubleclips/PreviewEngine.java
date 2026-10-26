@@ -145,6 +145,8 @@ public final class PreviewEngine {
     private ClipMaskTextures maskTextures;           // clip masks (see ClipMaskTextures), created on first use
     private TransitionMaskRenderer maskRenderer;     // data-driven mask transitions, created on first use
     private Offscreen layerA, layerB, blurA, blurB;
+    private Offscreen clipFxLayer;                   // a clip that has its own effect is drawn here first (Clip.clipEffect)
+    private int screenFramebuffer = 0;               // where "the screen" draws go: 0, or clipFxLayer while a clip's layer is built
     private Pool pool;
     private Request lastRequest;
 
@@ -303,6 +305,7 @@ public final class PreviewEngine {
                     if (pool != null) pool.closeAll();
                     if (layerA != null) layerA.release();
                     if (layerB != null) layerB.release();
+                    if (clipFxLayer != null) clipFxLayer.release();
                     if (blurA != null) blurA.release();
                     if (blurB != null) blurB.release();
                     if (effectRenderer != null) { effectRenderer.release(); effectRenderer = null; }
@@ -435,7 +438,31 @@ public final class PreviewEngine {
         shader.beginFrame(previewW, previewH); // viewport + clear + blending
         float blurScale = previewW / (float) canvasW;
 
+        OpenGLEdit.EffectCommand groupEffect = null; // the own effect of the clip whose layers are being drawn into clipFxLayer
         for (OpenGLEdit.FrameLayer layer : r.layers) {
+            if (layer.beginClipEffect != null) {
+                // A clip with its own effect: its layers go into a transparent layer of their own, the effect filters that
+                // layer alone, then the layer goes onto the frame (at the matching end marker).
+                if (clipFxLayer == null) clipFxLayer = new Offscreen(previewW, previewH);
+                clipFxLayer.bind();
+                clipFxLayer.clearTransparent();
+                screenFramebuffer = clipFxLayer.framebuffer;
+                // True alpha in the layer (plain SRC_ALPHA would square it): the clip keeps its opacity when composited.
+                GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA, GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                groupEffect = layer.beginClipEffect;
+                continue;
+            }
+            if (layer.endClipEffect) {
+                if (groupEffect != null) {
+                    screenFramebuffer = 0;
+                    GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+                    if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+                    effectRenderer.applyToLayer(groupEffect, clipFxLayer.framebuffer, previewW, previewH);
+                    effectRenderer.composite(clipFxLayer.texture, previewW, previewH);
+                    groupEffect = null;
+                }
+                continue;
+            }
             if (layer.effect != null) {
                 // Adjustment layer: filter everything drawn so far, in place (the same renderer the export uses).
                 if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
@@ -477,10 +504,10 @@ public final class PreviewEngine {
             OpenGLEdit.TransitionCommand t = layer.transition;
             layerA.bind();
             layerA.clearTransparent();
-            if (t.clipACommand != null) drawCommand(t.clipACommand, r.timeSeconds);
+            if (t.clipACommand != null) drawTransitionSide(t.clipACommand, t.clipAEffect, layerA, r.timeSeconds);
             layerB.bind();
             layerB.clearTransparent();
-            if (t.clipBCommand != null) drawCommand(t.clipBCommand, r.timeSeconds);
+            if (t.clipBCommand != null) drawTransitionSide(t.clipBCommand, t.clipBEffect, layerB, r.timeSeconds);
             bindScreen();
             if (t.mask != null) {
                 // Data-driven mask style: B revealed through the style's mask shape.
@@ -507,8 +534,21 @@ public final class PreviewEngine {
         profiler.frameEnd();
     }
 
+    /** One side of a transition, drawn into its (bound, cleared) layer; its own effect, when it has one, filters that layer alone. */
+    private void drawTransitionSide(OpenGLEdit.DrawCommand command, OpenGLEdit.EffectCommand ownEffect, Offscreen layer, float timeSeconds) {
+        if (ownEffect == null) {
+            drawCommand(command, timeSeconds);
+            return;
+        }
+        GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA, GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        drawCommand(command, timeSeconds);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        if (effectRenderer == null) effectRenderer = new EffectLayerRenderer();
+        effectRenderer.applyToLayer(ownEffect, layer.framebuffer, previewW, previewH);
+    }
+
     private void bindScreen() {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, screenFramebuffer);
         GLES20.glViewport(0, 0, previewW, previewH);
     }
 

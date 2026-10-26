@@ -22,6 +22,8 @@ import java.util.List;
 
 public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
+    /** The "Effect" section: an effect for this text clip only (Clip.clipEffect). */
+    public ClipEffectPicker clipEffectPicker;
     public EditText textEditContent;
     public EditText textSizeContent;
     public EditText colorContent, outlineWidthContent, outlineColorContent;
@@ -71,6 +73,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public void init()
     {
         super.init();
+        clipEffectPicker = new ClipEffectPicker(getContext(), findViewById(R.id.clipEffectSection));
         textEditContent = findViewById(R.id.textContent);
         textSizeContent = findViewById(R.id.sizeContent);
         colorContent = findViewById(R.id.colorContent);
