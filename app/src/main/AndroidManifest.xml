@@ -101,6 +101,9 @@
             android:attributionTags="audioPlayback">
 
         </activity>
+        <activity android:name=".activities.TemplateCollectionActivity"
+            android:exported="false">
+        </activity>
         <activity android:name=".activities.TemplateExportActivity"
             android:exported="true">
         </activity>

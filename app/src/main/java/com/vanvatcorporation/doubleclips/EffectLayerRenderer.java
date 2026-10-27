@@ -388,6 +388,10 @@ public final class EffectLayerRenderer {
     private Prog look, copy, copyMask, color, photo, sepia, vignette, pixel, dot, bright, add,
             twirl, bump, kaleido, rgb, slice, cross, vhsFx;
     private ClipMaskTextures masks; // the effect clip's mask picture, created on first use
+    /** The framebuffer "the picture" lives in: 0 (the frame) for an effect clip, a clip layer's FBO for a clip's own effect. */
+    private int mainFramebuffer = 0;
+    private int silhouetteTexture; // RGBA copy of a clip layer before its effect: only its alpha is used
+    private Prog outline;
     private OpenGLEditNative.PostFxShader postShader;
     private OpenGLEditNative.GaussianBlurShader blurShader;
     private FloatBuffer fullQuad, lookQuad;
@@ -412,8 +416,75 @@ public final class EffectLayerRenderer {
         }
     }
 
+    /**
+     * Applies a CLIP's own effect (Clip.clipEffect) to a layer that holds only that clip: an RGBA framebuffer of
+     * {@code width} x {@code height}, cleared transparent, with the clip drawn into it using
+     * glBlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA) (colour premultiplied, true alpha).
+     * The effect runs on the clip over black, exactly as an effect clip would on a frame; then the layer gets the clip's
+     * OWN outline back (alpha before the effect), so the effect colours / distorts the clip but never paints outside it.
+     * Leaves the main framebuffer bound and blending as the frame loops expect; the caller then {@link #composite}s the layer.
+     */
+    public void applyToLayer(OpenGLEdit.EffectCommand cmd, int framebuffer, int width, int height) {
+        if (broken || cmd == null || cmd.isNoOp() || width <= 0 || height <= 0 || framebuffer == 0) return;
+        try {
+            prepare(width, height);
+            mainFramebuffer = framebuffer;
+            restoreMainFramebuffer();
+            // The clip's outline, kept for the end.
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, silhouetteTexture);
+            GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+
+            draw(cmd); // the layer now holds the effect's picture, opaque
+
+            // Give the clip its outline back: effect colour x clip alpha, premultiplied (so the layer composites like the clip did).
+            restoreMainFramebuffer();
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, captureTexture);
+            GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+            GLES20.glDisable(GLES20.GL_BLEND);
+            GLES20.glClearColor(0f, 0f, 0f, 0f);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            outline.use();
+            drawQuad(outline, fullQuad, captureTexture, silhouetteTexture);
+        } catch (RuntimeException e) {
+            broken = true;
+            Log.w(TAG, "Effects are switched off for this session: " + e.getMessage());
+        } finally {
+            mainFramebuffer = 0;
+            if (ready) {
+                restoreMainFramebuffer();
+                GLES20.glEnable(GLES20.GL_BLEND);
+                GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            }
+        }
+    }
+
+    /**
+     * Draws a clip layer (premultiplied colour, see {@link #applyToLayer}) onto the main framebuffer, over what is there.
+     * Works whether or not the effect itself could be applied.
+     */
+    public void composite(int layerTexture, int width, int height) {
+        try {
+            prepare(width, height);
+            mainFramebuffer = 0;
+            restoreMainFramebuffer();
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            drawCopy(layerTexture, 1f);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Could not draw a clip layer: " + e.getMessage());
+        } finally {
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        }
+    }
+
     /** Frees every GL object (GL thread, context current). Safe to call twice. */
     public void release() {
+        if (silhouetteTexture != 0) {
+            GLES20.glDeleteTextures(1, new int[]{silhouetteTexture}, 0);
+            silhouetteTexture = 0;
+        }
         if (masks != null) {
             masks.release();
             masks = null;
@@ -436,6 +507,7 @@ public final class EffectLayerRenderer {
             look = new Prog(VS_LOOK, FS_LOOK);
             copy = new Prog(VS_FULL, FS_COPY);
             copyMask = new Prog(VS_FULL, FS_COPY_MASK);
+            outline = new Prog(VS_FULL, FS_OUTLINE);
             color = new Prog(VS_FULL, FS_COLOR);
             photo = new Prog(VS_FULL, FS_PHOTO);
             sepia = new Prog(VS_FULL, FS_SEPIA);
@@ -475,6 +547,7 @@ public final class EffectLayerRenderer {
             // RGB on purpose: glCopyTexSubImage2D may only copy components the framebuffer has, and an encoder
             // surface can be RGB. The picture so far is opaque anyway.
             captureTexture = newTexture(w, h, GLES20.GL_RGB);
+            silhouetteTexture = newTexture(w, h, GLES20.GL_RGBA);
             pool = new Target[POOL_SIZE];
             for (int i = 0; i < POOL_SIZE; i++) pool[i] = new Target(w, h);
             ready = true;
@@ -789,6 +862,15 @@ public final class EffectLayerRenderer {
             "    gl_FragColor = vec4(c.rgb, uInvert > 0.5 ? 1.0 - m : m);\n" +
             "}\n";
 
+    /** The effect's picture (uTexture) wearing the clip's own alpha (uTexture2), premultiplied. Both are in framebuffer orientation. */
+    private static final String FS_OUTLINE = FS_HEAD +
+            "uniform sampler2D uTexture2;\n" +
+            "void main() {\n" +
+            "    vec3 c = texture2D(uTexture, vTexCoord).rgb;\n" +
+            "    float a = texture2D(uTexture2, vTexCoord).a;\n" +
+            "    gl_FragColor = vec4(c * a, a);\n" +
+            "}\n";
+
     // ---- helpers -------------------------------------------------------------------------------
 
     /** The first pool target whose texture is not in {@code busy}. */
@@ -802,7 +884,7 @@ public final class EffectLayerRenderer {
     }
 
     private void restoreMainFramebuffer() {
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mainFramebuffer);
         GLES20.glViewport(0, 0, width, height);
     }
 

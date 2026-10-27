@@ -170,6 +170,24 @@
                             android:layout_marginEnd="16dp"/>
 
                         <Button
+                            android:id="@+id/likedTemplateButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/settings_account_liked_templates"
+                            android:textAlignment="viewStart"
+                            android:textColor="?android:attr/textColorPrimary"
+                            app:icon="@drawable/baseline_favorite_24"
+                            app:iconTint="?android:attr/textColorPrimary"/>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:layout_marginStart="16dp"
+                            android:layout_marginEnd="16dp"/>
+
+                        <Button
                             android:id="@+id/savedTemplateButton"
                             style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="match_parent"
@@ -177,7 +195,7 @@
                             android:text="@string/settings_account_saved_templates"
                             android:textAlignment="viewStart"
                             android:textColor="?android:attr/textColorPrimary"
-                            app:icon="@drawable/baseline_favorite_24"
+                            app:icon="@drawable/baseline_bookmark_24"
                             app:iconTint="?android:attr/textColorPrimary"/>
 
                         <View

@@ -606,6 +606,9 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
 
         finishExportRendering();
 
+        // The render succeeded: the template was used. (The server ignores an exact double-fire.)
+        com.vanvatcorporation.doubleclips.helper.TemplateApi.postUse(this, data.getTemplateId());
+
         FFmpegEdit.queue.cancelAllTask();
 
         IOHelper.deleteFilesInDir(

@@ -849,6 +849,10 @@ public class FFmpegEdit {
                         found.add("The '" + dataDriven.getName() + "' transition style (OpenGL only: FFmpeg just cuts from one clip to the next)");
                     }
                 }
+                if (clip.clipEffect != null && clip.clipEffect.style != null && clip.type != EditingActivity.ClipType.EFFECT) {
+                    EffectStyle own = EffectStyleLoader.get(clip.clipEffect.style);
+                    found.add("The '" + (own != null ? own.getName() : clip.clipEffect.style) + "' clip effect (OpenGL only: FFmpeg draws the clip without it)");
+                }
                 if (clip.type == EditingActivity.ClipType.EFFECT && clip.effect != null && clip.effect.style != null) {
                     // An effect clip filters the whole picture drawn so far (an adjustment layer); a filter graph per clip can't do that.
                     EffectStyle effectStyle = EffectStyleLoader.get(clip.effect.style);

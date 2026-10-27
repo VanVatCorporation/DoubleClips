@@ -4,49 +4,57 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Filter;
-import android.widget.Filterable;
-import android.widget.ImageView;
 import android.widget.SearchView;
-import android.widget.TextView;
+import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.StaggeredGridLayoutManager;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.google.gson.Gson;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.TemplatePreviewActivity;
-import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
-import com.vanvatcorporation.doubleclips.helper.NumberHelper;
+import com.vanvatcorporation.doubleclips.helper.TemplateApi;
+import com.vanvatcorporation.doubleclips.helper.TemplateFeedSource;
+import com.vanvatcorporation.doubleclips.helper.TemplatePager;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.io.Serializable;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import javax.net.ssl.HttpsURLConnection;
-
+/**
+ * The Templates tab: the signed-in account's suggestion feed (server side ranking), loaded a page at a time as the user
+ * scrolls. Typing in the search box switches to a server-side search of the same shape; clearing it returns to the feed.
+ * Pull to refresh starts a new feed session.
+ */
 public class TemplateAreaScreen extends BaseAreaScreen {
     public SearchView searchView;
     public RecyclerView templateRecyclerView;
-    public TemplateDataAdapter templateAdapter;
+    public TemplateGridAdapter templateAdapter;
     public SwipeRefreshLayout templateSwipeRefreshLayout;
 
+    /** The preview pager gets at most this many templates in the Intent; it loads the rest itself. */
+    private static final int HANDOFF_MAX = 100;
+    private static final long SEARCH_DEBOUNCE_MS = 400;
+    /** Start the next page when this few rows are left below the last visible one. */
+    private static final int PREFETCH_DISTANCE = 6;
+
+    private TemplatePager pager;
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingSearch;
+    private String appliedQuery = "";
+
+    private final TemplateApi.StateListener stateListener = id -> {
+        if (templateAdapter != null) templateAdapter.notifyTemplateChanged(id);
+    };
 
 
     public TemplateAreaScreen(Context context) {
@@ -74,169 +82,98 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         templateRecyclerView = findViewById(R.id.templateRecyclerView);
         templateSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
-
-
-
-        StaggeredGridLayoutManager layoutManager = new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL);
+        final StaggeredGridLayoutManager layoutManager = new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL);
         layoutManager.setGapStrategy(StaggeredGridLayoutManager.GAP_HANDLING_MOVE_ITEMS_BETWEEN_SPANS);
         templateRecyclerView.setLayoutManager(layoutManager);
 
-
-        templateAdapter = new TemplateDataAdapter(getContext());
+        templateAdapter = new TemplateGridAdapter(getContext(), this::openPreview);
         templateRecyclerView.setAdapter(templateAdapter);
 
+        pager = new TemplatePager(getContext(), new TemplatePager.Listener() {
+            @Override public void onReset() {
+                templateAdapter.clear();
+            }
+            @Override public void onPage(List<TemplateData> items, boolean hasMore) {
+                templateAdapter.addAll(items);
+            }
+            @Override public void onLoading(boolean loading) {
+                if (!loading) templateSwipeRefreshLayout.setRefreshing(false);
+            }
+            @Override public void onError(String message) {
+                templateSwipeRefreshLayout.setRefreshing(false);
+                Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
+            }
+        });
 
+        // Infinite scroll: ask for the next page a few rows before the end.
+        templateRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override public void onScrolled(RecyclerView rv, int dx, int dy) {
+                if (dy <= 0) return;
+                int[] last = layoutManager.findLastVisibleItemPositions(null);
+                int max = 0;
+                for (int p : last) max = Math.max(max, p);
+                if (max >= templateAdapter.getItemCount() - PREFETCH_DISTANCE) pager.loadNext();
+            }
+        });
+
+        // Search runs on the server (the list on screen is only a page of it), so wait for the typing to settle.
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                templateAdapter.getFilter().filter(query);
+            @Override public boolean onQueryTextSubmit(String query) {
+                applyQuery(query, 0);
                 return false;
             }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                templateAdapter.getFilter().filter(newText);
+            @Override public boolean onQueryTextChange(String newText) {
+                applyQuery(newText, SEARCH_DEBOUNCE_MS);
                 return false;
             }
         });
 
-        templateSwipeRefreshLayout.setOnRefreshListener(this::reloadingProject);
+        templateSwipeRefreshLayout.setOnRefreshListener(this::reload);
 
+        reload();
+    }
 
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        TemplateApi.addStateListener(stateListener);
+        if (templateAdapter != null) templateAdapter.refreshAll();   // a preview may have changed things while we were away
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        TemplateApi.removeStateListener(stateListener);
+        if (pendingSearch != null) searchHandler.removeCallbacks(pendingSearch);
+        super.onDetachedFromWindow();
+    }
+
+    /** Starts over with the current query: a new feed session (or a new search). */
+    public void reload() {
         templateSwipeRefreshLayout.setRefreshing(true);
-        reloadingProject();
+        pager.start(appliedQuery.isEmpty() ? TemplateFeedSource.feed() : TemplateFeedSource.search(appliedQuery));
     }
 
-
-
-    public void addTemplate(TemplateData data)
-    {
-        templateAdapter.add(data);
-        templateAdapter.notifyItemInserted(templateAdapter.templateListDisplay.size() - 1);
+    private void applyQuery(String raw, long delayMs) {
+        final String query = raw == null ? "" : raw.trim();
+        if (pendingSearch != null) searchHandler.removeCallbacks(pendingSearch);
+        if (query.equals(appliedQuery)) return;
+        pendingSearch = () -> {
+            appliedQuery = query;
+            reload();
+        };
+        searchHandler.postDelayed(pendingSearch, delayMs);
     }
 
-    public void fetchTemplate() {
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-
-        executorService.execute(() -> {
-            try {
-                // 1. Fetch Templates
-                URL url = new URL("https://app.vanvatcorp.com/doubleclips/api/fetch-templates");
-                HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-                reader.close();
-
-                TemplateData[] serverData = new Gson().newBuilder().create().fromJson(response.toString(), TemplateData[].class);
-
-                // 2. Fetch User Interactions (Liked & Bookmarked IDs)
-                List<String> likedIds = fetchStringList("https://app.vanvatcorp.com/doubleclips/api/fetch-liked-templates");
-                List<String> bookmarkedIds = fetchStringList("https://app.vanvatcorp.com/doubleclips/api/fetch-bookmarked-templates");
-
-                // 3. Map Interactions to Templates
-                for (TemplateData data : serverData) {
-                    if (likedIds.contains(data.getTemplateId())) {
-                        data.isLiked = true;
-                    }
-                    if (bookmarkedIds.contains(data.getTemplateId())) {
-                        data.isBookmarked = true;
-                    }
-                }
-
-                templateSwipeRefreshLayout.post(() -> {
-                    templateAdapter.notifyDataSetChanged();
-                    for (TemplateData data : serverData) {
-                        addTemplate(data);
-                    }
-
-                    templateAdapter.getFilter().filter(searchView.getQuery());
-                    templateSwipeRefreshLayout.setRefreshing(false);
-                });
-            }
-            catch (Exception e)
-            {
-                LoggingManager.LogExceptionToNoteOverlay(getContext(), e);
-
-                templateSwipeRefreshLayout.post(() -> {
-                    templateSwipeRefreshLayout.setRefreshing(false);
-                });
-            }
-        });
-
+    private void openPreview(List<TemplateData> items, int position) {
+        @SuppressLint("UnsafeOptInUsageError") Intent intent = new Intent(getContext(), TemplatePreviewActivity.class);
+        int end = Math.min(items.size(), position + HANDOFF_MAX);
+        TemplateData[] handoff = new ArrayList<>(items.subList(position, end)).toArray(new TemplateData[0]);
+        intent.putExtra("TemplateDataList", handoff);
+        intent.putExtra("TemplateFeedSource", pager.getSource());
+        // The preview keeps loading where this screen stopped, but only if it was handed everything loaded so far.
+        intent.putExtra("TemplateNextCursor", end == items.size() ? pager.getCursor() : null);
+        getContext().startActivity(intent);
     }
-
-    private List<String> fetchStringList(String urlString) {
-        try {
-            URL url = new URL(urlString);
-            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            // Add auth headers (cookies) if managed automatically or manually
-            String cookie = android.webkit.CookieManager.getInstance().getCookie(urlString);
-            if (cookie != null) {
-                connection.setRequestProperty("Cookie", cookie);
-            }
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            reader.close();
-
-            String[] ids = new Gson().fromJson(response.toString(), String[].class);
-            return ids != null ? Arrays.asList(ids) : new ArrayList<>();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return new ArrayList<>();
-        }
-    }
-
-    public void reloadingProject()
-    {
-        templateAdapter.clear();
-        templateAdapter.notifyDataSetChanged();
-        fetchTemplate();
-
-//        addTemplate(new TemplateData("viet", "0", "TitleTest", "Testing purpose", "cc", "https://www.google.com", "https://www.google.com", 100, 100, 10, new String[0]));
-//        templateSwipeRefreshLayout.setRefreshing(false);
-
-//        projectList.clear();
-//        projectAdapter.notifyDataSetChanged();
-//        String projectsFolderPath = IOHelper.CombinePath(IOHelper.getPersistentDataPath(getContext()), "projects");
-//        File file = new File(projectsFolderPath);
-//        if(file.listFiles() == null) {
-//            projectSwipeRefreshLayout.setRefreshing(false);
-//            return;
-//        }
-//        for (File directory : Objects.requireNonNull(file.listFiles())) {
-//            if(directory.isDirectory())
-//            {
-//                TemplateData data = TemplateData.loadProperties(getContext(), directory.getAbsolutePath());
-//
-//                if(data != null)
-//                {
-//                    projectList.add(data);
-//                    projectAdapter.notifyItemInserted(projectList.size() - 1);
-//                }
-//            }
-//
-//        }
-//
-    }
-
-
-
-
-
-
-
 
 
 
@@ -263,6 +200,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         private int viewCount;
         private int useCount;
         private int heartCount;
+        /** Comments on the template, as the server counts them (the list in `comments` is only filled once the panel is opened). */
+        private int commentCount;
         private ArrayList<TemplateComment> comments = new ArrayList<>();
         public boolean isLiked;
         public boolean isBookmarked;
@@ -357,6 +296,17 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         public int getBookmarkCount() {
             return bookmarkCount;
         }
+        public int getCommentCount() {
+            return commentCount;
+        }
+        /** Applies the numbers the server last reported (see TemplateApi.State). */
+        public void setStats(int view, int use, int heart, int bookmark, int comment) {
+            viewCount = view;
+            useCount = use;
+            heartCount = heart;
+            bookmarkCount = bookmark;
+            commentCount = comment;
+        }
 
 
         public String getTemplateLocation() {
@@ -433,180 +383,5 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             }
         }
 
-    }
-    public class TemplateDataAdapter extends RecyclerView.Adapter<TemplateDataViewHolder> implements Filterable
-    {
-
-        public List<TemplateData> templateListFull = new ArrayList<>();
-        private List<TemplateData> templateListDisplay = new ArrayList<>();
-        private Context context;
-
-        // Constructor
-        public TemplateDataAdapter(Context context) {
-            this.context = context;
-        }
-
-
-        @Override
-        public Filter getFilter() {
-            return filter;
-        }
-
-        private Filter filter = new Filter() {
-            @Override
-            protected FilterResults performFiltering(CharSequence constraint) {
-                List<TemplateData> filteredList = new ArrayList<>();
-                if (constraint == null || constraint.length() == 0) {
-                    filteredList.addAll(templateListFull);
-                } else {
-                    String filterPattern = constraint.toString().toLowerCase().trim();
-                    for (TemplateData item : templateListFull) {
-                        if (item.getTemplateTitle().toLowerCase().contains(filterPattern)) {
-                            filteredList.add(item);
-                        }
-                    }
-                }
-                FilterResults results = new FilterResults();
-                results.values = filteredList;
-                return results;
-            }
-
-
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            @Override
-            protected void publishResults(CharSequence constraint, FilterResults results) {
-                templateListDisplay.clear();
-                templateListDisplay.addAll((List)results.values);
-                notifyDataSetChanged();
-            }
-        };
-
-
-        @Override
-        public TemplateDataViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(context).inflate(R.layout.cpn_template_element, parent, false);
-            return new TemplateDataViewHolder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull TemplateDataViewHolder holder, int position) {
-
-            TemplateData projectItem = templateListDisplay.get(position);
-
-            holder.templateTitle.setText(projectItem.getTemplateTitle());
-            holder.templateTitle.setOnClickListener(v -> {
-                holder.wholeView.performClick();
-            });
-
-            Executors.newSingleThreadExecutor().execute(() -> {
-                try {
-                    Bitmap thumbnailBitmap = projectItem.getCacheThumbnailBitmap(context);
-                    holder.wholeView.post(() -> {
-                        if(thumbnailBitmap != null)
-                        {
-                            holder.templatePreview.setImageBitmap(thumbnailBitmap);
-                            int targetWidth = holder.wholeView.getWidth();
-
-                            int imageWidth = thumbnailBitmap.getWidth();
-                            int imageHeight = thumbnailBitmap.getHeight();
-
-                            int[] res = AlgorithmHelper.scaleByWidth(targetWidth, imageWidth, imageHeight);
-
-                            // enforce 9:16 ratio cap
-                            int maxHeight = (res[0] * 16) / 9;
-                            if (res[1] > maxHeight) {
-                                res[1] = maxHeight;
-                            }
-
-                            ViewGroup.LayoutParams imageDimension = holder.templatePreview.getLayoutParams();
-                            imageDimension.width = res[0];
-                            imageDimension.height = res[1];
-                            holder.templatePreview.setLayoutParams(imageDimension);
-                        }
-
-                    });
-
-
-                } catch (Exception e) {
-                    LoggingManager.LogExceptionToNoteOverlay(context, e);
-                }
-
-
-            });
-
-
-            holder.authorTitle.setText("@" + projectItem.templateAuthor);
-            holder.authorTitle.setOnClickListener(v -> {
-                // TODO: Author profile destination.
-//                holder.wholeView.performClick();
-            });
-
-            holder.viewText.setText(NumberHelper.abbreviateNumber(projectItem.getViewCount()));
-            holder.heartText.setText(NumberHelper.abbreviateNumber(projectItem.getHeartCount()));
-            holder.useText.setText(NumberHelper.abbreviateNumber(projectItem.getUseCount()));
-
-
-
-            Executors.newSingleThreadExecutor().execute(() -> {
-                try {
-                    Bitmap avatarBitmap = projectItem.getCacheAuthorAvatarBitmap(context);
-
-                    if(avatarBitmap != null)
-                    {
-                        holder.wholeView.post(() -> holder.authorPreview.setImageBitmap(avatarBitmap));
-                    }
-                } catch (Exception e) {
-                    LoggingManager.LogExceptionToNoteOverlay(context, e);
-                }
-            });
-
-
-            holder.wholeView.setOnClickListener(v -> {
-                @SuppressLint("UnsafeOptInUsageError") Intent intent = new Intent(context, TemplatePreviewActivity.class);
-                TemplateData[] dataList = Arrays.copyOfRange(templateListDisplay.toArray(new TemplateData[0]), position, templateListDisplay.size());
-                intent.putExtra("TemplateDataList", dataList);
-                context.startActivity(intent);
-            });
-            holder.wholeView.setOnLongClickListener(v -> {
-                return true;
-            });
-        }
-
-
-        @Override
-        public int getItemCount() {
-            return templateListDisplay.size();
-        }
-
-        public void clear() {
-            templateListFull.clear();
-            templateListDisplay.clear();
-        }
-
-        public void add(TemplateData data) {
-            templateListFull.add(data);
-            templateListDisplay.add(data);
-        }
-    }
-    public static class TemplateDataViewHolder extends RecyclerView.ViewHolder {
-        TextView templateTitle;
-        ImageView templatePreview;
-        TextView authorTitle;
-        ImageView authorPreview;
-        TextView viewText, heartText, useText;
-        View wholeView;
-        public TemplateDataViewHolder(@NonNull View itemView) {
-            super(itemView);
-            wholeView = itemView;
-
-            templateTitle = itemView.findViewById(R.id.titleText);
-            templatePreview = itemView.findViewById(R.id.previewImage);
-            authorTitle = itemView.findViewById(R.id.authorText);
-            authorPreview = itemView.findViewById(R.id.authorAvatar);
-
-            viewText = itemView.findViewById(R.id.viewCount);
-            heartText = itemView.findViewById(R.id.heartCount);
-            useText = itemView.findViewById(R.id.useCount);
-        }
     }
 }

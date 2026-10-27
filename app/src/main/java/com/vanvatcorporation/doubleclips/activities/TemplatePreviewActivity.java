@@ -43,6 +43,9 @@ import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExport
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.template.CommentsAreaScreen;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
+import com.vanvatcorporation.doubleclips.helper.TemplateApi;
+import com.vanvatcorporation.doubleclips.helper.TemplateFeedSource;
+import com.vanvatcorporation.doubleclips.helper.TemplatePager;
 import com.vanvatcorporation.doubleclips.helper.AlgorithmHelper;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
@@ -56,7 +59,9 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -97,7 +102,10 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     }
 
 
-    OkHttpClient httpsClient = new OkHttpClient();
+    /** Continues the list the user came from (feed / search / liked / saved) when they swipe near the end. */
+    private TemplatePager templatePager;
+    /** Templates whose view was already reported from this screen (the server dedupes too; this saves the request). */
+    private final java.util.Set<String> viewReported = new HashSet<>();
 
     // ===========================       TEMPLATE STRIP       ====================================
     /** The strip of the page that is on screen; follows the player's clock. */
@@ -159,7 +167,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         );
 
 
-        dataList = Arrays.asList((TemplateAreaScreen.TemplateData[]) Objects.requireNonNull(createrBundle.getSerializable("TemplateDataList")));
+        dataList = new ArrayList<>(Arrays.asList((TemplateAreaScreen.TemplateData[]) Objects.requireNonNull(createrBundle.getSerializable("TemplateDataList"))));
+        for (TemplateAreaScreen.TemplateData d : dataList) TemplateApi.overlay(this, d);   // newest numbers the app knows
 
 
         mediaLoadingIcon = findViewById(R.id.mediaLoadingIcon);
@@ -174,10 +183,28 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         adapter = new VideoAdapter(dataList);
         mediaViewPager.setAdapter(adapter);
 
+        TemplateFeedSource feedSource = (TemplateFeedSource) createrBundle.getSerializable("TemplateFeedSource");
+        if (feedSource != null) {
+            templatePager = new TemplatePager(this, new TemplatePager.Listener() {
+                @Override public void onReset() { }
+                @Override public void onLoading(boolean loading) { }
+                @Override public void onError(String message) { }
+                @Override public void onPage(java.util.List<TemplateAreaScreen.TemplateData> items, boolean hasMore) {
+                    int start = dataList.size();
+                    dataList.addAll(items);
+                    adapter.notifyItemRangeInserted(start, items.size());
+                }
+            });
+            java.util.List<String> have = new ArrayList<>();
+            for (TemplateAreaScreen.TemplateData d : dataList) have.add(d.getTemplateId());
+            templatePager.resume(feedSource, createrBundle.getString("TemplateNextCursor"), have);
+        }
+
         mediaViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
                 setupMediaPlayer(position);
+                reportView(position);
                 // Load more when near end
                 if (position >= dataList.size() - 2) {
                     loadMoreVideos();
@@ -242,10 +269,14 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
 
     private void loadMoreVideos() {
-        // Simulate dynamic loading
-//        dataList.add("https://storage.googleapis.com/exoplayer-test-media-0/BigBuckBunny.mp4");
-//        dataList.add("https://storage.googleapis.com/exoplayer-test-media-0/ElephantsDream.mp4");
-        adapter.notifyDataSetChanged();
+        if (templatePager != null) templatePager.loadNext();
+    }
+
+    /** The template on this page came on screen: tell the server (it counts once per viewer per 30 minutes). */
+    private void reportView(int position) {
+        if (position < 0 || position >= dataList.size()) return;
+        String id = dataList.get(position).getTemplateId();
+        if (viewReported.add(id)) TemplateApi.postView(this, id);
     }
 
     void setupMediaPlayer(int position) {
@@ -330,7 +361,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
                     exoPlayer.getThumbnailView().setVisibility(View.GONE);
                 }
 
-                // TODO: Research a way to register postSeen() on video completion/half completion.
+                // The view is reported when the page is selected (reportView); completion-based views are a later idea.
 
             });
 
@@ -429,94 +460,60 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
 
 
-    public void postToggleLike(String templateId, RunnableImpl runnable)
-    {
-        if(AuthRepository.getInstance(this).getCurrentUser() == null) {
-            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to like this template").create().show();
-            return;
-        }
-        try {
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", AuthRepository.getInstance(this).getCurrentUser().getUsername());
-            jsonObject.put("templateId", templateId);
-            postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-like", jsonObject.toString(), runnable);
-        } catch (JSONException e) {
-            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
-        }
-    }
-    public void postToggleBookmark(String templateId, RunnableImpl runnable)
-    {
-        if(AuthRepository.getInstance(this).getCurrentUser() == null) {
-            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to bookmark this template").create().show();
-            return;
-        }
-        try {
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", AuthRepository.getInstance(this).getCurrentUser().getUsername());
-            jsonObject.put("templateId", templateId);
-            postJson("https://app.vanvatcorp.com/doubleclips/api/toggle-bookmark", jsonObject.toString(), runnable);
-        } catch (JSONException e) {
-            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
-        }
-    }
-    public void postSeenTemplate(String templateId, RunnableImpl runnable)
-    {
-        try {
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", "viet2007ht");
-            jsonObject.put("templateId", templateId);
-            postJson("https://app.vanvatcorp.com/doubleclips/api/seen-template", jsonObject.toString(), runnable);
-        } catch (JSONException e) {
-            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
-        }
+    /** Likes need an account; the old dialog, shown once, instead of a silent no-op. */
+    private boolean requireLogin(String what) {
+        if (TemplateApi.viewer(this) != null) return true;
+        new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to " + what + " this template").create().show();
+        return false;
     }
 
-    private void postJson(String url, String json, RunnableImpl runnable) {
-        // Create request body
-        RequestBody body = RequestBody.create(json, MediaType.get("application/json; charset=utf-8"));
+    /**
+     * Like / unlike: the screen answers instantly, the request carries the wanted state (so a retry or a double tap cannot
+     * undo itself), and the server's numbers then replace ours: no local +1 / -1 arithmetic left to drift.
+     */
+    private void setLike(VideoAdapter.VideoViewHolder holder, TemplateAreaScreen.TemplateData data, boolean want) {
+        final boolean before = data.isLiked;
+        final int heartBefore = data.getHeartCount();
+        data.isLiked = want;
+        data.setHeartCount(Math.max(0, heartBefore + (want == before ? 0 : (want ? 1 : -1))));
+        updateHeartUI(holder, data);
 
-        // Build request
-        Request request = new Request.Builder()
-                .url(url)
-                .post(body)
-                .build();
-
-        // Execute asynchronously (important for Android)
-        httpsClient.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
+        TemplateApi.setLike(this, data.getTemplateId(), want, new TemplateApi.ApiCallback<TemplateApi.State>() {
+            @Override public void onSuccess(TemplateApi.State state) {
+                state.applyTo(data);
+                updateHeartUI(holder, data);
+                updateBookmarkUI(holder, data);
             }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                try {
-                    if (!response.isSuccessful()) {
-                        LoggingManager.LogToToast(TemplatePreviewActivity.this, "Error: " + response.code());
-                    } else {
-                        // Read response body
-                        String responseData = response.body().string();
-                        //LoggingManager.LogToToast(TemplatePreviewActivity.this, responseData);
-                        if(runnable != null)
-                        {
-                            runnable.runWithParam(responseData);
-                        }
-                    }
-                } finally {
-                    response.close();
-                }
+            @Override public void onError(String message) {
+                data.isLiked = before;
+                data.setHeartCount(heartBefore);
+                updateHeartUI(holder, data);
+                LoggingManager.LogToToast(TemplatePreviewActivity.this, message);
             }
         });
     }
 
+    private void setBookmark(VideoAdapter.VideoViewHolder holder, TemplateAreaScreen.TemplateData data, boolean want) {
+        final boolean before = data.isBookmarked;
+        final int bookmarkBefore = data.getBookmarkCount();
+        data.isBookmarked = want;
+        data.setBookmarkCount(Math.max(0, bookmarkBefore + (want == before ? 0 : (want ? 1 : -1))));
+        updateBookmarkUI(holder, data);
 
-
-
-
-
-
-
-
+        TemplateApi.setBookmark(this, data.getTemplateId(), want, new TemplateApi.ApiCallback<TemplateApi.State>() {
+            @Override public void onSuccess(TemplateApi.State state) {
+                state.applyTo(data);
+                updateHeartUI(holder, data);
+                updateBookmarkUI(holder, data);
+            }
+            @Override public void onError(String message) {
+                data.isBookmarked = before;
+                data.setBookmarkCount(bookmarkBefore);
+                updateBookmarkUI(holder, data);
+                LoggingManager.LogToToast(TemplatePreviewActivity.this, message);
+            }
+        });
+    }
 
     public class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.VideoViewHolder> {
         private List<TemplateAreaScreen.TemplateData> templateData;
@@ -565,7 +562,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             holder.replacementClipCount.setText("" + data.getTemplateClipCount());
 
             holder.heartCount.setText("" + data.getHeartCount());//NumberHelper.abbreviateNumber(Random.Range(1, 80000000))); // data.clipCount
-            holder.commentCount.setText("" + data.getComments().size());//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
+            holder.commentCount.setText("" + Math.max(data.getCommentCount(), data.getComments().size()));//NumberHelper.abbreviateNumber(Random.Range(1, 300000))); // data.clipCount
             holder.bookmarkCount.setText("" + data.getBookmarkCount());//NumberHelper.abbreviateNumber(Random.Range(1, 500000))); // data.clipCount
 
             // 1. Initial State - Heart
@@ -576,31 +573,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
 
 
             holder.heartButton.setOnClickListener(v -> {
-                // Optimistic Update
-                boolean newState = !data.isLiked;
-                data.isLiked = newState;
-                data.setHeartCount(data.getHeartCount() + (newState ? 1 : -1));
-                updateHeartUI(holder, data);
-
-                postToggleLike(data.getTemplateId(), new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        try {
-                            // Sync with Server Response if needed
-                            boolean serverIsLike = new JSONObject((String) param).getBoolean("isLiked");
-                            // If mismatch, correct it? For now, trust optimistic or server.
-                            // Let's ensure data remains consistent with server
-                            if (data.isLiked != serverIsLike) {
-                                data.isLiked = serverIsLike;
-                                data.setHeartCount(data.getHeartCount() + (serverIsLike ? 1 : -1)); // Re-adjust
-                                holder.itemView.post(() -> updateHeartUI(holder, data));
-                            }
-
-                        } catch (JSONException e) {
-                            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
-                        }
-                    }
-                });
+                if (!requireLogin("like")) return;
+                setLike(holder, data, !data.isLiked);
             });
 
             holder.commentButton.setOnClickListener(v -> {
@@ -608,27 +582,8 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
             });
 
             holder.bookmarkButton.setOnClickListener(v -> {
-                // Optimistic Update
-                boolean newState = !data.isBookmarked;
-                data.isBookmarked = newState;
-                data.setBookmarkCount(data.getBookmarkCount() + (newState ? 1 : -1));
-                updateBookmarkUI(holder, data);
-
-                postToggleBookmark(data.getTemplateId(), new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        try {
-                             boolean serverIsBookmarked = new JSONObject((String) param).getBoolean("isBookmarked");
-                             if (data.isBookmarked != serverIsBookmarked) {
-                                 data.isBookmarked = serverIsBookmarked;
-                                 data.setBookmarkCount(data.getBookmarkCount() + (serverIsBookmarked ? 1 : -1));
-                                 holder.itemView.post(() -> updateBookmarkUI(holder, data));
-                             }
-                        } catch (JSONException e) {
-                            LoggingManager.LogExceptionToNoteOverlay(TemplatePreviewActivity.this, e);
-                        }
-                    }
-                });
+                if (!requireLogin("bookmark")) return;
+                setBookmark(holder, data, !data.isBookmarked);
             });
 
 

@@ -21,10 +21,12 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.SettingsActivity;
+import com.vanvatcorporation.doubleclips.activities.TemplateCollectionActivity;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
 import com.vanvatcorporation.doubleclips.externalUtils.Random;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
+import com.vanvatcorporation.doubleclips.helper.TemplateFeedSource;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -79,6 +81,9 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             Intent intent = new Intent(getContext(), LoginActivity.class);
             getContext().startActivity(intent);
         });
+        // The account's lists of templates. They need an account, so ask to sign in first.
+        findViewById(R.id.likedTemplateButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.liked()));
+        findViewById(R.id.savedTemplateButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.bookmarked()));
         logOutButton = findViewById(R.id.logOutButton);
         logOutButton.setOnClickListener(v -> {
             new AlertDialog.Builder(getContext()).setTitle("Log out").setMessage("Are you sure you want to log out?").setPositiveButton("Yes", (dialog, which) -> {
@@ -100,6 +105,16 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         profileSwipeRefreshLayout.setOnRefreshListener(this::reloadingPage);
 
         reloadingPage();
+    }
+
+    private void openTemplateCollection(TemplateFeedSource source) {
+        if (AuthRepository.getInstance(getContext()).getCurrentUser() == null) {
+            new AlertDialog.Builder(getContext()).setTitle("Login required").setMessage("Please login to see your templates").setPositiveButton("OK", null).show();
+            return;
+        }
+        Intent intent = new Intent(getContext(), TemplateCollectionActivity.class);
+        intent.putExtra("TemplateFeedSource", source);
+        getContext().startActivity(intent);
     }
 
     public void reloadingPage()
