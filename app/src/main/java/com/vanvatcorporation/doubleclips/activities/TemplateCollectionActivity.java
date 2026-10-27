@@ -49,7 +49,9 @@ public class TemplateCollectionActivity extends AppCompatActivityImpl {
         if (source == null) source = TemplateFeedSource.liked();
 
         ((TextView) findViewById(R.id.collectionTitle)).setText(
-                source.kind == TemplateFeedSource.Kind.BOOKMARKED ? R.string.template_collection_saved : R.string.template_collection_liked);
+                source.kind == TemplateFeedSource.Kind.BOOKMARKED ? R.string.template_collection_saved
+                        : source.kind == TemplateFeedSource.Kind.MINE ? R.string.template_collection_mine
+                        : R.string.template_collection_liked);
         findViewById(R.id.collectionBackButton).setOnClickListener(v -> finish());
 
         refresh = findViewById(R.id.collectionSwipeRefresh);
@@ -115,7 +117,8 @@ public class TemplateCollectionActivity extends AppCompatActivityImpl {
     protected void onResume() {
         super.onResume();
         // Back from the preview: whatever was unliked / unsaved there no longer belongs in this list.
-        if (adapter != null) {
+        // Only the Liked / Saved lists lose cards on return; "My templates" stays as it is.
+        if (adapter != null && source.kind != TemplateFeedSource.Kind.MINE) {
             final boolean liked = source.kind == TemplateFeedSource.Kind.LIKED;
             adapter.retain(d -> liked ? d.isLiked : d.isBookmarked);
             updateEmpty();

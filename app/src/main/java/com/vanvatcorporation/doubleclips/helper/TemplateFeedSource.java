@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 /** Which list of templates a screen shows. Travels in an Intent so the preview pager can keep loading the same list. */
 public class TemplateFeedSource implements Serializable {
-    public enum Kind { FEED, SEARCH, LIKED, BOOKMARKED }
+    public enum Kind { FEED, SEARCH, LIKED, BOOKMARKED, MINE }
 
     public final Kind kind;
     /** Only for SEARCH. */
@@ -22,4 +22,6 @@ public class TemplateFeedSource implements Serializable {
     public static TemplateFeedSource liked() { return new TemplateFeedSource(Kind.LIKED, null); }
     /** The signed-in account's Saved (bookmarked) list (Profile). */
     public static TemplateFeedSource bookmarked() { return new TemplateFeedSource(Kind.BOOKMARKED, null); }
+    /** The templates the signed-in account posted itself (Profile -> My templates), newest first. */
+    public static TemplateFeedSource mine() { return new TemplateFeedSource(Kind.MINE, null); }
 }

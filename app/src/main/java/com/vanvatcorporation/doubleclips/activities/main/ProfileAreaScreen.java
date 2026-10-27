@@ -82,6 +82,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             getContext().startActivity(intent);
         });
         // The account's lists of templates. They need an account, so ask to sign in first.
+        findViewById(R.id.myTemplatesButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.mine()));
         findViewById(R.id.likedTemplateButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.liked()));
         findViewById(R.id.savedTemplateButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.bookmarked()));
         logOutButton = findViewById(R.id.logOutButton);

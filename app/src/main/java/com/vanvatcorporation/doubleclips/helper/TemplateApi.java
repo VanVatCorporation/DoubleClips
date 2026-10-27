@@ -156,7 +156,8 @@ public final class TemplateApi {
         switch (source.kind) {
             case LIKED: path = "/templates/liked"; break;
             case BOOKMARKED: path = "/templates/bookmarked"; break;
-            case SEARCH: path = "/templates"; break;
+            case SEARCH:
+            case MINE: path = "/templates"; break;
             case FEED:
             default: path = "/templates/feed"; break;
         }
@@ -165,6 +166,12 @@ public final class TemplateApi {
         if (source.kind == TemplateFeedSource.Kind.SEARCH) url.addQueryParameter("q", source.query);
         String viewer = viewer(app);
         if (viewer != null) url.addQueryParameter("viewer", viewer);   // query, not a header: OkHttp rejects non-ASCII header values
+        if (source.kind == TemplateFeedSource.Kind.MINE) {
+            // "My templates" = the templates whose author is this account (the same endpoint as browse, filtered by author).
+            if (viewer == null) { MAIN.post(() -> callback.onError("Login required")); return; }
+            url.addQueryParameter("author", viewer);
+            url.addQueryParameter("sort", "new");
+        }
 
         send(app, new Request.Builder().url(url.build()).get(), body -> {
             Page page = GSON.fromJson(body, Page.class);
