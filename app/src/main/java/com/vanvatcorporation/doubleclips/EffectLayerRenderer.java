@@ -601,7 +601,7 @@ public final class EffectLayerRenderer {
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         if (maskTexture != 0) {
             drawCopy(captureTexture, 1f);                                   // the picture as it was
-            drawMasked(effectOut, maskTexture, cmd.mask.state.invert);      // the effect, only where the mask shows
+            drawMasked(effectOut, maskTexture, cmd.mask.shaderInvert());      // the effect, only where the mask shows
         } else if (mixes) {
             drawCopy(afterLook, 1f);
             drawCopy(cur, Math.max(cmd.mix, 0f));

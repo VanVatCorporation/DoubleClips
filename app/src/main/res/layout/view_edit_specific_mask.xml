@@ -77,6 +77,34 @@
             android:orientation="vertical"
             android:paddingBottom="32dp">
 
+            <!-- One chip per mask of the clip and "+ Add mask" (built in code; hidden while the clip has no mask) -->
+            <HorizontalScrollView
+                android:id="@+id/maskChipScroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/maskChipRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingTop="8dp" />
+            </HorizontalScrollView>
+
+            <!-- How the open mask combines with the ones before it: Add, Subtract, Intersect (built in code; second mask on) -->
+            <LinearLayout
+                android:id="@+id/maskModeRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="8dp"
+                android:visibility="gone" />
+
             <!-- Shape tiles: None, Linear, Mirror, Circle, Rectangle, Heart, Star (built in code) -->
             <HorizontalScrollView
                 android:layout_width="match_parent"

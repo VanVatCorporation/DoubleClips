@@ -1095,13 +1095,20 @@ public class OpenGLEdit {
     };
 
     /**
-     * The clip's mask at outputTimeSeconds, working in a box of boxW x boxH canvas pixels (the clip as drawn; the whole
-     * canvas for an effect clip), or null when the clip has no mask. Keyframe times are seconds from the clip start.
+     * The clip's masks at outputTimeSeconds, working in a box of boxW x boxH canvas pixels (the clip as drawn; the whole
+     * canvas for an effect clip), or null when the clip has no mask. Each mask's keyframe times are seconds from the clip start.
      */
     private ClipMaskFrame maskFrameOf(EditingActivity.Clip clip, float outputTimeSeconds, float boxW, float boxH) {
-        if (clip.mask == null || boxW <= 0f || boxH <= 0f) return null;
-        ClipMaskResolver.State state = ClipMaskResolver.resolve(clip.mask, clip.maskKeys, outputTimeSeconds - clip.startTime, MASK_EASING);
-        return new ClipMaskFrame(state, boxW, boxH);
+        if (!clip.hasMasks() || boxW <= 0f || boxH <= 0f) return null;
+        float local = outputTimeSeconds - clip.startTime;
+        java.util.List<ClipMaskResolver.State> states = new ArrayList<>(clip.masks.size());
+        java.util.List<String> modes = new ArrayList<>(clip.masks.size());
+        for (ClipMask mask : clip.masks) {
+            if (mask == null) continue;
+            states.add(ClipMaskResolver.resolve(mask, mask.keys, local, MASK_EASING));
+            modes.add(ClipMask.normalizeMode(mask.mode));
+        }
+        return states.isEmpty() ? null : new ClipMaskFrame(states, modes, boxW, boxH);
     }
 
     /**

@@ -20,7 +20,9 @@ import java.util.List;
  *       0.01 s is "the keyframe there"); a value without keyframes changes the static value only.</li>
  *   <li>A diamond turns a value's animation on at the playhead, or takes its keyframe there off; removing a value's last
  *       keyframe leaves it at that value.</li>
- *   <li>Every gesture (a drag, a typed number, a tile, Reset, Invert, a diamond) is ONE undo step.</li>
+ *   <li>Every gesture (a drag, a typed number, a tile, Reset, Invert, a diamond, adding a mask, a mode) is ONE undo step.</li>
+ *   <li>A clip can have several masks (up to {@link ClipMask#MAX_MASKS}); the panel edits the SELECTED one, and the "None"
+ *       tile removes it.</li>
  * </ul>
  * Works on picture clips (video, image, text) and effect clips.
  */
@@ -57,6 +59,9 @@ public final class MaskEditController {
     private final MaskEditSpecificAreaScreen panel;
     private final Host host;
     private Snapshot gestureBefore;
+    /** Index of the mask being edited, and the clip it belongs to (another clip starts at its first mask). */
+    private int selected;
+    private EditingActivity.Clip followed;
 
     public MaskEditController(MaskEditSpecificAreaScreen panel, Host host) {
         this.panel = panel;
@@ -70,6 +75,9 @@ public final class MaskEditController {
             @Override public void onDiamond(String param) { toggleKey(param); }
             @Override public void onReset() { reset(); }
             @Override public void onInvert(boolean invert) { setInvert(invert); }
+            @Override public void onSelectMask(int index) { selectMask(index); }
+            @Override public void onAddMask() { addMask(); }
+            @Override public void onMode(String mode) { setMode(mode); }
         });
     }
 
@@ -79,6 +87,28 @@ public final class MaskEditController {
             case VIDEO: case IMAGE: case TEXT: case EFFECT: return true;
             default: return false;
         }
+    }
+
+    /** The mask being edited on this clip, or null when it has none. */
+    private ClipMask cur(EditingActivity.Clip clip) {
+        if (clip != followed) {
+            followed = clip;
+            selected = 0;
+        }
+        if (clip == null || !clip.hasMasks()) return null;
+        if (selected >= clip.masks.size()) selected = clip.masks.size() - 1;
+        if (selected < 0) selected = 0;
+        return clip.masks.get(selected);
+    }
+
+    /** The mask being edited on {@code clip} (null = none), for whoever shows its keyframes. */
+    public ClipMask editedMask(EditingActivity.Clip clip) {
+        return cur(clip);
+    }
+
+    /** Index of the mask being edited. */
+    public int selectedIndex() {
+        return selected;
     }
 
     public boolean isOpen() {
@@ -124,8 +154,9 @@ public final class MaskEditController {
     /** The selected clip's mask resolved at the playhead (what the canvas outline draws), or null without a mask. */
     public ClipMaskResolver.State stateAtPlayhead() {
         EditingActivity.Clip clip = host.selectedClip();
-        if (!supports(clip) || clip.mask == null) return null;
-        return ClipMaskResolver.resolve(clip.mask, clip.maskKeys, localTime(clip), host.easing());
+        ClipMask mask = supports(clip) ? cur(clip) : null;
+        if (mask == null) return null;
+        return ClipMaskResolver.resolve(mask, mask.keys, localTime(clip), host.easing());
     }
 
     // ---- canvas gestures (MaskGizmoView): one undo step each, several values at once -------------------
@@ -137,7 +168,7 @@ public final class MaskEditController {
     /** Applies what the gesture has changed so far (only those values), live: no undo step yet. */
     public void canvasGestureSet(MaskGizmoMath.Edit edit) {
         EditingActivity.Clip clip = host.selectedClip();
-        if (!supports(clip) || clip.mask == null) return;
+        if (!supports(clip) || cur(clip) == null) return;
         if (edit.x != null) applyValue(clip, ClipMaskResolver.X, edit.x);
         if (edit.y != null) applyValue(clip, ClipMaskResolver.Y, edit.y);
         if (edit.width != null) applyValue(clip, ClipMaskResolver.WIDTH, edit.width);
@@ -169,21 +200,30 @@ public final class MaskEditController {
     private void showInPanel() {
         EditingActivity.Clip clip = host.selectedClip();
         if (!supports(clip)) return;
-        if (clip.mask == null) {
+        ClipMask mask = cur(clip);
+        panel.showMasks(clip.hasMasks() ? clip.masks.size() : 0, selected, mask == null ? ClipMask.ADD : ClipMask.normalizeMode(mask.mode),
+                clip.hasMasks() ? shapesOf(clip) : null);
+        if (mask == null) {
             panel.show(null, false, new float[PARAMS.length], new ClipEditSpecificAreaScreen.KeyMode[PARAMS.length], false);
             return;
         }
         float local = localTime(clip);
-        ClipMaskResolver.State state = ClipMaskResolver.resolve(clip.mask, clip.maskKeys, local, host.easing());
+        ClipMaskResolver.State state = ClipMaskResolver.resolve(mask, mask.keys, local, host.easing());
         float[] values = new float[PARAMS.length];
         ClipEditSpecificAreaScreen.KeyMode[] modes = new ClipEditSpecificAreaScreen.KeyMode[PARAMS.length];
         for (int i = 0; i < PARAMS.length; i++) {
             values[i] = panelValueOf(state, PARAMS[i]);
-            modes[i] = !isAnimated(clip, PARAMS[i]) ? ClipEditSpecificAreaScreen.KeyMode.OFF
-                    : (keyIndexAt(clip, PARAMS[i], local) >= 0 ? ClipEditSpecificAreaScreen.KeyMode.ON_KEY
+            modes[i] = !isAnimated(mask, PARAMS[i]) ? ClipEditSpecificAreaScreen.KeyMode.OFF
+                    : (keyIndexAt(mask, PARAMS[i], local) >= 0 ? ClipEditSpecificAreaScreen.KeyMode.ON_KEY
                     : ClipEditSpecificAreaScreen.KeyMode.ANIMATED);
         }
         panel.show(state.shape, state.invert, values, modes, insideClip(clip));
+    }
+
+    private static String[] shapesOf(EditingActivity.Clip clip) {
+        String[] shapes = new String[clip.masks.size()];
+        for (int i = 0; i < shapes.length; i++) shapes[i] = clip.masks.get(i).shape;
+        return shapes;
     }
 
     // ---- panel events --------------------------------------------------------------------------
@@ -191,36 +231,83 @@ public final class MaskEditController {
     private void pickShape(String shape) {
         EditingActivity.Clip clip = host.selectedClip();
         if (!supports(clip)) return;
-        if (shape != null && clip.mask != null && shape.equals(clip.mask.shape)) return; // the tile that is already chosen: nothing to do
+        ClipMask mask = cur(clip);
+        if (shape != null && mask != null && shape.equals(mask.shape)) return; // the tile that is already chosen: nothing to do
         gestureBefore = Snapshot.of(clip);
         if (shape == null) {
-            clip.mask = null;
-            clip.maskKeys = null;
-            dropUnreadableRaw(clip);
-        } else if (clip.mask == null) {
-            clip.mask = ClipMask.of(shape);
-            clip.maskKeys = null;
+            // "None": the mask being edited goes (the others stay).
+            if (mask != null) {
+                clip.masks.remove(selected);
+                if (clip.masks.isEmpty()) clip.masks = null;
+                else selected = Math.min(selected, clip.masks.size() - 1);
+                dropUnreadableRaw(clip);
+            }
+        } else if (mask == null) {
+            clip.masks = new ArrayList<>();
+            clip.masks.add(ClipMask.of(shape));
+            selected = 0;
             dropUnreadableRaw(clip);
         } else {
-            clip.mask.switchShape(shape); // keeps centre, rotation, feather and invert; the new shape's size
+            mask.switchShape(shape); // keeps centre, rotation, feather, invert, mode and keyframes; the new shape's size
         }
         finish(clip);
     }
 
     private void reset() {
         EditingActivity.Clip clip = host.selectedClip();
-        if (!supports(clip) || clip.mask == null) return;
+        ClipMask mask = supports(clip) ? cur(clip) : null;
+        if (mask == null) return;
         gestureBefore = Snapshot.of(clip);
-        clip.mask = ClipMask.of(clip.mask.shape); // the default mask of the same shape, keyframes cleared
-        clip.maskKeys = null;
+        ClipMask fresh = ClipMask.of(mask.shape); // the default mask of the same shape, keyframes cleared (it still combines the same way)
+        fresh.mode = mask.mode;
+        clip.masks.set(selected, fresh);
         finish(clip);
     }
 
     private void setInvert(boolean invert) {
         EditingActivity.Clip clip = host.selectedClip();
-        if (!supports(clip) || clip.mask == null || clip.mask.invert == invert) return;
+        ClipMask mask = supports(clip) ? cur(clip) : null;
+        if (mask == null || mask.invert == invert) return;
         gestureBefore = Snapshot.of(clip);
-        clip.mask.invert = invert;
+        mask.invert = invert;
+        finish(clip);
+    }
+
+    /** A mask chip was tapped: edit that mask. */
+    private void selectMask(int index) {
+        EditingActivity.Clip clip = host.selectedClip();
+        if (!supports(clip) || !clip.hasMasks() || index < 0 || index >= clip.masks.size()) return;
+        cur(clip); // follow the clip first
+        selected = index;
+        host.maskChanged(clip); // the timeline diamonds and the panel follow
+        host.requestRender();   // the canvas outline follows
+    }
+
+    /** "+ Add mask": a new circle that adds to the area (up to the limit). */
+    private void addMask() {
+        EditingActivity.Clip clip = host.selectedClip();
+        if (!supports(clip)) return;
+        cur(clip);
+        if (clip.hasMasks() && clip.masks.size() >= ClipMask.MAX_MASKS) {
+            host.message("A clip can have up to " + ClipMask.MAX_MASKS + " masks.");
+            return;
+        }
+        gestureBefore = Snapshot.of(clip);
+        if (clip.masks == null) clip.masks = new ArrayList<>();
+        clip.masks.add(ClipMask.of(ClipMask.CIRCLE));
+        selected = clip.masks.size() - 1;
+        dropUnreadableRaw(clip);
+        finish(clip);
+    }
+
+    /** How the mask being edited combines with the ones before it. */
+    private void setMode(String mode) {
+        EditingActivity.Clip clip = host.selectedClip();
+        ClipMask mask = supports(clip) ? cur(clip) : null;
+        String wanted = ClipMask.normalizeMode(mode);
+        if (mask == null || wanted.equals(ClipMask.normalizeMode(mask.mode))) return;
+        gestureBefore = Snapshot.of(clip);
+        mask.mode = wanted;
         finish(clip);
     }
 
@@ -246,23 +333,24 @@ public final class MaskEditController {
 
     private void toggleKey(String param) {
         EditingActivity.Clip clip = host.selectedClip();
-        if (!supports(clip) || clip.mask == null) return;
+        ClipMask mask = supports(clip) ? cur(clip) : null;
+        if (mask == null) return;
         if (!insideClip(clip)) {
             host.message("Move the playhead onto the clip to place a keyframe.");
             return;
         }
         gestureBefore = Snapshot.of(clip);
         float local = snappedLocal(clip);
-        int index = keyIndexAt(clip, param, local);
+        int index = keyIndexAt(mask, param, local);
         if (index >= 0) {
-            Float removed = removeParam(clip, index, param);
+            Float removed = removeParam(mask, index, param);
             // No longer animated: the value stays where it was.
-            if (removed != null && !isAnimated(clip, param)) {
-                setStatic(clip.mask, param, removed / ClipMaskResolver.panelPerFraction(param));
+            if (removed != null && !isAnimated(mask, param)) {
+                setStatic(mask, param, removed / ClipMaskResolver.panelPerFraction(param));
             }
         } else {
-            ClipMaskResolver.State now = ClipMaskResolver.resolve(clip.mask, clip.maskKeys, local, host.easing());
-            setKey(clip, param, local, panelValueOf(now, param));
+            ClipMaskResolver.State now = ClipMaskResolver.resolve(mask, mask.keys, local, host.easing());
+            setKey(mask, param, local, panelValueOf(now, param));
         }
         finish(clip);
     }
@@ -270,13 +358,14 @@ public final class MaskEditController {
     // ---- the edit itself -----------------------------------------------------------------------
 
     private void applyValue(EditingActivity.Clip clip, String param, float panelValue) {
-        if (clip.mask == null) return;
+        ClipMask mask = cur(clip);
+        if (mask == null) return;
         float v = Math.max(ClipMaskResolver.panelMin(param), Math.min(ClipMaskResolver.panelMax(param), panelValue));
-        if (isAnimated(clip, param)) {
+        if (isAnimated(mask, param)) {
             if (!insideClip(clip)) return; // a keyframe can't be placed outside the clip
-            setKey(clip, param, snappedLocal(clip), v);
+            setKey(mask, param, snappedLocal(clip), v);
         } else {
-            setStatic(clip.mask, param, v / ClipMaskResolver.panelPerFraction(param));
+            setStatic(mask, param, v / ClipMaskResolver.panelPerFraction(param));
         }
     }
 
@@ -306,10 +395,10 @@ public final class MaskEditController {
     }
 
     /** Puts {@code value} (panel units) into the keyframe at {@code time}: the one already there (it starts to hold this value too) or a new one that holds only it. */
-    private static void setKey(EditingActivity.Clip clip, String param, float time, float value) {
-        if (clip.maskKeys == null) clip.maskKeys = new ArrayList<>();
+    private static void setKey(ClipMask mask, String param, float time, float value) {
+        if (mask.keys == null) mask.keys = new ArrayList<>();
         ClipMask.Key key = null;
-        for (ClipMask.Key k : clip.maskKeys) {
+        for (ClipMask.Key k : mask.keys) {
             if (Math.abs(k.time - time) <= KEY_MATCH_SECONDS) {
                 key = k;
                 break;
@@ -319,32 +408,32 @@ public final class MaskEditController {
             key = new ClipMask.Key();
             key.time = time;
             key.easing = "LINEAR"; // new keyframes are linear
-            clip.maskKeys.add(key);
-            Collections.sort(clip.maskKeys, (a, b) -> Float.compare(a.time, b.time));
+            mask.keys.add(key);
+            Collections.sort(mask.keys, (a, b) -> Float.compare(a.time, b.time));
         }
         key.values.put(param, value);
     }
 
     /** Takes {@code param} off the keyframe at {@code index} (the keyframe goes when it holds nothing else); returns the value it held. */
-    private static Float removeParam(EditingActivity.Clip clip, int index, String param) {
-        ClipMask.Key key = clip.maskKeys.get(index);
+    private static Float removeParam(ClipMask mask, int index, String param) {
+        ClipMask.Key key = mask.keys.get(index);
         Float removed = key.values.remove(param);
-        if (key.values.isEmpty()) clip.maskKeys.remove(index);
-        if (clip.maskKeys.isEmpty()) clip.maskKeys = null;
+        if (key.values.isEmpty()) mask.keys.remove(index);
+        if (mask.keys.isEmpty()) mask.keys = null;
         return removed;
     }
 
-    private static boolean isAnimated(EditingActivity.Clip clip, String param) {
-        if (clip.maskKeys == null) return false;
-        for (ClipMask.Key k : clip.maskKeys) if (k.values != null && k.values.get(param) != null) return true;
+    private static boolean isAnimated(ClipMask mask, String param) {
+        if (mask.keys == null) return false;
+        for (ClipMask.Key k : mask.keys) if (k.values != null && k.values.get(param) != null) return true;
         return false;
     }
 
     /** Index of the keyframe at {@code local} that holds {@code param}, or -1. */
-    private static int keyIndexAt(EditingActivity.Clip clip, String param, float local) {
-        if (clip.maskKeys == null) return -1;
-        for (int i = 0; i < clip.maskKeys.size(); i++) {
-            ClipMask.Key k = clip.maskKeys.get(i);
+    private static int keyIndexAt(ClipMask mask, String param, float local) {
+        if (mask.keys == null) return -1;
+        for (int i = 0; i < mask.keys.size(); i++) {
+            ClipMask.Key k = mask.keys.get(i);
             if (k.values != null && k.values.get(param) != null && Math.abs(k.time - local) <= KEY_MATCH_SECONDS) return i;
         }
         return -1;
@@ -354,6 +443,7 @@ public final class MaskEditController {
     private static void dropUnreadableRaw(EditingActivity.Clip clip) {
         JsonObject unknown = clip.getUnknownKeys();
         if (unknown == null) return;
+        unknown.remove("masks");
         unknown.remove("mask");
         unknown.remove("maskKeys");
     }
@@ -391,26 +481,26 @@ public final class MaskEditController {
         host.requestRender();
     }
 
-    /** The mask and its keyframes at one moment (copies). */
+    /** The clip's masks (each with its mode and keyframes) at one moment (copies). */
     private static final class Snapshot {
-        final ClipMask mask;
-        final List<ClipMask.Key> keys;
+        final List<ClipMask> masks;
         final String fingerprint;
 
-        private Snapshot(ClipMask mask, List<ClipMask.Key> keys) {
-            this.mask = mask;
-            this.keys = keys;
-            fingerprint = (mask == null ? "-" : ClipMask.toJson(mask).toString()) + "|"
-                    + (keys == null || keys.isEmpty() ? "-" : ClipMask.keysToJson(keys).toString());
+        private Snapshot(List<ClipMask> masks) {
+            this.masks = masks;
+            StringBuilder sb = new StringBuilder();
+            if (masks == null || masks.isEmpty()) sb.append('-');
+            else for (ClipMask m : masks) sb.append(ClipMask.toJson(m)).append('|');
+            fingerprint = sb.toString();
         }
 
         static Snapshot of(EditingActivity.Clip clip) {
-            return new Snapshot(clip.mask == null ? null : new ClipMask(clip.mask), ClipMask.copyKeys(clip.maskKeys));
+            return new Snapshot(ClipMask.copyMasks(clip.masks));
         }
 
         void applyTo(EditingActivity.Clip clip) {
-            clip.mask = mask == null ? null : new ClipMask(mask);
-            clip.maskKeys = ClipMask.copyKeys(keys);
+            List<ClipMask> copy = ClipMask.copyMasks(masks);
+            clip.masks = copy == null || copy.isEmpty() ? null : copy;
         }
     }
 

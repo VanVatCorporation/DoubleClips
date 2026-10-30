@@ -61,6 +61,15 @@ public class MaskEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         void onReset();
 
         void onInvert(boolean invert);
+
+        /** A mask chip was tapped (0 = the first). */
+        void onSelectMask(int index);
+
+        /** "+ Add mask". */
+        void onAddMask();
+
+        /** The open mask's combine mode was chosen: {@link ClipMask#ADD}, {@link ClipMask#SUBTRACT} or {@link ClipMask#INTERSECT}. */
+        void onMode(String mode);
     }
 
     private static final String[] PARAMS = {
@@ -74,7 +83,8 @@ public class MaskEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     }
 
     private Listener listener;
-    private LinearLayout shapeRow, tabRow, valueRows;
+    private LinearLayout shapeRow, tabRow, valueRows, maskChipRow, maskModeRow;
+    private View maskChipScroll;
     private View bottomRow;
     private SwitchMaterial invertSwitch;
     private final Map<String, ParamRow> rows = new LinkedHashMap<>();
@@ -110,6 +120,9 @@ public class MaskEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         valueRows = findViewById(R.id.maskValueRows);
         bottomRow = findViewById(R.id.maskBottomRow);
         invertSwitch = findViewById(R.id.maskInvertSwitch);
+        maskChipScroll = findViewById(R.id.maskChipScroll);
+        maskChipRow = findViewById(R.id.maskChipRow);
+        maskModeRow = findViewById(R.id.maskModeRow);
 
         buildShapeTiles();
         buildTabs();
@@ -129,6 +142,66 @@ public class MaskEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     }
 
     // ---- showing ---------------------------------------------------------------------------------
+
+    /**
+     * Shows the clip's list of masks: a chip for each (number, shape, and how it combines from the second on), "+ Add mask", and
+     * for the second mask on the Add / Subtract / Intersect choice of the open one. Nothing is shown for a clip without masks.
+     *
+     * @param count    how many masks the clip has
+     * @param selected the open one (0 = the first)
+     * @param mode     the open mask's mode
+     * @param shapes   each mask's shape, null when there are none
+     */
+    public void showMasks(int count, int selected, String mode, String[] shapes) {
+        maskChipRow.removeAllViews();
+        maskModeRow.removeAllViews();
+        maskChipScroll.setVisibility(count > 0 ? VISIBLE : GONE);
+        maskModeRow.setVisibility(count > 0 && selected > 0 ? VISIBLE : GONE);
+        if (count <= 0 || shapes == null) return;
+        for (int i = 0; i < count && i < shapes.length; i++) {
+            final int index = i;
+            String shape = shapes[i] == null || shapes[i].isEmpty() ? ClipMask.CIRCLE : shapes[i];
+            StringBuilder label = new StringBuilder().append(i + 1).append("  ")
+                    .append(Character.toUpperCase(shape.charAt(0))).append(shape.substring(1));
+            addChip(maskChipRow, label.toString(), i == selected, () -> {
+                if (listener != null) listener.onSelectMask(index);
+            });
+        }
+        if (count < ClipMask.MAX_MASKS) {
+            addChip(maskChipRow, "+ Add mask", false, () -> {
+                if (listener != null) listener.onAddMask();
+            });
+        }
+        if (selected > 0) {
+            String[][] modes = {{ClipMask.ADD, "Add"}, {ClipMask.SUBTRACT, "Subtract"}, {ClipMask.INTERSECT, "Intersect"}};
+            for (String[] def : modes) {
+                final String id = def[0];
+                addChip(maskModeRow, def[1], id.equals(mode), () -> {
+                    if (listener != null) listener.onMode(id);
+                });
+            }
+        }
+    }
+
+    private void addChip(LinearLayout row, String text, boolean selected, Runnable onClick) {
+        TextView chip = new TextView(getContext());
+        chip.setText(text);
+        chip.setTextSize(13f);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(14), dp(7), dp(14), dp(7));
+        int accent = getContext().getColor(R.color.ios_blue);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(dp(18));
+        bg.setColor(selected ? (accent & 0x00FFFFFF) | 0x33000000 : 0x14808080);
+        bg.setStroke(dp(1.5f), selected ? accent : 0x00000000);
+        chip.setBackground(bg);
+        chip.setTextColor(selected ? accent : secondaryColor());
+        chip.setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        chip.setOnClickListener(v -> onClick.run());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMarginEnd(dp(8));
+        row.addView(chip, params);
+    }
 
     /**
      * Shows a mask.

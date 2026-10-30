@@ -2207,7 +2207,7 @@ public class OpenGLEditNative {
             if (textCache == null) textCache = new TextTextureCache();
             int textTexture = cmd.textUnit == null ? textCache.texture(cmd.clip) : textCache.unitTexture(cmd.clip, cmd.textUnit);
             if (textTexture == 0) return false;
-            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
             imageShader.drawClip(textTexture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -2227,7 +2227,7 @@ public class OpenGLEditNative {
                 }
                 activeImageSources.put(cmd.clip, imageSource);
             }
-            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
             imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -2279,7 +2279,7 @@ public class OpenGLEditNative {
             return false;
         }
 
-        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
         shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);

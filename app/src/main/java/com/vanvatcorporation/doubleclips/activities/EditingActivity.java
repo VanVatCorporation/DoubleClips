@@ -3181,12 +3181,14 @@ public class EditingActivity extends AppCompatActivityImpl {
             View child = clip.viewRef.getChildAt(i);
             if (child.getTag(R.id.mask_knot_tag) != null) clip.viewRef.removeView(child);
         }
-        if (clip.mask == null || clip.maskKeys == null) return;
+        // The diamonds of the mask being edited (several masks each have their own keyframes).
+        ClipMask editedMask = maskController == null ? (clip.hasMasks() ? clip.masks.get(0) : null) : maskController.editedMask(clip);
+        if (editedMask == null || editedMask.keys == null) return;
         int size = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8, getResources().getDisplayMetrics());
         int edge = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, getResources().getDisplayMetrics());
         int height = clip.viewRef.getHeight() > 0 ? clip.viewRef.getHeight()
                 : (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 40, getResources().getDisplayMetrics());
-        for (ClipMask.Key key : clip.maskKeys) {
+        for (ClipMask.Key key : editedMask.keys) {
             View knot = new View(this);
             knot.setRotation(45f);
             knot.setPivotX(size / 2f);
@@ -5333,20 +5335,23 @@ public class EditingActivity extends AppCompatActivityImpl {
          * "textStyle": build the style from them. See TextStyleInterop.
          */
         /**
-         * Clip mask (iOS keys "mask" and "maskKeys", see ClipMask): limits where the clip is visible. Not loaded by the project
-         * loader but parsed here, so a mask that can't be read never costs the clip: it stays in the clip's unknown keys, untouched,
-         * and the clip just has no mask on this side. Null = no mask.
+         * Clip masks (iOS and desktop key "masks", see ClipMask), combined in order by each mask's mode: they limit where the clip
+         * is visible, and each has its own keyframes. Not loaded by the project loader but parsed here, so a mask that can't be
+         * read never costs the clip: it stays in the clip's unknown keys, untouched, and the clip just has no masks on this side.
+         * Null (never an empty list) = no mask.
          */
-        public transient ClipMask mask;
-        /** The mask's keyframes (panel units, clip-local seconds), or null / empty. */
-        public transient List<ClipMask.Key> maskKeys;
+        public transient List<ClipMask> masks;
+
+        /** True when the clip has at least one mask. */
+        public boolean hasMasks() {
+            return masks != null && !masks.isEmpty();
+        }
 
         // The editor hands the timeline to the export screen in an Intent, which is Java serialization, and that skips transient
-        // fields: carry the mask and the other platform's unknown keys along, or an exported video would have no masks.
+        // fields: carry the masks and the other platform's unknown keys along, or an exported video would have no masks.
         private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
             out.defaultWriteObject();
-            out.writeObject(mask);
-            out.writeObject(maskKeys == null ? null : new ArrayList<>(maskKeys));
+            out.writeObject(masks == null ? null : new ArrayList<>(masks));
             out.writeObject(getUnknownKeys() == null ? null : getUnknownKeys().toString());
         }
 
@@ -5354,23 +5359,20 @@ public class EditingActivity extends AppCompatActivityImpl {
         private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
             in.defaultReadObject();
             try {
-                mask = (ClipMask) in.readObject();
-                maskKeys = (List<ClipMask.Key>) in.readObject();
+                masks = (List<ClipMask>) in.readObject();
                 String unknown = (String) in.readObject();
                 if (unknown != null) setUnknownKeys(com.google.gson.JsonParser.parseString(unknown).getAsJsonObject());
             } catch (java.io.OptionalDataException e) {
-                mask = null; // a stream from before clips carried a mask
-                maskKeys = null;
+                masks = null; // a stream from before clips carried masks
             }
         }
 
         @Override
         public void onLoaded(JsonObject raw) {
             if (type == ClipType.TEXT && textStyle == null) textStyle = TextStyleInterop.fromDesktopKeys(raw);
-            ClipMask.Loaded loadedMask = ClipMask.readFrom(raw, unknownKeys);
-            if (loadedMask != null) {
-                mask = loadedMask.mask;
-                maskKeys = loadedMask.keys;
+            List<ClipMask> loadedMasks = ClipMask.readAllFrom(raw, unknownKeys);
+            if (loadedMasks != null) {
+                masks = loadedMasks;
                 if (unknownKeys != null && unknownKeys.size() == 0) unknownKeys = null;
             }
         }
@@ -5379,8 +5381,8 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Override
         public void onSaving(JsonObject tree) {
             if (type == ClipType.TEXT) TextStyleInterop.writeDesktopKeys(tree, textStyle != null ? textStyle : TextStyle.DEFAULT);
-            // A mask this build couldn't read is still in the tree (as an unknown key) and is left as it is.
-            ClipMask.writeTo(tree, mask, maskKeys);
+            // Masks this build couldn't read are still in the tree (as an unknown key) and are left as they are.
+            ClipMask.writeAllTo(tree, masks);
         }
         public static final int ELEVATION_HANDLERS = 2;
         public static final int ELEVATION_TRANSITION_KNOT = 1;
@@ -5516,8 +5518,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         public Clip(Clip clip) {
             copyUnknownKeysFrom(clip);
-            this.mask = clip.mask == null ? null : new ClipMask(clip.mask);
-            this.maskKeys = ClipMask.copyKeys(clip.maskKeys);
+            this.masks = ClipMask.copyMasks(clip.masks);
             this.clipName = clip.clipName;
             this.startTime = clip.startTime;
             this.startClipTrim = clip.startClipTrim;

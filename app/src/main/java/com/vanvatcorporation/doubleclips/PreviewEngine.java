@@ -581,7 +581,7 @@ public final class PreviewEngine {
         if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
             int texture = cmd.textUnit == null ? pool.text.texture(cmd.clip) : pool.text.unitTexture(cmd.clip, cmd.textUnit);
             if (texture == 0) return false;
-            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
             imageShader.drawClip(texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -590,7 +590,7 @@ public final class PreviewEngine {
         if (cmd.clip.type == EditingActivity.ClipType.IMAGE) {
             ImageEntry image = pool.image(cmd.clip);
             if (image == null) return false;
-            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+            imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
             imageShader.drawClip(image.texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -600,7 +600,7 @@ public final class PreviewEngine {
 
         PreviewDecoder decoder = pool.video(cmd.clip, cmd, true);
         if (decoder == null) return false;
-        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.state.invert);
+        shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
         shader.drawClip(decoder.textureId, decoder.texMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
