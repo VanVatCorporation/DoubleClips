@@ -9,6 +9,7 @@ import androidx.preference.ListPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreference;
 
+import com.vanvatcorporation.doubleclips.AppLanguage;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.RetrofitClient;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -16,6 +17,7 @@ import com.vanvatcorporation.drivekit.DriveClient;
 import com.vanvatcorporation.drivekit.Models;
 import com.vanvatcorporation.drivekit.Thumbs;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -53,7 +55,33 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        setUpLanguage();
         setUpDriveThumbnails();
+    }
+
+    /** Settings > General > Language: "System Default" at the top, then the languages by their own names. */
+    private void setUpLanguage() {
+        ListPreference languagePref = findPreference(AppLanguage.PREF_KEY);
+        if (languagePref == null) return;
+        List<AppLanguage.Language> languages = AppLanguage.sortedForPicker();
+        CharSequence[] names = new CharSequence[languages.size() + 1];
+        CharSequence[] codes = new CharSequence[languages.size() + 1];
+        names[0] = getString(R.string.language_system_default);
+        codes[0] = AppLanguage.SYSTEM;
+        for (int i = 0; i < languages.size(); i++) {
+            names[i + 1] = languages.get(i).nativeName; // never translated: anyone can find theirs
+            codes[i + 1] = languages.get(i).code;
+        }
+        languagePref.setEntries(names);
+        languagePref.setEntryValues(codes);
+        languagePref.setOnPreferenceChangeListener((preference, newValue) -> {
+            // The preference only saves the value after this returns: save it now, the new screen reads it as it starts.
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    .edit().putString(AppLanguage.PREF_KEY, newValue.toString()).commit();
+            AppLanguage.changed(); // every other open screen recreates itself when it comes back
+            if (getActivity() != null) getActivity().recreate();
+            return true;
+        });
     }
 
     private DriveClient drive() {
@@ -73,7 +101,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (thumbs == null) return;
         if (RetrofitClient.getInstance(requireContext()).getAuthToken() == null) {
             thumbs.setEnabled(false);
-            thumbs.setSummary("Sign in from the Profile tab to change this.");
+            thumbs.setSummary(R.string.sign_in_from_the_profile_tab_to_ch);
             return;
         }
         thumbs.setEnabled(false);                       // until the account's current value is known

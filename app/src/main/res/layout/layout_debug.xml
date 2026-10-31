@@ -7,13 +7,13 @@
         android:id="@+id/backButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Back"/>
+        android:text="@string/back"/>
     <Button
         android:id="@+id/clearButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_toEndOf="@id/backButton"
-        android:text="Clear"/>
+        android:text="@string/clear"/>
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

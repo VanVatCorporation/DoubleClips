@@ -24,7 +24,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="3D Scene Configuration"
+            android:text="@string/t_3d_scene_configuration"
             android:textAlignment="center"
             android:textSize="20sp"
             android:padding="10dp"
@@ -56,7 +56,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Scene Config (JSON/OBJ URL)"
+                    android:text="@string/scene_config_json_obj_url"
                     android:textColor="#FFFFFF" />
 
                 <EditText
@@ -75,14 +75,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-                    android:text="Texture mapping from Clip Name:"
+                    android:text="@string/texture_mapping_from_clip_name"
                     android:textColor="#FFFFFF" />
 
                 <EditText
                     android:id="@+id/textureClipNameContent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Type clip name to use as texture"
+                    android:hint="@string/type_clip_name_to_use_as_texture"
                     android:textColorHint="#888888"
                     android:textColor="#FFFFFF"
                     android:backgroundTint="#888888"

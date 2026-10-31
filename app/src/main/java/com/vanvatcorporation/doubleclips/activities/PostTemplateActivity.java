@@ -80,9 +80,9 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
         setupDetails();
 
         if (templateWarnings != null && !templateWarnings.isEmpty()) {
-            new AlertDialog.Builder(this).setTitle("Before you post")
+            new AlertDialog.Builder(this).setTitle(R.string.before_you_post)
                     .setMessage(android.text.TextUtils.join("\n", templateWarnings))
-                    .setPositiveButton("OK", null).show();
+                    .setPositiveButton(R.string.ok, null).show();
         }
     }
 
@@ -194,7 +194,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
 
     private void uploadTemplate() {
         if (AuthRepository.getInstance(this).getCurrentUser() == null) {
-            new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to post template").create().show();
+            new AlertDialog.Builder(this).setTitle(R.string.login_required).setMessage(R.string.please_login_to_post_template).create().show();
 
             return;
         }
@@ -248,7 +248,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
             viewFlipper.showNext();
         }
         
-        uploadStatusText.setText("Uploading template...");
+        uploadStatusText.setText(R.string.uploading_template);
         uploadFailedActionContainer.setVisibility(View.GONE);
         uploadProgressFill.setBackgroundColor(getColor(R.color.ios_blue));
 
@@ -281,7 +281,7 @@ public class PostTemplateActivity extends AppCompatActivityImpl {
                                     viewFlipper.showNext(); // Move to Step 4
                                     successTemplateIdText.setText("Template ID: " + templateId);
                                 } catch (Exception e) {
-                                    uploadStatusText.setText("Uploaded successfully, but couldn't parse response.");
+                                    uploadStatusText.setText(R.string.uploaded_successfully_but_couldn_t);
                                 }
                             } else {
                                 uploadStatusText.setText("Failed to upload: " + result);

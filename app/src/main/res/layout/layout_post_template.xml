@@ -32,7 +32,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="Preview"
+                android:text="@string/preview"
                 android:textColor="@android:color/white"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -54,7 +54,7 @@
             android:layout_alignParentBottom="true"
             android:layout_margin="16dp"
             android:backgroundTint="@android:color/white"
-            android:text="Next"
+            android:text="@string/next"
             android:textColor="@android:color/black"
             android:textStyle="bold" />
     </RelativeLayout>
@@ -84,7 +84,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="Edit details"
+                android:text="@string/edit_details"
                 android:textColor="@android:color/white"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -127,7 +127,7 @@
                         android:layout_marginStart="16dp"
                         android:background="@android:color/transparent"
                         android:gravity="top|start"
-                        android:hint="Template title..."
+                        android:hint="@string/template_title"
                         android:textColor="@android:color/white"
                         android:textColorHint="#AAAAAA"
                         android:textSize="16sp" />
@@ -159,7 +159,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
                         android:background="@android:color/transparent"
-                        android:hint="Add description..."
+                        android:hint="@string/add_description"
                         android:textColor="@android:color/white"
                         android:textColorHint="#AAAAAA"
                         android:textSize="16sp" />
@@ -191,7 +191,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="16dp"
-                        android:text="Location (Unimplemented)"
+                        android:text="@string/location_unimplemented"
                         android:textColor="@android:color/white"
                         android:textSize="16sp" />
                 </LinearLayout>
@@ -221,7 +221,7 @@
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
                 android:backgroundTint="#333333"
-                android:text="Save draft"
+                android:text="@string/save_draft"
                 android:textColor="@android:color/white" />
 
             <Button
@@ -231,7 +231,7 @@
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:backgroundTint="@android:color/white"
-                android:text="Upload template"
+                android:text="@string/upload_template"
                 android:textColor="@android:color/black"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -287,7 +287,7 @@
             android:layout_below="@id/progressContainer"
             android:layout_centerHorizontal="true"
             android:layout_marginTop="16dp"
-            android:text="Uploading..."
+            android:text="@string/uploading"
             android:textColor="@android:color/white"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -307,7 +307,7 @@
                 android:layout_weight="1"
                 android:layout_marginEnd="8dp"
                 android:backgroundTint="#333333"
-                android:text="Back"
+                android:text="@string/back"
                 android:textColor="@android:color/white"
                 android:textStyle="bold" />
 
@@ -318,7 +318,7 @@
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:backgroundTint="@android:color/white"
-                android:text="Retry"
+                android:text="@string/retry"
                 android:textColor="@android:color/black"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -347,7 +347,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="Upload Completed!"
+                android:text="@string/upload_completed"
                 android:textColor="@android:color/white"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -370,7 +370,7 @@
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="32dp"
             android:backgroundTint="@android:color/white"
-            android:text="Done"
+            android:text="@string/done"
             android:textColor="@android:color/black"
             android:textStyle="bold" />
     </RelativeLayout>

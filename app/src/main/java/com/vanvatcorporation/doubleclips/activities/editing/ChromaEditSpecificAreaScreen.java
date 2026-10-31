@@ -139,12 +139,12 @@ public class ChromaEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         LinearLayout texts = new LinearLayout(context);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = new TextView(context);
-        title.setText("Remove background");
+        title.setText(R.string.remove_background_2);
         title.setTextSize(16f);
         title.setTextColor(primaryColor());
         texts.addView(title);
         TextView soon = new TextView(context);
-        soon.setText("Coming soon");
+        soon.setText(R.string.coming_soon_2);
         soon.setTextSize(12f);
         soon.setTextColor(secondaryColor());
         texts.addView(soon);
@@ -156,14 +156,14 @@ public class ChromaEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         content.addView(removeRow);
 
         TextView chromaTitle = new TextView(context);
-        chromaTitle.setText("Chroma key");
+        chromaTitle.setText(R.string.chroma_key);
         chromaTitle.setTextSize(13f);
         chromaTitle.setTextColor(secondaryColor());
         chromaTitle.setPadding(dp(4), dp(14), dp(4), dp(6));
         content.addView(chromaTitle);
 
         pickHint = new TextView(context);
-        pickHint.setText("Tap the preview to pick the colour");
+        pickHint.setText(R.string.tap_the_preview_to_pick_the_colour);
         pickHint.setTextSize(14f);
         pickHint.setTextColor(getContext().getColor(R.color.ios_blue));
         pickHint.setPadding(dp(4), dp(2), dp(4), dp(8));
@@ -171,7 +171,7 @@ public class ChromaEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         content.addView(pickHint);
 
         addButton = new TextView(context);
-        addButton.setText("+ Add chroma key");
+        addButton.setText(R.string.add_chroma_key);
         addButton.setTextSize(15f);
         addButton.setGravity(Gravity.CENTER);
         addButton.setTextColor(getContext().getColor(R.color.ios_blue));
@@ -529,10 +529,10 @@ public class ChromaEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         refresh.run();
 
         new AlertDialog.Builder(context)
-                .setTitle("Key colour")
+                .setTitle(R.string.key_colour)
                 .setView(root)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("OK", (dialog, which) -> {
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.ok, (dialog, which) -> {
                     int chosen = 0xFF000000 | (color[0] & 0xFFFFFF);
                     if (listener != null) listener.onColor(card.key, chosen);
                 })

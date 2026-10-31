@@ -87,7 +87,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
         findViewById(R.id.savedTemplateButton).setOnClickListener(v -> openTemplateCollection(TemplateFeedSource.bookmarked()));
         logOutButton = findViewById(R.id.logOutButton);
         logOutButton.setOnClickListener(v -> {
-            new AlertDialog.Builder(getContext()).setTitle("Log out").setMessage("Are you sure you want to log out?").setPositiveButton("Yes", (dialog, which) -> {
+            new AlertDialog.Builder(getContext()).setTitle(R.string.settings_account_log_out).setMessage(R.string.are_you_sure_you_want_to_log_out).setPositiveButton(R.string.yes, (dialog, which) -> {
                 if(AuthRepository.getInstance(getContext()).getCurrentUser() != null)
                     AuthRepository.getInstance(getContext()).logout(new AuthRepository.AuthCallback<Void>() {
                         @Override
@@ -100,7 +100,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
                             reloadingPage();
                         }
                     });
-            }).setNegativeButton("No", null).show();
+            }).setNegativeButton(R.string.no, null).show();
         });
 
         profileSwipeRefreshLayout.setOnRefreshListener(this::reloadingPage);
@@ -110,7 +110,7 @@ public class ProfileAreaScreen extends BaseAreaScreen {
 
     private void openTemplateCollection(TemplateFeedSource source) {
         if (AuthRepository.getInstance(getContext()).getCurrentUser() == null) {
-            new AlertDialog.Builder(getContext()).setTitle("Login required").setMessage("Please login to see your templates").setPositiveButton("OK", null).show();
+            new AlertDialog.Builder(getContext()).setTitle(R.string.login_required).setMessage(R.string.please_login_to_see_your_templates).setPositiveButton(R.string.ok, null).show();
             return;
         }
         Intent intent = new Intent(getContext(), TemplateCollectionActivity.class);

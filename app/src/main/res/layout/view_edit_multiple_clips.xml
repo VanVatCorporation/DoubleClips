@@ -40,7 +40,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Multiple Clips"
+            android:text="@string/multiple_clips"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -103,7 +103,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Duration"
+                        android:text="@string/duration"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 

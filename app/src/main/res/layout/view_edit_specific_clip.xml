@@ -40,7 +40,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Clip Properties"
+            android:text="@string/clip_properties"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -88,7 +88,7 @@
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="8dp"
-                android:hint="Clip name"
+                android:hint="@string/clip_name"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 app:boxCornerRadiusTopStart="12dp"
                 app:boxCornerRadiusTopEnd="12dp"
@@ -130,7 +130,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/durationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Duration"
+                        android:text="@string/duration"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -196,7 +196,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/startTrimIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Start Trim"
+                        android:text="@string/start_trim"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -242,7 +242,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/endTrimIcon"
                         android:layout_marginStart="12dp"
-                        android:text="End Trim"
+                        android:text="@string/end_trim"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -304,7 +304,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Easing"
+                        android:text="@string/easing"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -336,7 +336,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
-                        android:text="Keyframe Data"
+                        android:text="@string/keyframe_data"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -353,7 +353,7 @@
                             android:layout_height="50dp"
                             android:layout_margin="4dp"
                             app:navIcon="@drawable/baseline_data_object_24"
-                            app:navText="Import" />
+                            app:navText="@string/add_project_choice_import" />
 
                         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
                             android:id="@+id/exportKeyframesButton"
@@ -361,7 +361,7 @@
                             android:layout_height="50dp"
                             android:layout_margin="4dp"
                             app:navIcon="@drawable/baseline_upload_file_24"
-                            app:navText="Export" />
+                            app:navText="@string/export_3" />
 
                     </LinearLayout>
                 </RelativeLayout>
@@ -380,7 +380,7 @@
                     android:layout_height="44dp"
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginBottom="4dp"
-                    android:text="Clear Keyframes"
+                    android:text="@string/clear_keyframes"
                     android:textColor="@color/md_theme_light_error"
                     app:rippleColor="@color/md_theme_light_error" />
 
@@ -413,7 +413,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/positionIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Position"
+                        android:text="@string/position"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -494,7 +494,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/rotationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Rotation"
+                        android:text="@string/rotation"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -540,7 +540,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/scaleIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Scale"
+                        android:text="@string/scale"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -621,7 +621,7 @@
                         android:layout_centerVertical="true"
                         android:layout_marginStart="12dp"
                         android:layout_toEndOf="@id/pivotIcon"
-                        android:text="Pivot"
+                        android:text="@string/pivot"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -702,7 +702,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/volumeIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Volume"
+                        android:text="@string/volume"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
                     <EditText
@@ -750,7 +750,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/inAnimationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="In Animation"
+                        android:text="@string/in_animation"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -791,7 +791,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/inAnimationDurationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="In Duration (s)"
+                        android:text="@string/in_duration_s"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -837,7 +837,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/outAnimationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Out Animation"
+                        android:text="@string/out_animation"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -878,7 +878,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/outAnimationDurationIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Out Duration (s)"
+                        android:text="@string/out_duration_s"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -913,7 +913,7 @@
                     android:focusable="true"
                     android:gravity="center_vertical"
                     android:paddingHorizontal="16dp"
-                    android:text="Animation packs..."
+                    android:text="@string/animation_packs"
                     android:textColor="@color/ios_blue"
                     android:textSize="15sp" />
 
@@ -947,7 +947,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Opacity"
+                        android:text="@string/opacity"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1033,7 +1033,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Speed"
+                        android:text="@string/speed"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1118,7 +1118,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Hue (degrees)"
+                        android:text="@string/hue_degrees"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1162,7 +1162,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Saturation"
+                        android:text="@string/saturation"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1247,7 +1247,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Brightness"
+                        android:text="@string/brightness"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1332,7 +1332,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Temperature (K)"
+                        android:text="@string/temperature_k"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1419,7 +1419,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Remove Background"
+                        android:text="@string/remove_background"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1457,7 +1457,7 @@
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
-                    android:hint="Addition FFmpeg Command"
+                    android:hint="@string/addition_ffmpeg_command"
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     app:boxCornerRadiusTopStart="12dp"
                     app:boxCornerRadiusTopEnd="12dp"
@@ -1499,7 +1499,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Mute Audio"
+                        android:text="@string/mute_audio"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1537,7 +1537,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Lock for Template"
+                        android:text="@string/lock_for_template"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1575,7 +1575,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Reverse"
+                        android:text="@string/reverse"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1615,7 +1615,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="tblend Motion Blur"
+                        android:text="@string/tblend_motion_blur"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -1654,7 +1654,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="tmix Weight"
+                        android:text="@string/tmix_weight"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 

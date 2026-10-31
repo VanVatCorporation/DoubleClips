@@ -154,7 +154,7 @@ public final class TileGridDialog {
         final AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(title)
                 .setView(root)
-                .setNegativeButton("Close", null)
+                .setNegativeButton(R.string.close, null)
                 .create();
 
         final SparseArray<Bitmap> previews = new SparseArray<>();
@@ -259,12 +259,12 @@ public final class TileGridDialog {
             if (!tile.deletable) return false;
             new AlertDialog.Builder(context)
                     .setTitle("Delete \"" + tile.title + "\"?")
-                    .setMessage("Clips already using this style keep their look.")
-                    .setPositiveButton("Delete", (d, w) -> {
+                    .setMessage(R.string.clips_already_using_this_style_kee)
+                    .setPositiveButton(R.string.delete, (d, w) -> {
                         dialog.dismiss();
                         listener.onDelete(tile);
                     })
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(R.string.cancel, null)
                     .show();
             return true;
         });

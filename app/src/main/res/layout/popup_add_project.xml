@@ -31,7 +31,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Create New Project"
+                android:text="@string/create_new_project"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:textColor="?android:attr/textColorPrimary"
@@ -74,7 +74,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="New Project"
+                            android:text="@string/new_project"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="?android:attr/textColorPrimary"
@@ -113,7 +113,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Import Project"
+                            android:text="@string/import_project"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="?android:attr/textColorPrimary"
@@ -135,7 +135,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="New Project"
+                android:text="@string/new_project"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:textColor="?android:attr/textColorPrimary"
@@ -144,7 +144,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Give your project a name to get started."
+                android:text="@string/give_your_project_a_name_to_get_st"
                 android:textSize="15sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="20dp"/>
@@ -164,7 +164,7 @@
                     android:id="@+id/projectTitleInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Project title..."
+                    android:hint="@string/project_title"
                     android:inputType="textCapSentences"
                     android:imeOptions="actionDone"
                     android:textSize="16sp"/>
@@ -175,7 +175,7 @@
                 android:id="@+id/createProjectButton"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="Create Project"
+                android:text="@string/create_project"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/white"
@@ -188,7 +188,7 @@
                 android:id="@+id/backButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Back"
+                android:text="@string/back"
                 android:textSize="15sp"
                 android:textColor="?android:attr/textColorSecondary"
                 app:backgroundTint="@android:color/transparent"

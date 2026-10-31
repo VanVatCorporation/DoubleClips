@@ -35,7 +35,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
-                android:text="export" />
+                android:text="@string/export_2" />
 
         </RelativeLayout>
 
@@ -55,14 +55,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="FFmpeg (CPU)" />
+                android:text="@string/ffmpeg_cpu" />
 
             <RadioButton
                 android:id="@+id/renderEngineOpenGlRadio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
-                android:text="OpenGL (GPU) — Recommended" />
+                android:text="@string/opengl_gpu_recommended" />
 
         </RadioGroup>
 
@@ -96,14 +96,14 @@
                 android:id="@+id/generateCmdButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Gen cmd" />
+                android:text="@string/gen_cmd" />
 
             <EditText
                 android:id="@+id/exportCommand"
                 android:layout_width="match_parent"
                 android:layout_height="200dp"
                 android:gravity="top"
-                android:hint="FFmpeg Command..."
+                android:hint="@string/ffmpeg_command"
                 android:scrollbarSize="20dp"
                 android:textSize="12sp" />
 
@@ -131,7 +131,7 @@
                 android:id="@+id/statusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Current Task: 0%"
+                android:text="@string/current_task_0"
                 android:textSize="15sp" />
 
             <ProgressBar
@@ -150,7 +150,7 @@
                 android:id="@+id/globalStatusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Remaining Task: 0/0"
+                android:text="@string/remaining_task_0_0"
                 android:textSize="15sp" />
 
             <ProgressBar
@@ -169,7 +169,7 @@
                 android:id="@+id/logCheckbox"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Enable log" />
+                android:text="@string/enable_log" />
 
             <CheckBox
                 android:id="@+id/truncateCheckbox"
@@ -177,7 +177,7 @@
                 android:layout_height="wrap_content"
                 android:layout_toEndOf="@id/logCheckbox"
                 android:checked="true"
-                android:text="Truncate log" />
+                android:text="@string/truncate_log" />
 
             <CheckBox
                 android:id="@+id/scrollLockCheckbox"
@@ -185,7 +185,7 @@
                 android:layout_height="wrap_content"
                 android:layout_toEndOf="@id/truncateCheckbox"
                 android:checked="true"
-                android:text="Scroll lock" />
+                android:text="@string/scroll_lock" />
         </RelativeLayout>
 
 
@@ -200,7 +200,7 @@
                 android:id="@+id/logText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="export"
+                android:text="@string/export_2"
                 android:textIsSelectable="true"
                 android:textSize="15sp" />
 

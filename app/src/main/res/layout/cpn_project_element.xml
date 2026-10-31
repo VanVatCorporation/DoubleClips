@@ -101,7 +101,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/baseline_menu_24"
             app:tint="?attr/colorOnSurfaceVariant"
-            android:contentDescription="Options" />
+            android:contentDescription="@string/options" />
 
     </RelativeLayout>
 </com.google.android.material.card.MaterialCardView>

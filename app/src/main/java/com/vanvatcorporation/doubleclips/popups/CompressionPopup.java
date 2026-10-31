@@ -68,7 +68,7 @@ public class CompressionPopup extends AlertDialog.Builder {
         cancelButton.setVisibility(View.VISIBLE);
         cancelButton.setOnClickListener(v -> {
             cancelButton.setEnabled(false);
-            cancelButton.setText("Cancelling...");
+            cancelButton.setText(R.string.cancelling);
             onCancel.run();
         });
     }

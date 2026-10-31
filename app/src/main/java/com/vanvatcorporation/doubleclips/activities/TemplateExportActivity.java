@@ -261,7 +261,7 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
                 // in ExportActivity — wiring it here needs that data flow looked
                 // at directly rather than guessed. Falling back to FFmpeg
                 // explicitly rather than silently misrouting.
-                android.widget.Toast.makeText(this, "OpenGL export for templates isn't wired up yet — using FFmpeg", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this, R.string.opengl_export_for_templates_isn_t, android.widget.Toast.LENGTH_SHORT).show();
             }
             exportClip();
         });
@@ -359,12 +359,12 @@ public class TemplateExportActivity extends AppCompatActivityImpl {
             // Recommended value not in range pop up [10, 30]
             if (settings.clipCap > 30 || settings.clipCap < 10) {
                 new AlertDialog.Builder(this)
-                        .setTitle("Clip Cap out of recommended range!")
-                        .setMessage("Clip Cap out of recommended range, this mean the rendering process might take longer due to inefficient rendering part. Would you like to continue?")
-                        .setPositiveButton("Yes", (dialog, which) -> {
+                        .setTitle(R.string.clip_cap_out_of_recommended_range)
+                        .setMessage(R.string.clip_cap_out_of_recommended_range_2)
+                        .setPositiveButton(R.string.yes, (dialog, which) -> {
                             dialog.dismiss();
                         })
-                        .setNegativeButton("No", (dialog, which) -> {
+                        .setNegativeButton(R.string.no, (dialog, which) -> {
                             // Set back to default (30)
                             settings.clipCap = 30;
                             dialog.dismiss();

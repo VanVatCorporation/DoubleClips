@@ -174,7 +174,7 @@ public class ExportActivity extends AppCompatActivityImpl {
         exportAsTemplateButton.setOnClickListener(v -> {
 
             if(AuthRepository.getInstance(this).getCurrentUser() == null) {
-                new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to post template").create().show();
+                new AlertDialog.Builder(this).setTitle(R.string.login_required).setMessage(R.string.please_login_to_post_template).create().show();
                 return;
             }
 
@@ -212,14 +212,14 @@ public class ExportActivity extends AppCompatActivityImpl {
         String inputPath = IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_EXPORT_CLIP_FILENAME);
         if (IOHelper.isFileExist(inputPath)) {
             new AlertDialog.Builder(this)
-                    .setTitle("You have an unexported video!")
-                    .setMessage("Would you like to export it now?")
-                    .setPositiveButton("Yes", (dialog, which) -> {
+                    .setTitle(R.string.you_have_an_unexported_video)
+                    .setMessage(R.string.would_you_like_to_export_it_now)
+                    .setPositiveButton(R.string.yes, (dialog, which) -> {
 
                         exportClipTo(false, "", 0, new ArrayList<>(), new ArrayList<>());
                         dialog.dismiss();
                     })
-                    .setNegativeButton("No", (dialog, which) -> {
+                    .setNegativeButton(R.string.no, (dialog, which) -> {
                         dialog.dismiss();
                     })
                     .show();
@@ -262,12 +262,12 @@ public class ExportActivity extends AppCompatActivityImpl {
             // Recommended value not in range pop up [10, 30]
             if (settings.clipCap > 30 || settings.clipCap < 10) {
                 new AlertDialog.Builder(this)
-                        .setTitle("Clip Cap out of recommended range!")
-                        .setMessage("Clip Cap out of recommended range, this mean the rendering process might take longer due to inefficient rendering part. Would you like to continue?")
-                        .setPositiveButton("Yes", (dialog, which) -> {
+                        .setTitle(R.string.clip_cap_out_of_recommended_range)
+                        .setMessage(R.string.clip_cap_out_of_recommended_range_2)
+                        .setPositiveButton(R.string.yes, (dialog, which) -> {
                             dialog.dismiss();
                         })
-                        .setNegativeButton("No", (dialog, which) -> {
+                        .setNegativeButton(R.string.no, (dialog, which) -> {
                             // Set back to default (30)
                             settings.clipCap = 30;
                             settings.saveSettings(this, properties);
@@ -448,10 +448,10 @@ public class ExportActivity extends AppCompatActivityImpl {
             for (String gap : animationGaps) gapMessage.append("\n  \u2022 ").append(gap);
             gapMessage.append("\n\nSwitch the render engine to OpenGL to get them, or continue and they will be left out of this export.");
             new AlertDialog.Builder(this)
-                    .setTitle("Some effects are not available")
+                    .setTitle(R.string.some_effects_are_not_available)
                     .setMessage(gapMessage.toString())
-                    .setPositiveButton("Continue with FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
-                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                    .setPositiveButton(R.string.continue_with_ffmpeg, (dialog, which) -> exportClip(exportAsTemplate))
+                    .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss())
                     .show();
             return;
         }
@@ -467,12 +467,12 @@ public class ExportActivity extends AppCompatActivityImpl {
         message.append("\n\nUse FFmpeg to get them all, or continue with OpenGL and they will be left out of this export.");
 
         new AlertDialog.Builder(this)
-                .setTitle("OpenGL export not complete yet")
+                .setTitle(R.string.opengl_export_not_complete_yet)
                 .setMessage(message.toString())
-                .setPositiveButton("Use FFmpeg", (dialog, which) -> exportClip(exportAsTemplate))
-                .setNeutralButton("Use OpenGL anyway", (dialog, which) ->
+                .setPositiveButton(R.string.use_ffmpeg, (dialog, which) -> exportClip(exportAsTemplate))
+                .setNeutralButton(R.string.use_opengl_anyway, (dialog, which) ->
                         preRender3DScenesThenExport(() -> exportClipOpenGLImpl(exportAsTemplate)))
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss())
                 .show();
     }
 

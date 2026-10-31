@@ -210,17 +210,17 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
     private void confirmDeleteUnused() {
         final List<ProjectFilesData> unused = unusedFiles();
         if (unused.isEmpty()) {
-            LoggingManager.LogToToast(getContext(), "Every file is used by a clip.");
+            LoggingManager.LogToToast(getContext(), getContext().getString(R.string.every_file_is_used_by_a_clip));
             return;
         }
         long bytes = 0;
         for (ProjectFilesData file : unused) bytes += file.bytes;
         new AlertDialog.Builder(getContext())
-                .setTitle("Delete unused files?")
+                .setTitle(R.string.delete_unused_files_2)
                 .setMessage((unused.size() == 1 ? "1 file is" : unused.size() + " files are") + " not used by any clip. Deleting "
                         + (unused.size() == 1 ? "it" : "them") + " frees " + Formatter.formatShortFileSize(getContext(), bytes)
                         + " and can't be undone.")
-                .setPositiveButton("Delete", (dialog, which) -> {
+                .setPositiveButton(R.string.delete, (dialog, which) -> {
                     for (ProjectFilesData file : unused) deleteFileFromProject(file.fileTitle);
                     reloadingProject();
                     LoggingManager.LogToToast(getContext(), "Freed " + Formatter.formatShortFileSize(getContext(), unusedBytes(unused)));
@@ -420,8 +420,8 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
                     if(EditingActivity.selectedTrack != null) {
                         activityInstance.addProjectFileMediaToTrack(projectItem.getFileTitle(), projectItem.getFilePath());
                     }
-                    else new AlertDialog.Builder(getContext()).setTitle("Error").setMessage("You need to pick a track first!").show();
-                    else new AlertDialog.Builder(getContext()).setTitle("Error").setMessage("Tung Tung Tung Sahur! (EditingActivity instance not initialized!)").show();
+                    else new AlertDialog.Builder(getContext()).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
+                    else new AlertDialog.Builder(getContext()).setTitle(R.string.error).setMessage("Tung Tung Tung Sahur! (EditingActivity instance not initialized!)").show();
             });
             holder.wholeView.setOnLongClickListener(v -> {
 
@@ -473,7 +473,7 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
 
 
 
-                            LoggingManager.LogToToast(context, "Replacing a file isn't available yet.");
+                            LoggingManager.LogToToast(context, context.getString(R.string.replacing_a_file_isn_t_available_y));
                             return true;
                         }
                         return false;

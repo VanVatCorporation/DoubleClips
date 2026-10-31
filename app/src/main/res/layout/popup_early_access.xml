@@ -32,7 +32,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Early access warning"
+                android:text="@string/early_access_warning"
                 android:textSize="22sp"
                 android:textStyle="bold"
                 android:textColor="?android:attr/textColorPrimary"/>
@@ -45,7 +45,7 @@
             android:paddingStart="24dp"
             android:paddingEnd="24dp"
             android:layout_marginBottom="16dp"
-            android:text="This app will undergo many core changes in the near future. If you update to the latest version and find that your project can't be edited or modified, don't panic—just click the three-line menu button and select &quot;Share project&quot; to create a backup. Your work is still there; it just needs to be migrated to the new version. Then visit our GitHub page and submit an issue including the version. Thank you for using our app."
+            android:text="@string/this_app_will_undergo_many_core_ch"
             android:textSize="15sp"
             android:textColor="?android:attr/textColorSecondary"
             android:lineSpacingMultiplier="1.4"/>
@@ -71,7 +71,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Known issues in this version:"
+                    android:text="@string/known_issues_in_this_version"
                     android:textSize="15sp"
                     android:textStyle="bold"
                     android:textColor="?android:attr/textColorPrimary"
@@ -94,7 +94,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Fetching issues…"
+                        android:text="@string/fetching_issues"
                         android:textSize="14sp"
                         android:textColor="?android:attr/textColorSecondary"/>
                 </LinearLayout>
@@ -119,7 +119,7 @@
             android:paddingStart="24dp"
             android:paddingEnd="24dp"
             android:layout_marginBottom="24dp"
-            android:text="This popup can be disabled in Settings, and usually takes about a few kilobytes of internet depending on how many issues there are."
+            android:text="@string/this_popup_can_be_disabled_in_sett"
             android:textSize="13sp"
             android:textColor="?android:attr/textColorSecondary"/>
 
@@ -136,7 +136,7 @@
                 android:id="@+id/earlyAccessOkButton"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="OK"
+                android:text="@string/ok"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/white"
@@ -149,7 +149,7 @@
                 android:id="@+id/earlyAccessDontShowButton"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:text="Don't show again"
+                android:text="@string/don_t_show_again"
                 android:textSize="16sp"
                 android:textColor="@color/red"
                 app:backgroundTint="#1AFF3B30"

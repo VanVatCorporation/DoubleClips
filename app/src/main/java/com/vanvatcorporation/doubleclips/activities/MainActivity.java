@@ -230,7 +230,7 @@ public class MainActivity extends AppCompatActivityImpl {
                     runArchiveJob(getString(R.string.alert_processing_compression), "Compressing project...",
                             (listener, cancel) -> ProgressCompressionHelper.exportProject(
                                     this, new File(project.getProjectPath()), uri, listener, cancel),
-                            () -> LoggingManager.LogToToast(this, "Project exported"));
+                            () -> LoggingManager.LogToToast(this, this.getString(R.string.project_exported)));
                 }
         );
 
@@ -301,7 +301,7 @@ public class MainActivity extends AppCompatActivityImpl {
             } catch (ProjectZip.CancelledException e) {
                 runOnUiThread(() -> {
                     popup.dismissSafely();
-                    LoggingManager.LogToToast(this, "Cancelled");
+                    LoggingManager.LogToToast(this, this.getString(R.string.cancelled));
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -312,7 +312,7 @@ public class MainActivity extends AppCompatActivityImpl {
                             .setPositiveButton(R.string.ok, null);
                     // A storage/daily limit: the useful next step is the account tier upgrade.
                     if (com.vanvatcorporation.drivekit.Quota.isQuotaLimit(e))
-                        failed.setNeutralButton("Get more resources", (d, w) -> com.vanvatcorporation.drivekit.QuotaUi.openPlans(this));
+                        failed.setNeutralButton(R.string.get_more_resources, (d, w) -> com.vanvatcorporation.drivekit.QuotaUi.openPlans(this));
                     failed.show();
                     LoggingManager.LogExceptionToNoteOverlay(this, e);
                 });

@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.dynamiclibs.auth;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -8,9 +9,15 @@ import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.vanvatcorporation.doubleclips.AppLanguage;
 import com.vanvatcorporation.doubleclips.R;
 
 public class LoginActivity extends AppCompatActivity {
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(AppLanguage.wrap(newBase));
+    }
 
     private AuthRepository authRepository;
     private EditText emailInput;
@@ -53,7 +60,7 @@ public class LoginActivity extends AppCompatActivity {
                 authRepository.login(email, password, new AuthRepository.AuthCallback<User>() {
                     @Override
                     public void onSuccess(User user) {
-                        Toast.makeText(LoginActivity.this, "Login Success!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, R.string.login_success, Toast.LENGTH_SHORT).show();
                         // Navigate to Main Activity...
                         finish();
                     }

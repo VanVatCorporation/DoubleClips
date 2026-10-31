@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Effect"
+            android:text="@string/effect"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -101,7 +101,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Type"
+                        android:text="@string/type"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -115,7 +115,7 @@
                         android:maxWidth="200dp"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:text="Choose..."
+                        android:text="@string/choose"
                         android:textAllCaps="false"
                         android:textColor="@color/ios_blue"
                         android:textSize="15sp"
@@ -148,7 +148,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Duration"
+                        android:text="@string/duration"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -196,7 +196,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
                             android:maxLines="1"
-                            android:text="Strength"
+                            android:text="@string/strength"
                             android:textColor="?android:attr/textColorPrimary"
                             android:textSize="15sp" />
 

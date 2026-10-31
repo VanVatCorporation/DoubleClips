@@ -16,7 +16,7 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:layout_marginBottom="16dp"
-        android:text="Sort Projects"
+        android:text="@string/sort_projects"
         android:textSize="20sp"
         android:textStyle="bold"
         android:textColor="?android:attr/textColorPrimary"/>
@@ -28,7 +28,7 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:layout_marginBottom="8dp"
-        android:text="Sort by"
+        android:text="@string/sort_by"
         android:textSize="13sp"
         android:textAllCaps="true"
         android:letterSpacing="0.08"
@@ -49,28 +49,28 @@
             android:id="@+id/chipSortDate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Date Modified"
+            android:text="@string/date_modified"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
         <com.google.android.material.chip.Chip
             android:id="@+id/chipSortName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Name"
+            android:text="@string/name"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
         <com.google.android.material.chip.Chip
             android:id="@+id/chipSortDuration"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Duration"
+            android:text="@string/duration"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
         <com.google.android.material.chip.Chip
             android:id="@+id/chipSortSize"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Size"
+            android:text="@string/size"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
     </com.google.android.material.chip.ChipGroup>
@@ -82,7 +82,7 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp"
         android:layout_marginBottom="8dp"
-        android:text="Order"
+        android:text="@string/order"
         android:textSize="13sp"
         android:textAllCaps="true"
         android:letterSpacing="0.08"
@@ -103,14 +103,14 @@
             android:id="@+id/chipOrderNewest"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Newest / A→Z / Largest"
+            android:text="@string/newest_a_z_largest"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
         <com.google.android.material.chip.Chip
             android:id="@+id/chipOrderOldest"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Oldest / Z→A / Smallest"
+            android:text="@string/oldest_z_a_smallest"
             style="@style/Widget.MaterialComponents.Chip.Choice"/>
 
     </com.google.android.material.chip.ChipGroup>
@@ -122,7 +122,7 @@
         android:layout_height="52dp"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:text="Apply"
+        android:text="@string/apply"
         android:textSize="16sp"
         android:textStyle="bold"
         android:textColor="@color/white"

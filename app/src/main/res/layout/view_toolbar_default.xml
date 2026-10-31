@@ -21,49 +21,49 @@
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_add_24"
-            app:navText="Add" />
+            app:navText="@string/add" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/reorderTracksButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_sort_24"
-            app:navText="Order" />
+            app:navText="@string/order" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/deleteMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_delete_24"
-            app:navText="Delete" />
+            app:navText="@string/delete" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/splitMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_cut_24"
-            app:navText="Cut" />
+            app:navText="@string/cut" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/pasteMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_paste_24"
-            app:navText="Paste" />
+            app:navText="@string/paste" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/projectFilesViewerButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_folder_24"
-            app:navText="Files" />
+            app:navText="@string/files" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/importTrackButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_data_object_24"
-            app:navText="Import" />
+            app:navText="@string/add_project_choice_import" />
 
     </LinearLayout>
 </HorizontalScrollView>

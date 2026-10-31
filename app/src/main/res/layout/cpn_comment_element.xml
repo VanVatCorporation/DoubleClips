@@ -79,7 +79,7 @@
         android:layout_alignParentEnd="true"
         android:layout_alignTop="@id/commenterAvatar"
         android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="More options" />
+        android:contentDescription="@string/more_options" />
 
 
     <TextView

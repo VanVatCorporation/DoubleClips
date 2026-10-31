@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Background"
+            android:text="@string/background"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"

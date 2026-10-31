@@ -36,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Project Settings"
+            android:text="@string/project_settings"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -99,7 +99,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Resolution"
+                        android:text="@string/resolution"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -166,7 +166,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Framerate"
+                        android:text="@string/framerate"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -223,7 +223,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Constant rate factor"
+                        android:text="@string/constant_rate_factor"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -264,7 +264,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Bitrate (Mbps)"
+                        android:text="@string/bitrate_mbps"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -321,7 +321,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Clip Cap"
+                        android:text="@string/clip_cap"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -366,7 +366,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Hardware Acceleration"
+                        android:text="@string/hardware_acceleration"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -402,7 +402,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Export preset"
+                        android:text="@string/export_preset"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -440,7 +440,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Export tune"
+                        android:text="@string/export_tune"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -477,7 +477,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Stretch media to fit"
+                        android:text="@string/stretch_media_to_fit"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -514,7 +514,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Frames Per Second"
+                        android:text="@string/frames_per_second"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -569,7 +569,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Playback Speed"
+                        android:text="@string/playback_speed"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -624,7 +624,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Reverse Playback"
+                        android:text="@string/reverse_playback"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -659,7 +659,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Keep Playing with Chosen Clip"
+                        android:text="@string/keep_playing_with_chosen_clip"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -697,7 +697,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Audio Bar Width"
+                        android:text="@string/audio_bar_width"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -736,7 +736,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Audio Bar Gap"
+                        android:text="@string/audio_bar_gap"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -777,7 +777,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="GPU Preview"
+                        android:text="@string/gpu_preview"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -796,7 +796,7 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="16dp"
                     android:paddingBottom="8dp"
-                    android:text="On: the preview is drawn by the same OpenGL code as the export. Off: the classic preview."
+                    android:text="@string/on_the_preview_is_drawn_by_the_sam"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="12sp" />
 
@@ -817,7 +817,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Use Proxy for Preview"
+                        android:text="@string/use_proxy_for_preview"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -836,7 +836,7 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="16dp"
                     android:paddingBottom="12dp"
-                    android:text="Off: GPU preview plays your original clips (sharper, heavier). On: it plays the lightweight proxies (smoother on weaker devices). Export is not affected."
+                    android:text="@string/off_gpu_preview_plays_your_origina"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="12sp" />
 
@@ -857,7 +857,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Snap to Guides"
+                        android:text="@string/snap_to_guides"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -876,7 +876,7 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="16dp"
                     android:paddingBottom="12dp"
-                    android:text="Moving or resizing a clip on the canvas clicks onto the canvas edges and centre and onto other clips, with pink guide lines."
+                    android:text="@string/moving_or_resizing_a_clip_on_the_c"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="12sp" />
 

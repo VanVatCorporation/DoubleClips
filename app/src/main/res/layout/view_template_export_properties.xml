@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Export Clip"
+            android:text="@string/export_clip"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -126,7 +126,7 @@
                         android:textSize="13sp"
                         android:maxLines="1"
                         android:ellipsize="end"
-                        android:text="JPEG Image" />
+                        android:text="@string/jpeg_image" />
 
                     <TextView
                         android:id="@+id/lengthText"
@@ -148,7 +148,7 @@
                     android:src="@drawable/baseline_more_vert_24"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     app:tint="?android:attr/textColorSecondary"
-                    android:contentDescription="More options" />
+                    android:contentDescription="@string/more_options" />
 
             </RelativeLayout>
 
@@ -169,7 +169,7 @@
                         android:id="@+id/trimText"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Trim"
+                        android:text="@string/trim"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp"
                         android:layout_marginBottom="8dp" />

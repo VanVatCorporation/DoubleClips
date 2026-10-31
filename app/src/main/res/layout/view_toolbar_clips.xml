@@ -24,7 +24,7 @@
             android:background="?android:attr/colorBackground"
             android:paddingHorizontal="16dp"
             android:paddingVertical="6dp"
-            android:text="Clips"
+            android:text="@string/clips"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -35,63 +35,63 @@
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_delete_24"
-            app:navText="Delete" />
+            app:navText="@string/delete" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/cloneMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_file_copy_24"
-            app:navText="Clone" />
+            app:navText="@string/clone" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/copyMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_copy_24"
-            app:navText="Copy" />
+            app:navText="@string/copy" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/cutMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_drive_file_move_24"
-            app:navText="Cut" />
+            app:navText="@string/cut" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/pasteMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_content_paste_24"
-            app:navText="Paste" />
+            app:navText="@string/paste" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/editMediaButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_edit_square_24"
-            app:navText="Edit" />
+            app:navText="@string/edit" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/selectMultipleButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_menu_24"
-            app:navText="Multi" />
+            app:navText="@string/multi" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/applyKeyframeToAllClip"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_merge_24"
-            app:navText="All Keys" />
+            app:navText="@string/all_keys" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/restateButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"
             app:navIcon="@drawable/baseline_restore_24"
-            app:navText="Restate" />
+            app:navText="@string/restate" />
 
     </LinearLayout>
 </HorizontalScrollView>

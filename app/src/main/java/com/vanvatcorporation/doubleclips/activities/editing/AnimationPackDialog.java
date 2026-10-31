@@ -1,6 +1,7 @@
 package com.vanvatcorporation.doubleclips.activities.editing;
 
-import android.app.Activity;
+
+import com.vanvatcorporation.doubleclips.R;import android.app.Activity;
 import android.app.AlertDialog;
 import android.widget.Toast;
 
@@ -24,7 +25,7 @@ public final class AnimationPackDialog {
      */
     public static void show(Activity activity, Runnable launchImport, Runnable onChanged) {
         List<ClipAnimationPacks.PackInfo> packs = ClipAnimationAssets.installedPacks(activity);
-        AlertDialog.Builder b = new AlertDialog.Builder(activity).setTitle("Animation packs");
+        AlertDialog.Builder b = new AlertDialog.Builder(activity).setTitle(R.string.animation_packs_2);
         if (packs.isEmpty()) {
             b.setMessage("No animation packs installed.\n\nA pack is a .zip with a pack.json and animation .json files. "
                     + "Import one to add more in / out animations to the pickers.");
@@ -33,8 +34,8 @@ public final class AnimationPackDialog {
             for (int i = 0; i < labels.length; i++) labels[i] = describe(packs.get(i));
             b.setItems(labels, (dialog, which) -> confirmRemove(activity, packs.get(which), onChanged));
         }
-        b.setPositiveButton("Import pack...", (dialog, which) -> launchImport.run())
-                .setNegativeButton("Close", (dialog, which) -> dialog.dismiss())
+        b.setPositiveButton(R.string.import_pack, (dialog, which) -> launchImport.run())
+                .setNegativeButton(R.string.close, (dialog, which) -> dialog.dismiss())
                 .show();
     }
 
@@ -62,17 +63,17 @@ public final class AnimationPackDialog {
     private static void confirmRemove(Activity activity, ClipAnimationPacks.PackInfo pack, Runnable onChanged) {
         new AlertDialog.Builder(activity)
                 .setTitle("Remove \"" + pack.name + "\"?")
-                .setMessage("Clips that use its animations keep them selected but will export without them until the pack is installed again.")
-                .setPositiveButton("Remove", (dialog, which) -> {
+                .setMessage(R.string.clips_that_use_its_animations_keep)
+                .setPositiveButton(R.string.remove, (dialog, which) -> {
                     try {
                         ClipAnimationAssets.removePack(activity, pack.id);
                         Toast.makeText(activity, "Removed " + pack.name, Toast.LENGTH_SHORT).show();
                         onChanged.run();
                     } catch (ClipAnimationPacks.PackException e) {
-                        new AlertDialog.Builder(activity).setTitle("Couldn't remove the pack").setMessage(e.getMessage()).show();
+                        new AlertDialog.Builder(activity).setTitle(R.string.couldn_t_remove_the_pack).setMessage(e.getMessage()).show();
                     }
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss())
                 .show();
     }
 }

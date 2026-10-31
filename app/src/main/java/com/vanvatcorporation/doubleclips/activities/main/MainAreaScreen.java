@@ -454,14 +454,14 @@ public class MainAreaScreen extends BaseAreaScreen {
             File newName = new File(newDir);
             if (!new File(getProjectPath()).renameTo(newName)) {
                 this.projectPath = oldProjectTitle;
-                LoggingManager.LogToToast(context, "Rename failed (1)");
+                LoggingManager.LogToToast(context, context.getString(R.string.rename_failed_1));
                 return;
             }
             setProjectPath(newDir);
             if (!new File(getProjectPath()).exists()) {
                 this.projectPath = oldProjectTitle;
                 setProjectPath(oldDir);
-                LoggingManager.LogToToast(context, "Rename failed (2)");
+                LoggingManager.LogToToast(context, context.getString(R.string.rename_failed_2));
                 return;
             }
 

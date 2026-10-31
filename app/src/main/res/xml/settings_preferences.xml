@@ -6,11 +6,19 @@
 
         <ListPreference
             app:key="theme_mode"
-            app:title="Dark mode"
-            app:summary="Select..."
+            app:title="@string/dark_mode"
+            app:summary="@string/select"
             app:entries="@array/options_array"
             app:entryValues="@array/options_values"
             app:defaultValue="option1" />
+
+        <!-- System Default first, then the languages by name (each in its own language); filled in by SettingsFragment -->
+        <ListPreference
+            app:key="app_language"
+            app:title="@string/settings_general_language"
+            app:dialogTitle="@string/settings_general_language"
+            app:useSimpleSummaryProvider="true"
+            app:defaultValue="system" />
 
         <SwitchPreference
             android:defaultValue="true"
@@ -24,25 +32,25 @@
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Van Vat Drive">
+    <PreferenceCategory app:title="@string/van_vat_drive">
 
         <!-- Lives on the account (shared with the web and the Drive apps), so it is not stored on this device. -->
         <SwitchPreference
             android:defaultValue="true"
             android:key="drive_preview_thumbnails"
             android:persistent="false"
-            android:summary="Shows small previews of your images in the Storage tab. Every preview downloads the image once, so it uses your daily download allowance."
-            android:title="Preview thumbnails" />
+            android:summary="@string/shows_small_previews_of_your_image"
+            android:title="@string/preview_thumbnails" />
 
         <Preference
             android:key="drive_terms"
-            android:title="Terms of Service">
+            android:title="@string/terms_of_service">
             <intent android:action="android.intent.action.VIEW" android:data="https://drive.vanvatcorp.com/terms" />
         </Preference>
 
         <Preference
             android:key="drive_privacy"
-            android:title="Privacy Policy">
+            android:title="@string/privacy_policy">
             <intent android:action="android.intent.action.VIEW" android:data="https://drive.vanvatcorp.com/privacy" />
         </Preference>
 

@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Text Properties"
+            android:text="@string/text_properties"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -89,7 +89,7 @@
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
-                    android:hint="Text content"
+                    android:hint="@string/text_content"
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     app:boxCornerRadiusTopStart="12dp"
                     app:boxCornerRadiusTopEnd="12dp"
@@ -128,7 +128,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Size"
+                        android:text="@string/size"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -169,7 +169,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Color"
+                        android:text="@string/color"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -217,7 +217,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Style"
+                        android:text="@string/style"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -227,7 +227,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Custom"
+                        android:text="@string/custom"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -257,7 +257,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Font"
+                        android:text="@string/font"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -267,7 +267,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Default"
+                        android:text="@string/default_label"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -297,7 +297,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Bold and italic"
+                        android:text="@string/bold_and_italic"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -307,7 +307,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Regular"
+                        android:text="@string/regular"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -337,7 +337,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Align"
+                        android:text="@string/align"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -347,7 +347,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Left"
+                        android:text="@string/left"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -373,7 +373,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Outline width"
+                        android:text="@string/outline_width"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -412,7 +412,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Outline color"
+                        android:text="@string/outline_color"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -456,7 +456,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Letter spacing"
+                        android:text="@string/letter_spacing"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -495,7 +495,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Line spacing"
+                        android:text="@string/line_spacing"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -534,7 +534,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Wrap at (% of canvas width, 0 = off)"
+                        android:text="@string/wrap_at_of_canvas_width_0_off"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -577,7 +577,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Blur"
+                        android:text="@string/blur"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -616,7 +616,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Offset X"
+                        android:text="@string/offset_x"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -655,7 +655,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Offset Y"
+                        android:text="@string/offset_y"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -694,7 +694,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Shadow color"
+                        android:text="@string/shadow_color"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -738,7 +738,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Box color (alpha 0 = no box)"
+                        android:text="@string/box_color_alpha_0_no_box"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -778,7 +778,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Box padding"
+                        android:text="@string/box_padding"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -817,7 +817,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Box corner radius"
+                        android:text="@string/box_corner_radius"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -864,7 +864,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Animate by"
+                        android:text="@string/animate_by"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -874,7 +874,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Whole text"
+                        android:text="@string/whole_text"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -900,7 +900,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Stagger (%)"
+                        android:text="@string/stagger"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -943,7 +943,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Order"
+                        android:text="@string/order"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -953,7 +953,7 @@
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
-                        android:text="Forward"
+                        android:text="@string/forward"
                         android:textColor="?android:attr/textColorSecondary"
                         android:textSize="15sp" />
 
@@ -964,7 +964,7 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="16dp"
                     android:paddingBottom="12dp"
-                    android:text="Animate by character, word or line plays the clip's In / Out animation on each piece in turn. OpenGL export only; set the animations in the clip's In / Out settings (or pick a style that does)."
+                    android:text="@string/animate_by_character_word_or_line"
                     android:textColor="?android:attr/textColorSecondary"
                     android:textSize="12sp" />
 

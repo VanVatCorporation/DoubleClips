@@ -463,7 +463,7 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
     /** Likes need an account; the old dialog, shown once, instead of a silent no-op. */
     private boolean requireLogin(String what) {
         if (TemplateApi.viewer(this) != null) return true;
-        new AlertDialog.Builder(this).setTitle("Login required").setMessage("Please login to " + what + " this template").create().show();
+        new AlertDialog.Builder(this).setTitle(R.string.login_required).setMessage("Please login to " + what + " this template").create().show();
         return false;
     }
 

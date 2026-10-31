@@ -36,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Export Settings"
+            android:text="@string/export_settings"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -99,7 +99,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Resolution"
+                        android:text="@string/resolution"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -166,7 +166,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Framerate"
+                        android:text="@string/framerate"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -223,7 +223,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Constant rate factor"
+                        android:text="@string/constant_rate_factor"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -264,7 +264,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Bitrate (HW)"
+                        android:text="@string/bitrate_hw"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -320,7 +320,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Clip Cap"
+                        android:text="@string/clip_cap"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -365,7 +365,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Hardware Acceleration"
+                        android:text="@string/hardware_acceleration"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -401,7 +401,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Export preset"
+                        android:text="@string/export_preset"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -439,7 +439,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Export tune"
+                        android:text="@string/export_tune"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -476,7 +476,7 @@
                         android:layout_height="wrap_content"
                         android:layout_centerVertical="true"
                         android:layout_marginStart="34dp"
-                        android:text="Stretch media to fit"
+                        android:text="@string/stretch_media_to_fit"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 

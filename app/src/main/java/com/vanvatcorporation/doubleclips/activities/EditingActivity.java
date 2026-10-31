@@ -580,10 +580,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                                 AnimatedProperty keyframes = GsonHelper.createStrictGson(new String[]{"keyframes"}, AnimatedProperty.class).fromJson(IOHelper.readFromFile(this, getContentResolver(), uris[i]), AnimatedProperty.class);
                                 if(selectedClip != null)
                                     selectedClip.importKeyframes(this, keyframes);
-                                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+                                else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
 
                             } catch (JsonParseException e) {
-                                new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                                new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                             }
 
 
@@ -596,10 +596,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                             AnimatedProperty keyframes = GsonHelper.createStrictGson(new String[]{"keyframes"}, AnimatedProperty.class).fromJson(IOHelper.readFromFile(this, getContentResolver(), fileUri), AnimatedProperty.class);
                             if(selectedClip != null)
                                 selectedClip.importKeyframes(this, keyframes);
-                            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+                            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
 
                         } catch (JsonParseException e) {
-                            new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                            new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                         }
 
                     }
@@ -643,10 +643,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                                 clip.filterNullAfterLoad();
                                 if(selectedTrack != null)
                                     addClipToTrack(selectedTrack, clip);
-                                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                                else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
 
                             } catch (JsonParseException e) {
-                                new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                                new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                             }
 
 
@@ -660,10 +660,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                             clip.filterNullAfterLoad();
                             if(selectedTrack != null)
                                 addClipToTrack(selectedTrack, clip);
-                            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
 
                         } catch (JsonParseException e) {
-                            new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                            new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                         }
 
                     }
@@ -682,10 +682,10 @@ public class EditingActivity extends AppCompatActivityImpl {
                     String what = installed.replacedVersion > 0
                             ? "Updated \"" + installed.pack.name + "\" (v" + installed.replacedVersion + " -> v" + installed.pack.version + ")."
                             : "Installed \"" + installed.pack.name + "\".";
-                    new AlertDialog.Builder(this).setTitle("Animation pack").setMessage(what + "\n\n"
+                    new AlertDialog.Builder(this).setTitle(R.string.animation_pack).setMessage(what + "\n\n"
                             + installed.pack.animationCount() + " animation(s) are now in the in / out pickers.").show();
                 } catch (ClipAnimationPacks.PackException e) {
-                    new AlertDialog.Builder(this).setTitle("Couldn't install the pack").setMessage(e.getMessage()).show();
+                    new AlertDialog.Builder(this).setTitle(R.string.couldn_t_install_the_pack).setMessage(e.getMessage()).show();
                 }
             }
     );
@@ -698,7 +698,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     String relative = TextFonts.importFont(this, properties.getProjectPath(), result.getData().getData());
                     textEditSpecificAreaScreen.fontImported(relative);
                 } catch (java.io.IOException e) {
-                    new AlertDialog.Builder(this).setTitle("Couldn't import the font").setMessage(e.getMessage()).show();
+                    new AlertDialog.Builder(this).setTitle(R.string.couldn_t_import_the_font).setMessage(e.getMessage()).show();
                 }
             }
     );
@@ -758,7 +758,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                 timeline.addTrack(track);
                             } catch (JsonParseException e) {
-                                new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                                new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                             }
 
 
@@ -774,7 +774,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                             timeline.addTrack(track);
                         } catch (JsonParseException e) {
-                            new AlertDialog.Builder(this).setTitle("Error").setMessage(e.getMessage()).show();
+                            new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(e.getMessage()).show();
                         }
                     }
 
@@ -1637,14 +1637,14 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarTrack.findViewById(R.id.addMediaButton).setOnClickListener(v -> {
             if(selectedTrack != null)
                 pickingContent();
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
         });
 
         toolbarTrack.findViewById(R.id.addMediaButton).setOnLongClickListener(v -> {
             if(selectedTrack != null) {
                 addClipToTrack(selectedTrack, new Clip("3DScene", currentTime, 3f, selectedTrack.timelineIndex, ClipType.SCENE_3D, false, 1366, 768));
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
             return true;
         });
         toolbarTrack.findViewById(R.id.deleteTrackButton).setOnClickListener(v -> {
@@ -1652,7 +1652,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedTrack.delete(timeline, timelineTracksContainer, trackInfoLayout, this);
                 updateCurrentClipEnd();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
 
         });
         toolbarTrack.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
@@ -1671,7 +1671,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarTrack.findViewById(R.id.addTextButton).setOnClickListener(v -> {
 
             if(selectedTrack == null) {
-                new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
                 return;
             }
 
@@ -1688,7 +1688,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarTrack.findViewById(R.id.addEffectButton).setOnClickListener(v -> {
 
             if(selectedTrack == null) {
-                new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
                 return;
             }
 
@@ -1716,7 +1716,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     selectingClip(clip);
                 }
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
         });
         toolbarTrack.findViewById(R.id.autoSnapButton).setOnClickListener(v -> {
             if(selectedTrack != null) {
@@ -1732,19 +1732,19 @@ public class EditingActivity extends AppCompatActivityImpl {
                 updateClipLayouts();
                 updateCurrentClipEnd();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
         });
         toolbarTrack.findViewById(R.id.importClipButton).setOnClickListener(v -> {
             if(selectedTrack != null) {
                 importSingularClip();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
         });
         toolbarTrack.findViewById(R.id.exportTrackButton).setOnClickListener(v -> {
             if(selectedTrack != null) {
                 exportSingularTrack(selectedTrack);
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
         });
 
 
@@ -1763,7 +1763,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 executeCommand(new DeleteClipCommand(this, selectedClip));
                 updateCurrentClipEnd();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
 
         });
         toolbarClip.findViewById(R.id.splitMediaButton).setOnClickListener(v -> {
@@ -1772,7 +1772,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 // Use command for undo/redo support
                 executeCommand(new SplitClipCommand(this, selectedClip, currentTime));
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
         toolbarClip.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
             if(selectedClip != null) {
@@ -1782,9 +1782,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                     // Use command for undo/redo support
                     executeCommand(new AddClipCommand(this, selectedTrack, cloneClip));
                 }
-                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
         toolbarClip.findViewById(R.id.copyMediaButton).setOnClickListener(v -> handleCopy(false));
         toolbarClip.findViewById(R.id.cutMediaButton).setOnClickListener(v -> handleCut());
@@ -1793,7 +1793,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(selectedClip != null) {
                 editingSpecific(selectedClip.type);
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
         toolbarClip.findViewById(R.id.maskMediaButton).setOnClickListener(v -> {
             if (maskController != null) maskController.open();
@@ -1805,7 +1805,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             if(selectedClip != null) {
                 keyAllAtPlayhead(selectedClip);
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
         toolbarClip.findViewById(R.id.selectMultipleButton).setOnClickListener(v -> {
             // Todo: Not fully implemented yet. The idea is to remake the whole thing, get the "array" of selected clip is completed
@@ -1833,7 +1833,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     }
                 }
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
 
         });
         toolbarClip.findViewById(R.id.restateButton).setOnClickListener(v -> {
@@ -1847,13 +1847,13 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
         toolbarClip.findViewById(R.id.exportClipButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 exportSingularClip(selectedClip);
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
         });
 
         // ===========================       CLIP ZONE       ====================================
@@ -1868,7 +1868,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 // One undo step; every clip goes back to the track it came from
                 executeCommand(new DeleteClipsCommand(this, new ArrayList<>(selectedClips)));
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_clips_first).show();
 
         });
         toolbarClips.findViewById(R.id.cloneMediaButton).setOnClickListener(v -> {
@@ -1884,9 +1884,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                     executeCommand(batchClone);
                 }
                 else
-                    new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+                    new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick clips first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_clips_first).show();
         });
         toolbarClips.findViewById(R.id.copyMediaButton).setOnClickListener(v -> handleCopy(false));
         toolbarClips.findViewById(R.id.cutMediaButton).setOnClickListener(v -> handleCut());
@@ -1896,7 +1896,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 editingMultiple();
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clips_first).show();
         });
         toolbarClips.findViewById(R.id.selectMultipleButton).setOnClickListener(v -> {
             // Todo: Not fully implemented yet. The idea is to remake the whole thing, get the "array" of selected clip is completed
@@ -1918,7 +1918,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     }
                 }
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a track first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_track_first).show();
 
         });
         toolbarClips.findViewById(R.id.restateButton).setOnClickListener(v -> {
@@ -1935,7 +1935,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
             }
-            else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clips first!").show();
+            else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clips_first).show();
         });
 
         // ===========================       CLIPS ZONE       ====================================
@@ -2325,13 +2325,13 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if(selectedClip != null) {
                     importSingularKeyframesList();
                 }
-                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+                else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
             });
             clipEditSpecificAreaScreen.exportKeyframesButton.setOnClickListener(v -> {
                 if(selectedClip != null) {
                     exportSingularKeyframesList(selectedClip.keyframes);
                 }
-                else new AlertDialog.Builder(this).setTitle("Error").setMessage("You need to pick a clip first!").show();
+                else new AlertDialog.Builder(this).setTitle(R.string.error).setMessage(R.string.you_need_to_pick_a_clip_first).show();
             });
 
 
@@ -2662,7 +2662,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void regeneratingTimelineRenderer()
     {
 
-        LoggingManager.LogToToast(this, "Begin prepare for preview!");
+        LoggingManager.LogToToast(this, this.getString(R.string.begin_prepare_for_preview));
         //refreshPreviewClip();
 
         // TODO: Tested for dragging back and forth clips. They're doing fine with the extractor SYNC_EXACT
@@ -2677,7 +2677,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void regeneratingPreviewThumbnail()
     {
 
-        LoggingManager.LogToToast(this, "Begin prepare for thumbnail!");
+        LoggingManager.LogToToast(this, this.getString(R.string.begin_prepare_for_thumbnail));
 
         for (Clip clip : timeline.getStreamOfClip()) {
             clip.viewRef.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF000000));
@@ -2869,8 +2869,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void moveTrackByOne(int position, int delta) {
         int to = position + delta;
         if (position < 0 || position >= timeline.tracks.size()) return;
-        if (to < 0) { LoggingManager.LogToToast(this, "This is already the first track"); return; }
-        if (to >= timeline.tracks.size()) { LoggingManager.LogToToast(this, "This is already the last track"); return; }
+        if (to < 0) { LoggingManager.LogToToast(this, this.getString(R.string.this_is_already_the_first_track)); return; }
+        if (to >= timeline.tracks.size()) { LoggingManager.LogToToast(this, this.getString(R.string.this_is_already_the_last_track)); return; }
         executeCommand(new MoveTrackCommand(this, position, to));
     }
 
@@ -2904,14 +2904,14 @@ public class EditingActivity extends AppCompatActivityImpl {
         if (trackReorder == null) return;
         boolean on = !trackReorder.isEnabled();
         if (on && timeline.tracks.size() < 2) {
-            LoggingManager.LogToToast(this, "Add a second track to reorder them");
+            LoggingManager.LogToToast(this, this.getString(R.string.add_a_second_track_to_reorder_them));
             return;
         }
         trackReorder.setEnabled(on);
         if (reorderTracksButton != null) {
             reorderTracksButton.runAnimation(on ? NavigationIconLayout.AnimationType.SELECTED : NavigationIconLayout.AnimationType.UNSELECTED);
         }
-        if (on) LoggingManager.LogToToast(this, "Drag ≡ to reorder. Lower tracks cover the ones above.");
+        if (on) LoggingManager.LogToToast(this, this.getString(R.string.drag_to_reorder_lower_tracks_cover));
     }
 
     /**
@@ -2957,7 +2957,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         if (targetClip == null || targetClip.type != ClipType.VIDEO) {
-            LoggingManager.LogToToast(this, "No video clip found at current position");
+            LoggingManager.LogToToast(this, this.getString(R.string.no_video_clip_found_at_current_pos));
             return;
         }
 
@@ -2986,11 +2986,11 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 LoggingManager.LogToToast(this, "Snapshot saved: " + snapshotName);
             } else {
-                LoggingManager.LogToToast(this, "Failed to capture snapshot");
+                LoggingManager.LogToToast(this, this.getString(R.string.failed_to_capture_snapshot));
             }
         } catch (Exception e) {
             LoggingManager.LogExceptionToNoteOverlay(this, e);
-            LoggingManager.LogToToast(this, "Error capturing snapshot");
+            LoggingManager.LogToToast(this, this.getString(R.string.error_capturing_snapshot));
         } finally {
             try {
                 retriever.release();
@@ -3939,9 +3939,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         } else if (selectedTrack != null) {
             cancelPendingCut();
             putOnClipboard(clipboardGson.toJson(selectedTrack));
-            LoggingManager.LogToToast(this, "Track copied");
+            LoggingManager.LogToToast(this, this.getString(R.string.track_copied));
         } else {
-            LoggingManager.LogToToast(this, "Select a clip or a track to copy");
+            LoggingManager.LogToToast(this, this.getString(R.string.select_a_clip_or_a_track_to_copy));
         }
     }
 
@@ -3949,7 +3949,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void handleCut() {
         List<Clip> ordered = orderedSelection();
         if (ordered.isEmpty()) {
-            LoggingManager.LogToToast(this, "Select clips to cut");
+            LoggingManager.LogToToast(this, this.getString(R.string.select_clips_to_cut));
             return;
         }
         String json = clipboardGson.toJson(ordered.toArray(new Clip[0]));
@@ -3958,7 +3958,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         pendingCut.addAll(ordered);
         pendingCutPayload = json;
         refreshCutVisuals();
-        LoggingManager.LogToToast(this, "Cut: paste to move");
+        LoggingManager.LogToToast(this, this.getString(R.string.cut_paste_to_move));
     }
 
     private void cancelPendingCut() {
@@ -4004,7 +4004,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private void handlePaste() {
         String pasteText = readClipboardText();
         if (pasteText == null || pasteText.trim().isEmpty()) {
-            LoggingManager.LogToToast(this, "Clipboard is empty");
+            LoggingManager.LogToToast(this, this.getString(R.string.clipboard_is_empty));
             return;
         }
 
@@ -4020,11 +4020,11 @@ public class EditingActivity extends AppCompatActivityImpl {
         try {
             root = clipboardGson.fromJson(pasteText, JsonElement.class);
         } catch (RuntimeException e) {
-            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            LoggingManager.LogToToast(this, this.getString(R.string.clipboard_doesn_t_hold_clips));
             return;
         }
         if (root == null) {
-            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            LoggingManager.LogToToast(this, this.getString(R.string.clipboard_doesn_t_hold_clips));
             return;
         }
 
@@ -4049,7 +4049,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             return;
         }
         if (pasted.isEmpty()) {
-            LoggingManager.LogToToast(this, "Clipboard doesn't hold clips");
+            LoggingManager.LogToToast(this, this.getString(R.string.clipboard_doesn_t_hold_clips));
             return;
         }
         pasteClips(pasted);
@@ -4174,11 +4174,11 @@ public class EditingActivity extends AppCompatActivityImpl {
         try {
             source = clipboardGson.fromJson(root, Track.class);
         } catch (RuntimeException e) {
-            LoggingManager.LogToToast(this, "Clipboard doesn't hold a track");
+            LoggingManager.LogToToast(this, this.getString(R.string.clipboard_doesn_t_hold_a_track));
             return;
         }
         if (source == null || source.clips == null || source.clips.isEmpty()) {
-            LoggingManager.LogToToast(this, "The copied track is empty");
+            LoggingManager.LogToToast(this, this.getString(R.string.the_copied_track_is_empty));
             return;
         }
         int newTrack = timeline.tracks.size();
@@ -8570,7 +8570,7 @@ frameRate = 60;
             final FrameLayout overlay = new FrameLayout(context);
             overlay.setClickable(true);
             TextView hint = new TextView(context);
-            hint.setText("Tap the picture to pick a colour");
+            hint.setText(R.string.tap_the_picture_to_pick_a_colour);
             hint.setTextColor(0xFFFFFFFF);
             hint.setTextSize(13f);
             float density = context.getResources().getDisplayMetrics().density;
@@ -8694,7 +8694,7 @@ frameRate = 60;
                                 // The engine died (EGL/driver problem): fall back to the legacy preview once.
                                 if (engine == null || gpuDisabledThisSession) return;
                                 gpuDisabledThisSession = true;
-                                LoggingManager.LogToToast(editingActivity, "GPU preview unavailable, using the classic preview.");
+                                LoggingManager.LogToToast(editingActivity, editingActivity.getString(R.string.gpu_preview_unavailable_using_the));
                                 editingActivity.regeneratingTimelineRenderer();
                             }));
                     TextureView gpuView = new TextureView(context);
@@ -8901,7 +8901,7 @@ frameRate = 60;
                 public void onSuccess(String maskPath) {
                     runOnUiThread(() -> {
                         clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
-                        LoggingManager.LogToToast(EditingActivity.this, "Video background mask generated!");
+                        LoggingManager.LogToToast(EditingActivity.this, EditingActivity.this.getString(R.string.video_background_mask_generated));
                         timelineRenderer.updateTime(currentTime, true);
                     });
                 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="options_array">
+        <item>Chế độ tối</item>
+        <item>Chế độ sáng</item>
+        <item>Theo hệ thống</item>
+    </string-array>
+</resources>

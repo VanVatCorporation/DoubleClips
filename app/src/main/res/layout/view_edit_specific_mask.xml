@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Mask"
+            android:text="@string/mask"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -148,7 +148,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:layout_centerVertical="true"
-                    android:text="Reset"
+                    android:text="@string/reset"
                     android:textAllCaps="false"
                     android:textColor="@color/ios_blue"
                     android:textSize="15sp" />
@@ -159,7 +159,7 @@
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
                     android:layout_centerVertical="true"
-                    android:text="Invert  "
+                    android:text="@string/invert"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="15sp" />
             </RelativeLayout>

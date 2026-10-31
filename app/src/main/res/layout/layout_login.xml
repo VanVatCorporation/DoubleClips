@@ -99,7 +99,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Sign In"
+                        android:text="@string/sign_in"
                         android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
                         android:textColor="?attr/colorOnSurface" />
 

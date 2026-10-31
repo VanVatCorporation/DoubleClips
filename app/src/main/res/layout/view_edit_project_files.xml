@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerVertical="true"
-            android:text="Project Files"
+            android:text="@string/project_files"
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="17sp"
             android:textStyle="bold"
@@ -138,7 +138,7 @@
                         android:layout_centerVertical="true"
                         android:layout_toEndOf="@id/colorIcon"
                         android:layout_marginStart="12dp"
-                        android:text="Hex Color"
+                        android:text="@string/hex_color"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textSize="15sp" />
 
@@ -170,7 +170,7 @@
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
-                    android:text="Create Background"
+                    android:text="@string/create_background"
                     android:textColor="@color/white"
                     app:backgroundTint="@color/ios_blue"
                     app:cornerRadius="12dp" />
@@ -190,7 +190,7 @@
                     android:layout_height="52dp"
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginTop="8dp"
-                    android:text="Import files to project"
+                    android:text="@string/import_files_to_project"
                     android:textAllCaps="false"
                     android:textColor="@color/ios_blue"
                     app:cornerRadius="12dp" />
@@ -204,7 +204,7 @@
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
-                    android:text="Delete unused files"
+                    android:text="@string/delete_unused_files"
                     android:textAllCaps="false"
                     android:textColor="#FF3B30" />
 

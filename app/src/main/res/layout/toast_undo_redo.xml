@@ -13,7 +13,7 @@
         android:layout_height="24dp"
         android:layout_marginEnd="8dp"
         android:src="@drawable/baseline_undo_24"
-        android:contentDescription="Action icon" />
+        android:contentDescription="@string/action_icon" />
 
     <TextView
         android:id="@+id/toastText"
@@ -21,6 +21,6 @@
         android:layout_height="wrap_content"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
-        android:text="Undo: Delete Clip" />
+        android:text="@string/undo_delete_clip" />
 
 </LinearLayout>

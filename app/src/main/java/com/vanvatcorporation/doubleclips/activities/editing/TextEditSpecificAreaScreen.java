@@ -140,21 +140,21 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
     private void pickEmphasis() {
         final boolean[] checked = {bold, italic};
-        new AlertDialog.Builder(getContext()).setTitle("Bold and italic")
+        new AlertDialog.Builder(getContext()).setTitle(R.string.bold_and_italic)
                 .setMultiChoiceItems(new String[]{"Bold", "Italic"}, checked, (d, which, isChecked) -> checked[which] = isChecked)
-                .setPositiveButton("OK", (d, w) -> {
+                .setPositiveButton(R.string.ok, (d, w) -> {
                     bold = checked[0];
                     italic = checked[1];
                     styleId = null;
                     styleName = "Custom";
                     refreshLabels();
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 
     private void pickAlignment() {
-        new AlertDialog.Builder(getContext()).setTitle("Align (lines of a multi-line text)").setItems(ALIGNMENT_LABELS, (d, which) -> {
+        new AlertDialog.Builder(getContext()).setTitle(R.string.align_lines_of_a_multi_line_text).setItems(ALIGNMENT_LABELS, (d, which) -> {
             alignment = ALIGNMENTS[which];
             styleId = null;
             styleName = "Custom";
@@ -167,7 +167,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     }
 
     private void pickUnitMode() {
-        new AlertDialog.Builder(getContext()).setTitle("Animate by").setItems(MODE_LABELS, (d, which) -> {
+        new AlertDialog.Builder(getContext()).setTitle(R.string.animate_by).setItems(MODE_LABELS, (d, which) -> {
             unitMode = MODES[which];
             styleId = null;
             styleName = "Custom";
@@ -176,7 +176,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     }
 
     private void pickUnitOrder() {
-        new AlertDialog.Builder(getContext()).setTitle("Order").setItems(ORDER_LABELS, (d, which) -> {
+        new AlertDialog.Builder(getContext()).setTitle(R.string.order).setItems(ORDER_LABELS, (d, which) -> {
             unitOrder = ORDERS[which];
             styleId = null;
             styleName = "Custom";
@@ -391,7 +391,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
                 try {
                     TextStyleLibrary.delete(context, tile.id);
                 } catch (IOException e) {
-                    new AlertDialog.Builder(context).setTitle("Couldn't delete").setMessage(e.getMessage()).show();
+                    new AlertDialog.Builder(context).setTitle(R.string.couldn_t_delete).setMessage(e.getMessage()).show();
                 }
                 showStyleBrowser();
             }
@@ -424,12 +424,12 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     private void promptSaveStyle() {
         Context context = getContext();
         final EditText input = new EditText(context);
-        input.setHint("Style name");
+        input.setHint(R.string.style_name);
         input.setSingleLine(true);
         new AlertDialog.Builder(context)
-                .setTitle("Save as a style")
+                .setTitle(R.string.save_as_a_style)
                 .setView(input)
-                .setPositiveButton("Save", (d, w) -> {
+                .setPositiveButton(R.string.save, (d, w) -> {
                     try {
                         TextStyle saved = TextStyleLibrary.save(context, currentLook(), input.getText().toString());
                         styleId = saved.id;
@@ -437,10 +437,10 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
                         styleAuthor = null;
                         refreshLabels();
                     } catch (IOException e) {
-                        new AlertDialog.Builder(context).setTitle("Couldn't save").setMessage(e.getMessage()).show();
+                        new AlertDialog.Builder(context).setTitle(R.string.couldn_t_save).setMessage(e.getMessage()).show();
                     }
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.cancel, null)
                 .show();
     }
 
@@ -459,7 +459,7 @@ public class TextEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         labels[choices.size()] = "Import a font file...";
 
         new AlertDialog.Builder(getContext())
-                .setTitle("Font")
+                .setTitle(R.string.font)
                 .setItems(labels, (d, which) -> {
                     if (which == choices.size()) {
                         if (onImportFontRequested != null) onImportFontRequested.run();

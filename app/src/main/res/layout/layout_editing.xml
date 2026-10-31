@@ -42,14 +42,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerInParent="true"
-                    android:text="Canvas was paused to save resource."/>
+                    android:text="@string/canvas_was_paused_to_save_resource"/>
                 <Button
                     android:id="@+id/pausedCanvasAlertResumeButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerHorizontal="true"
                     android:layout_below="@id/pausedCanvasAlertPanelTitle"
-                    android:text="Resume"/>
+                    android:text="@string/resume"/>
             </RelativeLayout>
 
 
@@ -77,7 +77,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
-                android:text="EXPORT"/>
+                android:text="@string/export"/>
             <ImageButton
                 android:id="@+id/backButton"
                 android:layout_width="50dp"

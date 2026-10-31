@@ -288,9 +288,9 @@ public class StorageAreaScreen extends BaseAreaScreen {
     private void confirmDelete(Models.Node node) {
         new AlertDialog.Builder(getContext())
                 .setTitle("Delete “" + node.name + "” for good?")
-                .setMessage("This frees the space right away and cannot be undone.")
+                .setMessage(R.string.this_frees_the_space_right_away_an)
                 .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton("Delete", (d, w) -> async(() -> { openEditz().delete(node); return Boolean.TRUE; }, ok -> reload()))
+                .setPositiveButton(R.string.delete, (d, w) -> async(() -> { openEditz().delete(node); return Boolean.TRUE; }, ok -> reload()))
                 .show();
     }
 
@@ -460,7 +460,7 @@ public class StorageAreaScreen extends BaseAreaScreen {
         String[] titles = new String[projects.size()];
         for (int i = 0; i < titles.length; i++) titles[i] = projects.get(i).getProjectTitle();
         new AlertDialog.Builder(getContext())
-                .setTitle("Back up which project?")
+                .setTitle(R.string.back_up_which_project)
                 .setItems(titles, (d, which) -> backUp(projects.get(which)))
                 .show();
     }
