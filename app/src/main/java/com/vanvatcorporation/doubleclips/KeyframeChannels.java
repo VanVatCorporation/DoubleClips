@@ -41,6 +41,11 @@ public final class KeyframeChannels {
 
     /** Held only by a keyframe that names it explicitly. */
     private static final String STRENGTH = "strength";
+    /**
+     * The chroma-key sliders ("chromaIntensity0", "chromaShadow2"...: one per key per slider, desktop's names) are held only by a
+     * keyframe that names them too: an old "all properties" keyframe must not start animating a colour key.
+     */
+    public static final String CHROMA_PREFIX = "chroma";
 
     /** Values closer than this are "the same" when a whole look is written back (the sheet's sliders round to 2 decimals). */
     public static final float SAME_VALUE_TOLERANCE = 0.0051f;
@@ -49,7 +54,12 @@ public final class KeyframeChannels {
 
     /** Does a keyframe with this {@code channels} list hold the property {@code name}? */
     public static boolean holds(List<String> channels, String name) {
-        return channels == null ? !STRENGTH.equals(name) : channels.contains(name);
+        return channels == null ? !isExplicitOnly(name) : channels.contains(name);
+    }
+
+    /** A property that no "all properties" keyframe holds: only a keyframe that lists it does. */
+    private static boolean isExplicitOnly(String name) {
+        return STRENGTH.equals(name) || (name != null && name.startsWith(CHROMA_PREFIX));
     }
 
     /**

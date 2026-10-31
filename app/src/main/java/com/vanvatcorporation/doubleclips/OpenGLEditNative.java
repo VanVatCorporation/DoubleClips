@@ -790,6 +790,96 @@ public class OpenGLEditNative {
             "    return uMaskMode > 1.5 ? 1.0 - m : m;\n" +
             "}\n";
 
+    /**
+     * Chroma keys (the clip's "Background" panel, see ChromaKey): colours made transparent. Works on the clip's own picture, before
+     * the colour grade and the masks, like desktop's shader. Per key the colour is compared in the chroma plane (BT.601 u, v: the
+     * same matrix the grade uses), so how bright a pixel is matters little:
+     *  - intensity widens the distance that still counts as the key colour;
+     *  - shadow also counts the darker shades of it (the same chroma direction, down to a fraction of its size);
+     *  - feather widens the soft ramp from "removed" to "kept";
+     *  - clean up edge shrinks the kept area by a pixel or two (the least kept of the pixel and its four neighbours) and takes the
+     *    key colour's tint off the pixels along that edge.
+     * A pixel is removed when ANY key removes it (the alphas multiply). uKeyCount is 0 for every clip without keys: one uniform
+     * branch, no extra texture read. GLSL ES 1.00: no textureSize (uKeyStep says how far a neighbour is), and no uniform array
+     * indexed by a function parameter (keyKeep gets the key's values, copied out in the loop). The shader defines
+     * KEY_NEIGHBOR(uv, offset) before this: the picture one step away, in its own texture space.
+     */
+    private static final String CHROMA_KEY_FRAGMENT_DECLS =
+            "#define MAX_KEYS " + ChromaKey.MAX_KEYS + "\n" +
+            "uniform int uKeyCount;\n" +
+            "uniform vec3 uKeyColor[MAX_KEYS];\n" +
+            "uniform vec4 uKeyParam[MAX_KEYS];\n" + // intensity, shadow, feather, clean up edge: 0..1
+            "uniform vec2 uKeyStep;\n" +            // one canvas pixel of the clip's box, in the picture's 0..1 space (x right, y down)
+            "const float KEY_TOLERANCE = 0.5;\n" +    // chroma distance removed at intensity 1
+            "const float KEY_SOFT_MIN = 0.02;\n" +    // softness of the edge at feather 0 ...
+            "const float KEY_SOFT_FEATHER = 0.3;\n" + // ... plus this at feather 1
+            "const float KEY_SHADOW_SPAN = 0.8;\n" +  // at shadow 1 shades down to 20 % of the key's chroma still count
+            "const float KEY_CHOKE_PIXELS = 3.0;\n" + // pixels the edge can shrink by at clean up edge 1
+            "vec2 keyChroma(vec3 c) {\n" +
+            "    return vec2(dot(c, vec3(-0.14713, -0.28886, 0.43600)), dot(c, vec3(0.61500, -0.51499, -0.10001)));\n" +
+            "}\n" +
+            "float keyLuma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }\n" +
+            // 0 = this colour is the key (removed), 1 = kept
+            "float keyKeep(vec3 c, vec3 keyRgb, vec4 prm) {\n" +
+            "    vec2 pc = keyChroma(c);\n" +
+            "    vec2 kc = keyChroma(keyRgb);\n" +
+            "    float d = length(pc - kc);\n" +
+            "    float kk = dot(kc, kc);\n" +
+            "    if (prm.y > 0.0 && kk > 0.0001 && keyLuma(c) <= keyLuma(keyRgb) * 1.1 + 0.02) {\n" +
+            "        float s = dot(pc, kc) / kk;\n" +                                 // how much of the key's chroma this pixel has
+            "        if (s >= 1.0 - prm.y * KEY_SHADOW_SPAN) d = min(d, length(pc - min(s, 1.0) * kc));\n" +
+            "    }\n" +
+            "    float tol = prm.x * KEY_TOLERANCE;\n" +
+            "    return smoothstep(tol, tol + KEY_SOFT_MIN + prm.z * KEY_SOFT_FEATHER, d);\n" +
+            "}\n" +
+            "vec4 applyChromaKeys(vec4 c, vec2 uv) {\n" +
+            "    vec3 rgb = c.rgb;\n" +
+            "    float alpha = c.a;\n" +
+            "    for (int i = 0; i < MAX_KEYS; i++) {\n" +
+            "        if (i >= uKeyCount) break;\n" +
+            "        vec3 keyRgb = uKeyColor[i];\n" +
+            "        vec4 prm = uKeyParam[i];\n" +
+            "        float clean = prm.w;\n" +
+            "        float keep = keyKeep(rgb, keyRgb, prm);\n" +
+            "        float nearest = keep;\n" +                                        // the least kept of this pixel and its neighbours
+            "        if (clean > 0.0) {\n" +
+            "            vec2 o = uKeyStep * (0.5 + clean * KEY_CHOKE_PIXELS);\n" +
+            "            vec4 n0 = KEY_NEIGHBOR(uv, vec2(o.x, 0.0));\n" +
+            "            vec4 n1 = KEY_NEIGHBOR(uv, vec2(-o.x, 0.0));\n" +
+            "            vec4 n2 = KEY_NEIGHBOR(uv, vec2(0.0, o.y));\n" +
+            "            vec4 n3 = KEY_NEIGHBOR(uv, vec2(0.0, -o.y));\n" + // a neighbour that is already transparent isn't a keyed one
+            "            nearest = min(nearest, n0.a < 0.01 ? 1.0 : keyKeep(n0.rgb, keyRgb, prm));\n" +
+            "            nearest = min(nearest, n1.a < 0.01 ? 1.0 : keyKeep(n1.rgb, keyRgb, prm));\n" +
+            "            nearest = min(nearest, n2.a < 0.01 ? 1.0 : keyKeep(n2.rgb, keyRgb, prm));\n" +
+            "            nearest = min(nearest, n3.a < 0.01 ? 1.0 : keyKeep(n3.rgb, keyRgb, prm));\n" +
+            "            vec2 kc = keyChroma(keyRgb);\n" +
+            "            float kl = length(kc);\n" +
+            "            if (kl > 0.01) {\n" +                                        // take the key colour's tint off the edge pixels
+            "                vec2 kn = kc / kl;\n" +
+            "                vec2 pc = keyChroma(rgb);\n" +
+            "                float y = keyLuma(rgb);\n" +
+            "                float amount = clean * max(1.0 - nearest, 1.0 - keep);\n" +
+            "                pc -= amount * max(0.0, dot(pc, kn)) * kn;\n" +
+            "                rgb = clamp(vec3(y + 1.13983 * pc.y, y - 0.39465 * pc.x - 0.58060 * pc.y, y + 2.03211 * pc.x), 0.0, 1.0);\n" +
+            "            }\n" +
+            "        }\n" +
+            "        alpha *= mix(keep, nearest, min(1.0, clean * 1.5));\n" +
+            "    }\n" +
+            "    return vec4(rgb, alpha);\n" +
+            "}\n";
+
+    /** Uploads the packed chroma keys of the next draw (or switches them off); shared by both clip shaders. */
+    private static void uploadChromaKeys(ChromaKey.Packed keys, int countLoc, int colorLoc, int paramLoc, int stepLoc) {
+        if (keys != null && keys.count > 0) {
+            GLES20.glUniform1i(countLoc, keys.count);
+            GLES20.glUniform3fv(colorLoc, keys.count, keys.color, 0);
+            GLES20.glUniform4fv(paramLoc, keys.count, keys.param, 0);
+            GLES20.glUniform2f(stepLoc, keys.stepX, keys.stepY);
+        } else {
+            GLES20.glUniform1i(countLoc, 0);
+        }
+    }
+
     public static class TransformShader {
         private static final String VERTEX_SHADER =
                 "attribute vec4 aPosition;\n" +
@@ -838,6 +928,10 @@ public class OpenGLEditNative {
                 "uniform mat4 uUnfoldTexMatrix;\n" +
                 UNFOLD_WARP_FRAGMENT_DECLS +
                 MASK_FRAGMENT_DECLS +
+                // A step of (x right, y down) in the picture is (x, -y) in the quad's texture coordinates (v is up there), then the
+                // texture matrix turns it into the texture's own space: a direction, so no translation (w = 0).
+                "#define KEY_NEIGHBOR(uv, o) texture2D(uTexture, (uv) + (uUnfoldTexMatrix * vec4((o).x, -(o).y, 0.0, 0.0)).xy)\n" +
+                CHROMA_KEY_FRAGMENT_DECLS +
                 "void main() {\n" +
                 "    vec2 sampleUv = vTexCoord;\n" +
                 "    if (uUnfoldActive > 0.5) {\n" +
@@ -846,6 +940,7 @@ public class OpenGLEditNative {
                 "        sampleUv = (uUnfoldTexMatrix * vec4(s.x * 0.5 + 0.5, 0.5 - s.y * 0.5, 0.0, 1.0)).xy;\n" +
                 "    }\n" +
                 "    vec4 color = texture2D(uTexture, sampleUv);\n" +
+                "    if (uKeyCount > 0) color = applyChromaKeys(color, sampleUv);\n" + // chroma keys first: the grade and masks act on what stays
                 "    vec3 rgb = color.rgb;\n" +
                 "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
                 "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
@@ -901,8 +996,15 @@ public class OpenGLEditNative {
         private int uContrastLoc;
         private int uMaskLoc;
         private int uMaskModeLoc;
+        private int uKeyCountLoc, uKeyColorLoc, uKeyParamLoc, uKeyStepLoc;
         private int maskTexture;
         private int maskMode; // 0 none, 1 mask, 2 inverted: used by the NEXT drawClip only
+        private ChromaKey.Packed chromaKeys; // the NEXT drawClip's chroma keys, null = none
+
+        /** Removes the key colours from the next drawClip's picture (see CHROMA_KEY_FRAGMENT_DECLS); null = none. Consumed by that draw. */
+        public void setChromaKeys(ChromaKey.Packed keys) {
+            chromaKeys = keys;
+        }
 
         /** Masks the next drawClip with this mask picture ({@link ClipMaskTextures}); 0 = no mask. Consumed by that draw. */
         public void setMask(int maskTextureId, boolean invert) {
@@ -932,6 +1034,10 @@ public class OpenGLEditNative {
             uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
             uMaskLoc = GLES20.glGetUniformLocation(program, "uMask");
             uMaskModeLoc = GLES20.glGetUniformLocation(program, "uMaskMode");
+            uKeyCountLoc = GLES20.glGetUniformLocation(program, "uKeyCount");
+            uKeyColorLoc = GLES20.glGetUniformLocation(program, "uKeyColor");
+            uKeyParamLoc = GLES20.glGetUniformLocation(program, "uKeyParam");
+            uKeyStepLoc = GLES20.glGetUniformLocation(program, "uKeyStep");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -996,6 +1102,8 @@ public class OpenGLEditNative {
             }
             maskMode = 0;
             maskTexture = 0;
+            uploadChromaKeys(chromaKeys, uKeyCountLoc, uKeyColorLoc, uKeyParamLoc, uKeyStepLoc);
+            chromaKeys = null;
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
@@ -1076,6 +1184,8 @@ public class OpenGLEditNative {
                 "uniform float uTemperatureKelvin;\n" +
                 UNFOLD_WARP_FRAGMENT_DECLS +
                 MASK_FRAGMENT_DECLS +
+                "#define KEY_NEIGHBOR(uv, o) texture2D(uTexture, (uv) + (o))\n" + // the image's v already runs down, like the step
+                CHROMA_KEY_FRAGMENT_DECLS +
                 "void main() {\n" +
                 "    vec2 sampleUv = vTexCoord;\n" +
                 "    if (uUnfoldActive > 0.5) {\n" +
@@ -1084,6 +1194,7 @@ public class OpenGLEditNative {
                 "        sampleUv = vec2(s.x * 0.5 + 0.5, s.y * 0.5 + 0.5);\n" +
                 "    }\n" +
                 "    vec4 color = texture2D(uTexture, sampleUv);\n" +
+                "    if (uKeyCount > 0) color = applyChromaKeys(color, sampleUv);\n" + // chroma keys first: the grade and masks act on what stays
                 "    vec3 rgb = color.rgb;\n" +
                 "    float y = dot(rgb, vec3(0.299, 0.587, 0.114));\n" +
                 "    float u = dot(rgb, vec3(-0.14713, -0.28886, 0.43600));\n" +
@@ -1138,8 +1249,15 @@ public class OpenGLEditNative {
         private int uContrastLoc;
         private int uMaskLoc;
         private int uMaskModeLoc;
+        private int uKeyCountLoc, uKeyColorLoc, uKeyParamLoc, uKeyStepLoc;
         private int maskTexture;
         private int maskMode; // 0 none, 1 mask, 2 inverted: used by the NEXT drawClip only
+        private ChromaKey.Packed chromaKeys; // the NEXT drawClip's chroma keys, null = none
+
+        /** Removes the key colours from the next drawClip's picture (see CHROMA_KEY_FRAGMENT_DECLS); null = none. Consumed by that draw. */
+        public void setChromaKeys(ChromaKey.Packed keys) {
+            chromaKeys = keys;
+        }
 
         /** Masks the next drawClip with this mask picture ({@link ClipMaskTextures}); 0 = no mask. Consumed by that draw. */
         public void setMask(int maskTextureId, boolean invert) {
@@ -1167,6 +1285,10 @@ public class OpenGLEditNative {
             uContrastLoc = GLES20.glGetUniformLocation(program, "uContrast");
             uMaskLoc = GLES20.glGetUniformLocation(program, "uMask");
             uMaskModeLoc = GLES20.glGetUniformLocation(program, "uMaskMode");
+            uKeyCountLoc = GLES20.glGetUniformLocation(program, "uKeyCount");
+            uKeyColorLoc = GLES20.glGetUniformLocation(program, "uKeyColor");
+            uKeyParamLoc = GLES20.glGetUniformLocation(program, "uKeyParam");
+            uKeyStepLoc = GLES20.glGetUniformLocation(program, "uKeyStep");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -1220,6 +1342,8 @@ public class OpenGLEditNative {
             }
             maskMode = 0;
             maskTexture = 0;
+            uploadChromaKeys(chromaKeys, uKeyCountLoc, uKeyColorLoc, uKeyParamLoc, uKeyStepLoc);
+            chromaKeys = null;
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
@@ -2228,6 +2352,7 @@ public class OpenGLEditNative {
                 activeImageSources.put(cmd.clip, imageSource);
             }
             imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+            imageShader.setChromaKeys(cmd.chromaKeys);
             imageShader.drawClip(imageSource.getTextureId(), cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -2280,6 +2405,7 @@ public class OpenGLEditNative {
         }
 
         shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+        shader.setChromaKeys(cmd.chromaKeys);
         shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);

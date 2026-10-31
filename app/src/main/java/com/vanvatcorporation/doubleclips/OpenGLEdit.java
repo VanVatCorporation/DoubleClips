@@ -318,6 +318,11 @@ public class OpenGLEdit {
         public PostFx post;
         /** The clip's mask for this frame (see ClipMaskFrame), or null. Not set on per-unit text commands: animated per-letter text ignores masks. */
         public ClipMaskFrame mask;
+        /**
+         * The clip's chroma keys (colours made transparent) at this frame, packed for the fragment shader, or null for the
+         * overwhelming majority of clips. VIDEO and IMAGE clips only. Acts on the clip's own picture, before the grade and the mask.
+         */
+        public ChromaKey.Packed chromaKeys;
 
         public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity,
                             float hueDegrees, float saturation, float brightness, float temperatureKelvin, float blurSigmaPixels,
@@ -1082,6 +1087,9 @@ public class OpenGLEdit {
                 anim.warpTopWidth(), anim.warpBottomWidth(), anim.warpHeight(), anim.contrast());
         command.post = PostFx.from(anim, mvp, canvasWidth, canvasHeight);
         command.mask = maskFrameOf(clip, outputTimeSeconds, box[0], box[1]);
+        if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
+            command.chromaKeys = ChromaKeyframes.pack(clip, outputTimeSeconds, box[0], box[1]);
+        }
         return command;
     }
 

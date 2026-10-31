@@ -841,6 +841,10 @@ public class FFmpegEdit {
                     // A per-frame animated mask doesn't fit a filter graph: the OpenGL engine draws it, this one ignores it.
                     found.add("Clip masks (OpenGL only: FFmpeg draws the clip without its mask)");
                 }
+                if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
+                    // The keying (shadow, feather and clean up edge included) is drawn by the OpenGL shader only.
+                    found.add("The chroma key" + (clip.chromaKeys.size() > 1 ? "s are" : " is") + " skipped (OpenGL only: FFmpeg draws the clip with its background colour)");
+                }
                 if (clip.isEndTransitionEnabled() && clip.endTransition != null && clip.endTransition.effect != null) {
                     TransitionStyle dataDriven = TransitionStyleLoader.get(clip.endTransition.effect.style);
                     // (An id xfade also has keeps using xfade, see FXCommandEmitter: nothing to warn about.)

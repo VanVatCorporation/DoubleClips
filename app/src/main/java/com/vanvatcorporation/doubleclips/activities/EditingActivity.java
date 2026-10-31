@@ -99,7 +99,10 @@ import com.vanvatcorporation.doubleclips.activities.editing.TextEditSpecificArea
 import com.vanvatcorporation.doubleclips.activities.editing.Scene3dEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.TransitionEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.editing.VideoPropertiesEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.ChromaKey;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
+import com.vanvatcorporation.doubleclips.activities.editing.ChromaEditController;
+import com.vanvatcorporation.doubleclips.activities.editing.ChromaEditSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.ProjectGson;
 import com.vanvatcorporation.doubleclips.TextFonts;
 import com.vanvatcorporation.doubleclips.TextRasterizer;
@@ -179,6 +182,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private ImageButton playPauseButton, snapshotButton, undoButton, redoButton, backButton, settingsButton;
     private Button exportButton;
     private TimelineRenderer timelineRenderer;
+    private ChromaEditSpecificAreaScreen chromaEditSpecificAreaScreen;
+    private ChromaEditController chromaController;
 
     private TrackFrameLayout addNewTrackBlankTrackSpacer;
 
@@ -1482,6 +1487,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 refreshKeyframeKnotHighlight();
                 refreshMaskKnotHighlight();
                 if (maskController != null) maskController.onPlayheadMoved(); // the open mask panel shows the values at the playhead
+                if (chromaController != null) chromaController.onPlayheadMoved(); // so does the Background panel
             }
 
             // Get time (- centerOffset mean remove the start spacer)
@@ -1792,6 +1798,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarClip.findViewById(R.id.maskMediaButton).setOnClickListener(v -> {
             if (maskController != null) maskController.open();
         });
+        toolbarClip.findViewById(R.id.chromaMediaButton).setOnClickListener(v -> {
+            if (chromaController != null) chromaController.open();
+        });
         toolbarClip.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 keyAllAtPlayhead(selectedClip);
@@ -1971,6 +1980,30 @@ public class EditingActivity extends AppCompatActivityImpl {
         maskEditSpecificAreaScreen.onOpen.add(() -> { if (timelineRenderer != null) timelineRenderer.setMaskEditing(true); });
         maskEditSpecificAreaScreen.onClose.add(() -> { if (timelineRenderer != null) timelineRenderer.setMaskEditing(false); });
         // ===========================       MASK ZONE       ====================================
+
+
+        // ===========================       BACKGROUND (CHROMA KEY) ZONE       ====================================
+        chromaEditSpecificAreaScreen = (ChromaEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_chroma, null);
+        editingZone.addView(chromaEditSpecificAreaScreen);
+        chromaController = new ChromaEditController(chromaEditSpecificAreaScreen, new ChromaEditController.Host() {
+            @Override public Clip selectedClip() { return selectedClip; }
+            @Override public float currentTime() { return currentTime; }
+            @Override public int frameRate() { return settings.frameRate; }
+            @Override public EasingType easing() { return KEYFRAME_DEFAULT_EASING; }
+            @Override public void requestRender() { if (timelineRenderer != null) timelineRenderer.renderNow(currentTime); }
+            @Override public void execute(CommandUtils.Command command) { executeCommand(command); }
+            @Override public void chromaChanged(Clip clip) {
+                syncKeyframeKnots(clip);
+                if (chromaController != null) chromaController.refresh();
+            }
+            @Override public void message(String text) { LoggingManager.LogToToast(EditingActivity.this, text); }
+            @Override public void startColorPick(Clip clip, ChromaEditController.ColorPick pick) {
+                if (timelineRenderer != null) timelineRenderer.startColorPick(clip, pick);
+                else pick.onCancelled();
+            }
+            @Override public void cancelColorPick() { if (timelineRenderer != null) timelineRenderer.cancelColorPick(); }
+        });
+        // ===========================       BACKGROUND (CHROMA KEY) ZONE       ====================================
 
 
         // ===========================       TRANSITION ZONE       ====================================
@@ -4730,6 +4763,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             refreshKeyframeKnotHighlight();
         }
         if (maskController != null) maskController.onSelectionChanged();
+        if (chromaController != null) chromaController.onSelectionChanged();
 
         if(timelineRenderer != null) timelineRenderer.refreshGizmo();
     }
@@ -5481,6 +5515,21 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public EffectTemplate clipEffect = null;
 
+        /**
+         * Colours removed from this clip's picture (the "Background" panel), see {@link ChromaKey}: up to
+         * {@link ChromaKey#MAX_KEYS}, a pixel matching any of them goes transparent. Acts on the clip's own picture, before the
+         * colour grade and the masks. null / empty = none. Same JSON as desktop ("chromaKeys").
+         */
+        @Expose
+        public List<ChromaKey> chromaKeys = null;
+
+        /** Does a chroma key that is switched on key this clip? */
+        public boolean hasChromaKeys() {
+            if (chromaKeys == null) return false;
+            for (ChromaKey k : chromaKeys) if (k != null && k.enabled) return true;
+            return false;
+        }
+
 
         //Not serializing
         public transient View leftHandle, rightHandle;
@@ -5542,6 +5591,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.endTransition = clip.endTransition;
 
             this.keyframes = new AnimatedProperty(clip.keyframes);
+            this.chromaKeys = ChromaKey.copyAll(clip.chromaKeys);
 
             this.inAnimation = new AnimationClip(clip.inAnimation);
             this.outAnimation = new AnimationClip(clip.outAnimation);
@@ -6676,6 +6726,13 @@ frameRate = 60;
          */
         @Expose
         public float valueStrength = 1;
+        /**
+         * What the chroma-key sliders (see {@link ChromaKey}) were in a keyframe, per key per slider ({@link ValueType#chromaIndex()}).
+         * Only keyframes ever carry them: the plain values live in the ChromaKey itself, so this stays null (and out of the file)
+         * for a clip's own properties and for any keyframe that doesn't key a slider. Desktop's "valueChroma".
+         */
+        @Expose
+        public float[] valueChroma;
 
         public VideoProperties()
         {
@@ -6737,6 +6794,7 @@ frameRate = 60;
             this.valueBrightness = properties.valueBrightness;
             this.valueTemperature = properties.valueTemperature;
             this.valueStrength = properties.valueStrength;
+            this.valueChroma = properties.valueChroma == null ? null : properties.valueChroma.clone();
         }
 
         public float getValue(ValueType valueType) {
@@ -6776,6 +6834,7 @@ frameRate = 60;
                 case Strength:
                     return valueStrength;
                 default:
+                    if (valueType.isChroma()) return valueChroma == null ? 0f : valueChroma[valueType.chromaIndex()];
                     return 1;
 
             }
@@ -6830,7 +6889,15 @@ frameRate = 60;
                 case Strength:
                     valueStrength = v;
                     break;
-
+                default:
+                    if (valueType.isChroma()) {
+                        if (valueChroma == null) {
+                            if (v == 0f) break; // nothing to keep: stay null
+                            valueChroma = new float[ChromaKey.MAX_KEYS * ChromaKey.PARAM_COUNT];
+                        }
+                        valueChroma[valueType.chromaIndex()] = v;
+                    }
+                    break;
             }
         }
 
@@ -6855,7 +6922,40 @@ frameRate = 60;
         public enum ValueType {
             PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature,
             /** An effect clip's strength (iOS .strength): not in {@link #CHANNELS}, an "all properties" keyframe never holds it. */
-            Strength;
+            Strength,
+            // The chroma-key sliders (see ChromaKey), one per key per slider: the LAST constants, in this order, which isChroma() and
+            // chromaIndex() rely on. Not in CHANNELS either: only a keyframe that names one holds it. Raising ChromaKey.MAX_KEYS
+            // needs a group more here.
+            ChromaIntensity0, ChromaShadow0, ChromaFeather0, ChromaCleanUp0,
+            ChromaIntensity1, ChromaShadow1, ChromaFeather1, ChromaCleanUp1,
+            ChromaIntensity2, ChromaShadow2, ChromaFeather2, ChromaCleanUp2,
+            ChromaIntensity3, ChromaShadow3, ChromaFeather3, ChromaCleanUp3,
+            ChromaIntensity4, ChromaShadow4, ChromaFeather4, ChromaCleanUp4,
+            ChromaIntensity5, ChromaShadow5, ChromaFeather5, ChromaCleanUp5;
+
+            static {
+                if (values().length - ChromaIntensity0.ordinal() != ChromaKey.MAX_KEYS * ChromaKey.PARAM_COUNT) {
+                    throw new IllegalStateException("ValueType has " + (values().length - ChromaIntensity0.ordinal())
+                            + " chroma constants but ChromaKey.MAX_KEYS * PARAM_COUNT is " + ChromaKey.MAX_KEYS * ChromaKey.PARAM_COUNT);
+                }
+            }
+
+            /** One of the chroma-key sliders. */
+            public boolean isChroma() { return ordinal() >= ChromaIntensity0.ordinal(); }
+            /** 0 ... MAX_KEYS * PARAM_COUNT - 1: the slot in {@link VideoProperties#valueChroma}. */
+            public int chromaIndex() { return ordinal() - ChromaIntensity0.ordinal(); }
+            /** Which key of the clip's list (0-based) this chroma slider belongs to. */
+            public int chromaKey() { return chromaIndex() / ChromaKey.PARAM_COUNT; }
+            /** Which slider: ChromaKey.INTENSITY ... CLEAN_UP. */
+            public int chromaParam() { return chromaIndex() % ChromaKey.PARAM_COUNT; }
+
+            /** The channel of slider {@code param} (ChromaKey.INTENSITY ...) of key number {@code key} (0 ... MAX_KEYS - 1). */
+            public static ValueType chroma(int key, int param) {
+                if (key < 0 || key >= ChromaKey.MAX_KEYS || param < 0 || param >= ChromaKey.PARAM_COUNT) {
+                    throw new IndexOutOfBoundsException("chroma key " + key + ", slider " + param);
+                }
+                return values()[ChromaIntensity0.ordinal() + key * ChromaKey.PARAM_COUNT + param];
+            }
 
             /**
              * The properties an "all properties" keyframe holds (RotInRadians is only Rot in radians), in the order of
@@ -6876,7 +6976,11 @@ frameRate = 60;
                 for (ValueType type : CHANNELS) {
                     if (type.channelName().equals(channelName)) return type;
                 }
-                return Strength.channelName().equals(channelName) ? Strength : null;
+                if (Strength.channelName().equals(channelName)) return Strength;
+                if (channelName != null && channelName.startsWith(KeyframeChannels.CHROMA_PREFIX)) {
+                    for (ValueType type : values()) if (type.isChroma() && type.channelName().equals(channelName)) return type;
+                }
+                return null;
             }
 
             /** How the editor names the property: "Pos X", "Scale Y", "Rotation"... */
@@ -6889,7 +6993,12 @@ frameRate = 60;
                     case ScaleY: return "Scale Y";
                     case PivotX: return "Pivot X";
                     case PivotY: return "Pivot Y";
-                    default: return name();
+                    default:
+                        if (isChroma()) {
+                            String[] params = {"intensity", "shadow", "feather edge", "clean up edge"};
+                            return "Chroma " + (chromaKey() + 1) + " " + params[chromaParam()];
+                        }
+                        return name();
                 }
             }
         }
@@ -8442,6 +8551,75 @@ frameRate = 60;
         }
 
         /** The mask panel opened / closed: the mask's outline and handles replace the transform gizmo on the canvas. */
+        // ---- the Background panel's eyedropper -------------------------------------------------------
+
+        private FrameLayout colorPickOverlay;
+
+        /**
+         * Waits for a tap on the preview (a transparent layer over it, above the clip gizmo, with a hint on top), reads the colour
+         * there with {@code clip}'s own chroma keys switched off, and reports it to {@code pick} on the UI thread.
+         */
+        public void startColorPick(Clip clip, ChromaEditController.ColorPick pick) {
+            cancelColorPick();
+            if (engine == null || gpuSurfaceView == null || maskGizmoPane == null || !(maskGizmoPane.getParent() instanceof ViewGroup)) {
+                pick.onCancelled();
+                return;
+            }
+            final Context context = maskGizmoContext;
+            final ViewGroup outer = (ViewGroup) maskGizmoPane.getParent();
+            final FrameLayout overlay = new FrameLayout(context);
+            overlay.setClickable(true);
+            TextView hint = new TextView(context);
+            hint.setText("Tap the picture to pick a colour");
+            hint.setTextColor(0xFFFFFFFF);
+            hint.setTextSize(13f);
+            float density = context.getResources().getDisplayMetrics().density;
+            hint.setPadding((int) (14 * density), (int) (7 * density), (int) (14 * density), (int) (7 * density));
+            android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+            pill.setCornerRadius(18 * density);
+            pill.setColor(0xB0000000);
+            hint.setBackground(pill);
+            FrameLayout.LayoutParams hintParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.TOP | android.view.Gravity.CENTER_HORIZONTAL);
+            hintParams.topMargin = (int) (10 * density);
+            overlay.addView(hint, hintParams);
+            overlay.setOnTouchListener((v, event) -> {
+                if (event.getAction() != android.view.MotionEvent.ACTION_UP) return true;
+                int[] at = new int[2];
+                gpuSurfaceView.getLocationOnScreen(at);
+                float nx = (event.getRawX() - at[0]) / Math.max(1, gpuSurfaceView.getWidth());
+                float ny = (event.getRawY() - at[1]) / Math.max(1, gpuSurfaceView.getHeight());
+                if (nx < 0f || nx > 1f || ny < 0f || ny > 1f) return true; // outside the picture: stay armed
+                final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+                engine.pickColor(clip, nx, ny, new PreviewEngine.PickListener() {
+                    @Override public void onPicked(int argb) {
+                        ui.post(() -> {
+                            cancelColorPick();
+                            pick.onPicked(argb);
+                        });
+                    }
+
+                    @Override public void onFailed() {
+                        ui.post(() -> {
+                            cancelColorPick();
+                            pick.onCancelled();
+                        });
+                    }
+                });
+                return true;
+            });
+            outer.addView(overlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            colorPickOverlay = overlay;
+        }
+
+        /** Takes the eyedropper's layer off the preview (no callback: the caller already knows). */
+        public void cancelColorPick() {
+            if (colorPickOverlay != null && colorPickOverlay.getParent() instanceof ViewGroup) {
+                ((ViewGroup) colorPickOverlay.getParent()).removeView(colorPickOverlay);
+            }
+            colorPickOverlay = null;
+        }
+
         public void setMaskEditing(boolean on) {
             if (gizmo != null) gizmo.setSuspended(on);
             if (on && maskGizmo == null) buildMaskGizmo();

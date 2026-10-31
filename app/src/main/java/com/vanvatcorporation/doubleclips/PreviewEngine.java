@@ -149,6 +149,8 @@ public final class PreviewEngine {
     private int screenFramebuffer = 0;               // where "the screen" draws go: 0, or clipFxLayer while a clip's layer is built
     private Pool pool;
     private Request lastRequest;
+    private EditingActivity.Clip chromaPickClip;     // GL thread: while the eyedropper reads a colour, this clip is drawn without its chroma keys
+    private PickRequest pickRequest;                 // GL thread: the pixel to read just before the next swap
 
     private final AtomicReference<Request> pending = new AtomicReference<>();
     private final AtomicBoolean drainScheduled = new AtomicBoolean(false);
@@ -283,6 +285,58 @@ public final class PreviewEngine {
         uiComputeCount.incrementAndGet();
         if (pending.getAndSet(new Request(layers, prefetch, timeSeconds)) != null) supersededRequests.incrementAndGet();
         if (drainScheduled.compareAndSet(false, true)) post(this::drain);
+    }
+
+    /** Gets the colour the eyedropper picked; called on the preview's GL thread. */
+    public interface PickListener {
+        /** @param argb opaque 0xFFRRGGBB of the pixel. */
+        void onPicked(int argb);
+        /** The preview has no frame to read (it isn't showing yet, or it was closed). */
+        void onFailed();
+    }
+
+    private static final class PickRequest {
+        final float x, y;
+        final PickListener listener;
+        PickRequest(float x, float y, PickListener listener) { this.x = x; this.y = y; this.listener = listener; }
+    }
+
+    /**
+     * The Background panel's eyedropper: the colour of the preview at ({@code nx}, {@code ny}) (0 ... 1 across the preview, y down),
+     * with {@code clip}'s own chroma keys switched off for that one read, so a colour that is already keyed out can still be picked
+     * (the screen shows what is behind it otherwise). The frame is drawn again afterwards, exactly as it was. The listener is called
+     * on the GL thread.
+     */
+    public void pickColor(EditingActivity.Clip clip, float nx, float ny, PickListener listener) {
+        post(() -> {
+            if (windowSurface == EGL14.EGL_NO_SURFACE || lastRequest == null) {
+                listener.onFailed();
+                return;
+            }
+            chromaPickClip = clip;
+            pickRequest = new PickRequest(nx, ny, listener);
+            try {
+                renderRequest(lastRequest);   // without the clip's keys; the pixel is read before the swap
+            } finally {
+                chromaPickClip = null;
+                if (pickRequest != null) { // the frame didn't get that far (surface lost): nothing was read
+                    pickRequest = null;
+                    listener.onFailed();
+                }
+            }
+            renderRequest(lastRequest);       // back to what the person sees
+        });
+    }
+
+    /** Reads one pixel of the frame that was just drawn into the screen (framebuffer 0) and hands it to the listener. */
+    private void readPick(PickRequest pick) {
+        int px = Math.max(0, Math.min(previewW - 1, Math.round(pick.x * (previewW - 1))));
+        int py = Math.max(0, Math.min(previewH - 1, previewH - 1 - Math.round(pick.y * (previewH - 1)))); // GL rows run up
+        ByteBuffer pixel = ByteBuffer.allocateDirect(4);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glReadPixels(px, py, 1, 1, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel);
+        int r = pixel.get(0) & 0xFF, g = pixel.get(1) & 0xFF, b = pixel.get(2) & 0xFF;
+        pick.listener.onPicked(0xFF000000 | (r << 16) | (g << 8) | b);
     }
 
     /** Switches the decode source between original files and proxies; takes effect on the next frame. */
@@ -518,6 +572,12 @@ public final class PreviewEngine {
             }
         }
 
+        if (pickRequest != null) { // the eyedropper: read before the swap, while this frame is still the back buffer
+            PickRequest pick = pickRequest;
+            pickRequest = null;
+            readPick(pick);
+        }
+
         profiler.begin(FrameProfiler.ENCODE); // "swap" in the preview's report
         if (!EGL14.eglSwapBuffers(eglDisplay, windowSurface)) {
             int error = EGL14.eglGetError();
@@ -577,6 +637,11 @@ public final class PreviewEngine {
         return maskTextures.textureFor(cmd.mask, previewW / (float) canvasW, ClipMaskTextures.PREVIEW_CAP);
     }
 
+    /** The clip's chroma keys for this draw: none while the eyedropper is picking a colour from this clip's own, unkeyed picture. */
+    private ChromaKey.Packed chromaKeysOf(OpenGLEdit.DrawCommand cmd) {
+        return cmd.clip == chromaPickClip ? null : cmd.chromaKeys;
+    }
+
     private boolean drawCommand(OpenGLEdit.DrawCommand cmd, float outputTimeSeconds) {
         if (cmd.clip.type == EditingActivity.ClipType.TEXT) {
             int texture = cmd.textUnit == null ? pool.text.texture(cmd.clip) : pool.text.unitTexture(cmd.clip, cmd.textUnit);
@@ -591,6 +656,7 @@ public final class PreviewEngine {
             ImageEntry image = pool.image(cmd.clip);
             if (image == null) return false;
             imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+            imageShader.setChromaKeys(chromaKeysOf(cmd));
             imageShader.drawClip(image.texture, cmd.mvpMatrix, cmd.opacity,
                     cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                     cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
@@ -601,6 +667,7 @@ public final class PreviewEngine {
         PreviewDecoder decoder = pool.video(cmd.clip, cmd, true);
         if (decoder == null) return false;
         shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+        shader.setChromaKeys(chromaKeysOf(cmd));
         shader.drawClip(decoder.textureId, decoder.texMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
