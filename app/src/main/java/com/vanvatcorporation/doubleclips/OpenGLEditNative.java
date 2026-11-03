@@ -13,7 +13,6 @@ import android.opengl.EGLDisplay;
 import android.opengl.EGLSurface;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Surface;
@@ -89,7 +88,32 @@ public class OpenGLEditNative {
     private HandlerThread callbackThread;
     private Handler callbackHandler;
 
+    /** True when this export's context is OpenGL ES 3.x (asked for by {@link #start(boolean)}); false = plain ES 2. */
+    private boolean glEs3 = false;
+    private boolean wantEs3 = false;
+
+    /** Does this timeline have a clip with optical flow or motion blur on (they need an OpenGL ES 3.0 context)? */
+    public static boolean timelineUsesMotion(EditingActivity.Timeline timeline) {
+        if (timeline == null || timeline.tracks == null) return false;
+        for (EditingActivity.Track track : timeline.tracks) {
+            if (track == null || track.clips == null) continue;
+            for (EditingActivity.Clip clip : track.clips) {
+                if (clip != null && clip.type == EditingActivity.ClipType.VIDEO && (clip.hasOpticalFlow() || clip.hasMotionBlur())) return true;
+            }
+        }
+        return false;
+    }
+
     public void start() {
+        start(false);
+    }
+
+    /**
+     * @param needsEs3 ask for an OpenGL ES 3.0 context (optical flow, motion blur). Every other export keeps the ES 2 context it
+     *                 always had; when 3.0 can't be made the export falls back to ES 2 and motion clips export without motion.
+     */
+    public void start(boolean needsEs3) {
+        wantEs3 = needsEs3;
         glThread = new HandlerThread("OpenGLEdit-Export-GLThread");
         glThread.start();
         glHandler = new Handler(glThread.getLooper());
@@ -125,32 +149,39 @@ public class OpenGLEditNative {
             throw new RuntimeException("Unable to initialize EGL14");
         }
 
-        int[] configAttribs = {
-                EGL14.EGL_RED_SIZE, 8,
-                EGL14.EGL_GREEN_SIZE, 8,
-                EGL14.EGL_BLUE_SIZE, 8,
-                EGL14.EGL_ALPHA_SIZE, 8,
-                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                // Needs BOTH bits: PBUFFER for our throwaway dummy surface,
-                // WINDOW because the encoder's input Surface (step 2) also
-                // needs an EGLSurface from this same config.
-                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT | EGL14.EGL_WINDOW_BIT,
-                EGL14.EGL_NONE
-        };
         EGLConfig[] configs = new EGLConfig[1];
         int[] numConfigs = new int[1];
-        if (!EGL14.eglChooseConfig(eglDisplay, configAttribs, 0, configs, 0, 1, numConfigs, 0)) {
-            throw new RuntimeException("Unable to find suitable EGLConfig");
+        glEs3 = false;
+        if (wantEs3) {
+            // Optical flow / motion blur need OpenGL ES 3.0. A 3.0 context runs the 2.0 shaders too, so only exports that use
+            // them ask for it; any failure here simply leaves the ES 2 path below.
+            try {
+                if (EGL14.eglChooseConfig(eglDisplay, exportConfigAttribs(android.opengl.EGLExt.EGL_OPENGL_ES3_BIT_KHR), 0, configs, 0, 1, numConfigs, 0)
+                        && numConfigs[0] > 0 && configs[0] != null) {
+                    EGLContext es3 = EGL14.eglCreateContext(eglDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
+                            new int[]{EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE}, 0);
+                    if (es3 != EGL14.EGL_NO_CONTEXT) {
+                        eglConfig = configs[0];
+                        eglContext = es3;
+                        glEs3 = true;
+                    }
+                }
+            } catch (RuntimeException ignored) { /* ES 2 below */ }
         }
-        eglConfig = configs[0];
+        if (!glEs3) {
+            if (!EGL14.eglChooseConfig(eglDisplay, exportConfigAttribs(EGL14.EGL_OPENGL_ES2_BIT), 0, configs, 0, 1, numConfigs, 0)) {
+                throw new RuntimeException("Unable to find suitable EGLConfig");
+            }
+            eglConfig = configs[0];
 
-        int[] contextAttribs = {
-                EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
-                EGL14.EGL_NONE
-        };
-        eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribs, 0);
-        if (eglContext == EGL14.EGL_NO_CONTEXT) {
-            throw new RuntimeException("Unable to create EGL context");
+            int[] contextAttribs = {
+                    EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+                    EGL14.EGL_NONE
+            };
+            eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribs, 0);
+            if (eglContext == EGL14.EGL_NO_CONTEXT) {
+                throw new RuntimeException("Unable to create EGL context");
+            }
         }
 
         // 1x1 pbuffer purely to satisfy eglMakeCurrent's surface requirement.
@@ -169,6 +200,21 @@ public class OpenGLEditNative {
         if (!EGL14.eglMakeCurrent(eglDisplay, eglDummySurface, eglDummySurface, eglContext)) {
             throw new RuntimeException("Unable to make EGL context current");
         }
+    }
+
+    private static int[] exportConfigAttribs(int renderableBit) {
+        return new int[]{
+                EGL14.EGL_RED_SIZE, 8,
+                EGL14.EGL_GREEN_SIZE, 8,
+                EGL14.EGL_BLUE_SIZE, 8,
+                EGL14.EGL_ALPHA_SIZE, 8,
+                EGL14.EGL_RENDERABLE_TYPE, renderableBit,
+                // Needs BOTH bits: PBUFFER for our throwaway dummy surface,
+                // WINDOW because the encoder's input Surface (step 2) also
+                // needs an EGLSurface from this same config.
+                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT | EGL14.EGL_WINDOW_BIT,
+                EGL14.EGL_NONE
+        };
     }
 
     private void releaseEgl() {
@@ -228,6 +274,15 @@ public class OpenGLEditNative {
         }
     }
 
+    /** Optical flow / motion blur engine of this export (GL thread only); built on first use, closed when the export ends. */
+    private OpticalFlowGl opticalFlow;
+    private final java.util.Set<EditingActivity.Clip> motionWarned = new java.util.HashSet<>();
+
+    private OpticalFlowGl opticalFlow() {
+        if (opticalFlow == null) opticalFlow = new OpticalFlowGl(OpticalFlowMath.EXPORT_FLOW_SIDE);
+        return opticalFlow;
+    }
+
     public class ClipFrameSource {
 
         private final String clipPath;
@@ -254,6 +309,19 @@ public class OpenGLEditNative {
         // frame stays on screen) if the stream ends before the clip does.
         private boolean hasLatchedFrame = false;
         private boolean seekedToStart = false;
+
+        // ---- Optical flow / motion blur: the last two decoded frames, kept as plain textures (see enableFrames).
+        private boolean keepFrames = false;
+        private final int[] pairTex = {0, 0}, pairFbo = {0, 0};
+        private int pairW = 0, pairH = 0, currentSlot = 0;
+        private long currentPtsUs = 0, previousPtsUs = 0;
+        private boolean hasCurrent = false, hasPrevious = false;
+        private long frameSerial = 0;
+        private final float[] lastTexMatrix = new float[16];
+        private int videoW = 0, videoH = 0;
+        private long defaultFrameUs = 33_333;
+        /** The clip's optical flow state (the pyramid and made picture textures); made on first use by the export. */
+        OpticalFlowGl.State motionState;
 
         // Diagnostics only (export log): what the source is and what its first frame cost.
         String diagFormat = "";
@@ -288,10 +356,7 @@ public class OpenGLEditNative {
             decoder = MediaCodec.createDecoderByType(mime);
             try {
                 // Exporting is not playback: let the codec run as fast as it can instead of pacing itself.
-                MediaFormat hinted = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    hinted = new MediaFormat(format);
-                }
+                MediaFormat hinted = new MediaFormat(format);
                 applyThroughputHints(hinted);
                 decoder.configure(hinted, decoderSurface, null, 0);
             } catch (RuntimeException hintsRejected) {
@@ -300,6 +365,19 @@ public class OpenGLEditNative {
                 decoder.configure(format, decoderSurface, null, 0);
             }
             decoder.start();
+            try {
+                int w = format.getInteger(MediaFormat.KEY_WIDTH), h = format.getInteger(MediaFormat.KEY_HEIGHT);
+                int rotation = format.containsKey(MediaFormat.KEY_ROTATION) ? format.getInteger(MediaFormat.KEY_ROTATION) : 0;
+                boolean turned = rotation == 90 || rotation == 270;   // the surface's texture matrix turns the picture upright
+                videoW = turned ? h : w;
+                videoH = turned ? w : h;
+                if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    float fps;
+                    try { fps = format.getInteger(MediaFormat.KEY_FRAME_RATE); }
+                    catch (ClassCastException notAnInteger) { fps = format.getFloat(MediaFormat.KEY_FRAME_RATE); }
+                    if (fps >= 1f) defaultFrameUs = Math.round(1_000_000.0 / fps);
+                }
+            } catch (RuntimeException ignored) { /* the first frame decides */ }
             try {
                 diagFormat = mime + " " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" + format.getInteger(MediaFormat.KEY_HEIGHT)
                         + (format.containsKey(MediaFormat.KEY_FRAME_RATE) ? " @" + format.getInteger(MediaFormat.KEY_FRAME_RATE) + "fps" : "")
@@ -362,6 +440,7 @@ public class OpenGLEditNative {
             feedInput(MAX_FEED_PER_CALL);
 
             int candidateIndex = -1; // best frame so far (pts <= target), unreleased
+            long candidatePtsUs = 0;
 
             while (true) {
                 if (pendingIndex < 0) {
@@ -372,8 +451,14 @@ public class OpenGLEditNative {
                 // target (clip whose first frame is slightly late).
                 boolean acceptFirstFrame = !hasLatchedFrame && candidateIndex < 0;
                 if (pendingPtsUs <= targetTimeUs || acceptFirstFrame) {
-                    if (candidateIndex >= 0) decoder.releaseOutputBuffer(candidateIndex, false);
+                    if (candidateIndex >= 0) {
+                        // Optical flow / motion blur follow the motion from the frame before the one that stays, so with them
+                        // every frame passed over is shown once (copied into the pair) instead of being dropped.
+                        if (keepFrames) latchIntoPair(candidateIndex, candidatePtsUs);
+                        else decoder.releaseOutputBuffer(candidateIndex, false);
+                    }
                     candidateIndex = pendingIndex;
+                    candidatePtsUs = pendingPtsUs;
                     pendingIndex = -1;
                 } else {
                     break; // pending frame is in the future: keep it for later
@@ -381,12 +466,16 @@ public class OpenGLEditNative {
             }
 
             if (candidateIndex >= 0) {
-                synchronized (frameLock) {
-                    frameAvailable = false;
+                if (keepFrames) {
+                    latchIntoPair(candidateIndex, candidatePtsUs);
+                } else {
+                    synchronized (frameLock) {
+                        frameAvailable = false;
+                    }
+                    decoder.releaseOutputBuffer(candidateIndex, true); // render this one only
+                    waitForFrameAvailable();
+                    surfaceTexture.updateTexImage();
                 }
-                decoder.releaseOutputBuffer(candidateIndex, true); // render this one only
-                waitForFrameAvailable();
-                surfaceTexture.updateTexImage();
                 hasLatchedFrame = true;
             }
             // Refill right now, before the caller draws and encodes this frame: the decoder then works on the
@@ -492,8 +581,71 @@ public class OpenGLEditNative {
             return matrix;
         }
 
+        // ---- the frame pair (optical flow / motion blur) ---------------------------------------------------
+
+        /** From now on every decoded frame that is shown is also copied into a plain texture, and the one before it is kept. */
+        void enableFrames() {
+            keepFrames = true;
+        }
+
+        boolean framesKept() {
+            return keepFrames;
+        }
+
+        /** Renders one decoded frame, copies it into the pair (the old current frame becomes the previous one). */
+        private void latchIntoPair(int index, long ptsUs) {
+            synchronized (frameLock) {
+                frameAvailable = false;
+            }
+            decoder.releaseOutputBuffer(index, true);
+            waitForFrameAvailable();
+            surfaceTexture.updateTexImage();
+            surfaceTexture.getTransformMatrix(lastTexMatrix);
+            if (pairTex[0] == 0) {
+                pairW = Math.max(2, videoW);
+                pairH = Math.max(2, videoH);
+                for (int i = 0; i < 2; i++) {
+                    pairTex[i] = OpticalFlowGl.createFrameTexture(pairW, pairH);
+                    pairFbo[i] = OpticalFlowGl.createFramebuffer(pairTex[i]);
+                }
+            }
+            int next = hasCurrent ? 1 - currentSlot : 0;
+            opticalFlow().blitFrame(textureId, lastTexMatrix, pairFbo[next], pairTex[next], pairW, pairH);
+            previousPtsUs = currentPtsUs;
+            hasPrevious = hasCurrent;
+            currentSlot = next;
+            currentPtsUs = ptsUs;
+            hasCurrent = true;
+            frameSerial++;
+            hasLatchedFrame = true;
+        }
+
+        boolean hasCurrentFrame() { return hasCurrent; }
+        boolean hasPreviousFrame() { return hasPrevious; }
+        int currentFrameTexture() { return pairTex[currentSlot]; }
+        int previousFrameTexture() { return pairTex[1 - currentSlot]; }
+        long currentFramePtsUs() { return currentPtsUs; }
+        long previousFramePtsUs() { return previousPtsUs; }
+        /** Counts the frames copied into the pair: the pair is the same while this is. */
+        long frameSerial() { return frameSerial; }
+        int pairWidth() { return pairW; }
+        int pairHeight() { return pairH; }
+
+        /** How far ahead of the time the decode has to run so the frame after it is there too (one frame interval). */
+        long lookaheadUs() {
+            return hasPrevious && currentPtsUs > previousPtsUs ? currentPtsUs - previousPtsUs : defaultFrameUs;
+        }
+
         /** Must be called on the GL thread. */
         public void release() {
+            if (motionState != null && opticalFlow != null) opticalFlow.destroyState(motionState);
+            motionState = null;
+            for (int i = 0; i < 2; i++) {
+                if (pairTex[i] != 0) GLES20.glDeleteTextures(1, new int[]{pairTex[i]}, 0);
+                if (pairFbo[i] != 0) GLES20.glDeleteFramebuffers(1, new int[]{pairFbo[i]}, 0);
+                pairTex[i] = 0;
+                pairFbo[i] = 0;
+            }
             try {
                 if (decoder != null) {
                     decoder.stop();
@@ -607,10 +759,7 @@ public class OpenGLEditNative {
 
             encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             try {
-                MediaFormat hinted = null;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    hinted = new MediaFormat(format);
-                }
+                MediaFormat hinted = new MediaFormat(format);
                 applyThroughputHints(hinted);
                 encoder.configure(hinted, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             } catch (RuntimeException hintsRejected) {
@@ -2295,6 +2444,10 @@ public class OpenGLEditNative {
                     maskTextures.release();
                     maskTextures = null;
                 }
+                if (opticalFlow != null) {
+                    opticalFlow.close();
+                    opticalFlow = null;
+                }
                 if (transitionLayerA != null) transitionLayerA.release();
                 if (transitionLayerB != null) transitionLayerB.release();
                 if (blurScratchA != null) blurScratchA.release();
@@ -2383,13 +2536,24 @@ public class OpenGLEditNative {
                 }
                 return false;
             }
+            if (cmd.motion != null) {
+                if (glEs3 && opticalFlow().ready()) {
+                    source.enableFrames();
+                } else if (motionWarned.add(cmd.clip)) {
+                    report(listener, "OpenGL: optical flow / motion blur are not available here ("
+                            + (glEs3 ? opticalFlow().failure() : "no OpenGL ES 3.0 context") + "), the clip is exported without them");
+                }
+            }
             activeSources.put(cmd.clip, source);
         }
 
         long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
         if (profiler != null) profiler.begin(FrameProfiler.DECODE);
         long diagAdvanceStart = System.nanoTime();
-        boolean gotFrame = source.advanceToTime(localSourceTimeUs, timeoutUsPerStep);
+        final boolean motionOn = cmd.motion != null && source.framesKept();
+        // Optical flow draws between a frame and the one after it, so the decode runs one frame interval ahead of the time.
+        boolean gotFrame = source.advanceToTime(motionOn && cmd.motion.flow ? localSourceTimeUs + source.lookaheadUs() : localSourceTimeUs,
+                timeoutUsPerStep);
         long diagAdvanceMs = (System.nanoTime() - diagAdvanceStart) / 1_000_000L;
         if (profiler != null) profiler.end(FrameProfiler.DECODE);
         if (!source.diagFirstFrameLogged) {
@@ -2411,6 +2575,18 @@ public class OpenGLEditNative {
             return false;
         }
 
+        if (motionOn) {
+            int motionTexture = motionPicture(source, cmd.motion, localSourceTimeUs);
+            if (motionTexture != 0) {
+                // The made picture is a plain texture, drawn like an image clip's: mask, chroma key, grade and transform all apply.
+                imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+                imageShader.setChromaKeys(cmd.chromaKeys);
+                imageShader.drawClip(motionTexture, cmd.mvpMatrix, cmd.opacity,
+                        cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                        cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
+                return true;
+            }
+        }
         shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
         shader.setChromaKeys(cmd.chromaKeys);
         shader.drawClip(source.getTextureId(), source.getTexTransformMatrix(), cmd.mvpMatrix, cmd.opacity,
@@ -2419,6 +2595,29 @@ public class OpenGLEditNative {
         return true;
     }
 
+
+    /**
+     * The picture of a clip with optical flow and/or motion blur at {@code sourceTimeUs}: the frame before and the frame after
+     * it (the source keeps both), the in-between picture made from them, the streak drawn on it. 0 = nothing to draw this way
+     * (the caller draws the decoded frame as it is).
+     */
+    private int motionPicture(ClipFrameSource source, ClipMotionFrame motion, long sourceTimeUs) {
+        if (!source.hasCurrentFrame()) return 0;
+        if (!source.hasPreviousFrame()) return source.currentFrameTexture();   // the clip's first frame: nothing to follow yet
+        OpticalFlowGl.State state = source.motionState;
+        if (state == null) {
+            state = opticalFlow().createState(source.pairWidth(), source.pairHeight());
+            source.motionState = state;
+        }
+        double alpha = 1.0;   // without optical flow the picture is the current frame, only smeared along the motion before it
+        if (motion.flow) {
+            long a = source.previousFramePtsUs(), b = source.currentFramePtsUs();
+            alpha = b > a ? Math.max(0.0, Math.min(1.0, (sourceTimeUs - a) / (double) (b - a))) : 1.0;
+        }
+        OpticalFlowGl.Blur blur = motion.smears() ? new OpticalFlowGl.Blur(motion.blurLength, motion.blend, motion.direction, motion.passes) : null;
+        return opticalFlow().render(state, source.frameSerial(), source.previousFrameTexture(), source.currentFrameTexture(),
+                alpha, motion.flow, blur);
+    }
 
     /** Releases and removes every entry whose clip is not in stillActive. Shared by the video and image source maps. */
     private <T> void releaseInactive(java.util.Map<EditingActivity.Clip, T> sources, java.util.Set<EditingActivity.Clip> stillActive) {

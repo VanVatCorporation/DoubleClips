@@ -323,6 +323,11 @@ public class OpenGLEdit {
          * overwhelming majority of clips. VIDEO and IMAGE clips only. Acts on the clip's own picture, before the grade and the mask.
          */
         public ChromaKey.Packed chromaKeys;
+        /**
+         * The clip's Motion settings (optical flow, motion blur) at this frame, the keyframed sliders already read, or null for
+         * the overwhelming majority of clips. VIDEO clips only; the export's motion pass (OpticalFlowGl) acts on the decoded frames.
+         */
+        public ClipMotionFrame motion;
 
         public DrawCommand(EditingActivity.Clip clip, float localSourceTimeSeconds, float[] mvpMatrix, float opacity,
                             float hueDegrees, float saturation, float brightness, float temperatureKelvin, float blurSigmaPixels,
@@ -1050,6 +1055,11 @@ public class OpenGLEdit {
         float speed = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Speed);
         if (speed <= 0f) speed = 1f; // guard against a bad/zero value stalling the decoder forever
         float elapsedOutput = outputTimeSeconds - clip.startTime;
+        // Optical flow makes its frames on a grid of its own frame rate (ffmpeg's minterpolate=fps=N does the same): the clip's time
+        // is the start of the grid frame this moment falls in, and the picture for that time is drawn between two source frames.
+        if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasOpticalFlow()) {
+            elapsedOutput = (float) OpticalFlowMath.snapToGrid(elapsedOutput, clip.opticalFlow.effectiveFps());
+        }
         // Reversed clips are decoded from a pre-rendered, already-reversed
         // intermediate that OpenGLEditNative builds for just the used trim
         // range (see PLAN.md decisions log) - that file starts at local time
@@ -1090,6 +1100,11 @@ public class OpenGLEdit {
         if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
             command.chromaKeys = ChromaKeyframes.pack(clip, outputTimeSeconds, box[0], box[1]);
         }
+        if (clip.type == EditingActivity.ClipType.VIDEO && (clip.hasOpticalFlow() || clip.hasMotionBlur())) {
+            command.motion = ClipMotionFrame.of(clip,
+                    motionSliderAt(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.MotionBlur),
+                    motionSliderAt(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.MotionBlend));
+        }
         return command;
     }
 
@@ -1126,6 +1141,12 @@ public class OpenGLEdit {
      * clip.videoProperties.getValue(valueType) when there are no keyframes, so
      * no branching is needed here - this always matches whichever the clip has.
      */
+    /** The Motion panel's Blur / Blend at a time: keyframed only when some keyframe holds the slider, else the clip's own value. */
+    private float motionSliderAt(EditingActivity.Clip clip, float outputTimeSeconds, EditingActivity.VideoProperties.ValueType type) {
+        if (clip.keyframes != null && clip.keyframes.isAnimated(type)) return clip.keyframes.getValueAtTime(clip, outputTimeSeconds, type);
+        return clip.videoProperties != null ? clip.videoProperties.getValue(type) : 0f;
+    }
+
     private float readAtTime(EditingActivity.Clip clip, float outputTimeSeconds, EditingActivity.VideoProperties.ValueType valueType) {
         if (clip.keyframes != null) return clip.keyframes.getValueAtTime(clip, outputTimeSeconds, valueType);
         return clip.videoProperties != null ? clip.videoProperties.getValue(valueType) : 0f;

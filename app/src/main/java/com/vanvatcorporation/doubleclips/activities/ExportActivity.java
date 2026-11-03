@@ -31,7 +31,6 @@ import com.vanvatcorporation.doubleclips.FFmpegEdit;
 import com.vanvatcorporation.doubleclips.OpenGLEdit;
 import com.vanvatcorporation.doubleclips.OpenGLEditNative;
 import com.vanvatcorporation.doubleclips.FFmpegEditNative;
-import com.vanvatcorporation.doubleclips.ExportEstimate;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
@@ -87,9 +86,6 @@ public class ExportActivity extends AppCompatActivityImpl {
     Button exportButton, exportAsTemplateButton;
 
     android.widget.RadioGroup renderEngineRadioGroup;
-
-    /** The Output summary: what the export will make and its estimated size. */
-    TextView outputResolution, outputFrameRate, outputQualityLabel, outputQuality, outputDuration, outputFormat, outputEstimate, outputEstimateNote;
 
     SectionView logSection, advancedSection;
 
@@ -192,20 +188,9 @@ public class ExportActivity extends AppCompatActivityImpl {
         renderEngineRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             settings.setRenderEngine(checkedId == R.id.renderEngineOpenGlRadio ? "opengl" : "ffmpeg");
             settings.saveSettings(this, properties);
-            refreshOutputSummary();   // the two engines pick their bitrate differently
         });
 
         modifyZone = findViewById(R.id.modifyZone);
-
-        outputResolution = findViewById(R.id.outputResolution);
-        outputFrameRate = findViewById(R.id.outputFrameRate);
-        outputQualityLabel = findViewById(R.id.outputQualityLabel);
-        outputQuality = findViewById(R.id.outputQuality);
-        outputDuration = findViewById(R.id.outputDuration);
-        outputFormat = findViewById(R.id.outputFormat);
-        outputEstimate = findViewById(R.id.outputEstimate);
-        outputEstimateNote = findViewById(R.id.outputEstimateNote);
-        refreshOutputSummary();
 
         logText = findViewById(R.id.logText);
         statusBar = findViewById(R.id.statusBar);
@@ -272,7 +257,6 @@ public class ExportActivity extends AppCompatActivityImpl {
             settings.useHardwareAccel = videoPropertiesExportSpecificAreaScreen.hardwareAccelCheckbox.isChecked();
 
             settings.saveSettings(this, properties);
-            refreshOutputSummary();
 
 
             // Recommended value not in range pop up [10, 30]
@@ -501,38 +485,7 @@ public class ExportActivity extends AppCompatActivityImpl {
      * doesn't match user expectations relative to their FFmpeg exports.
      */
     private int estimateOpenGlBitrate(int width, int height, int frameRate) {
-        return ExportEstimate.openGlBitrate(width, height, frameRate);   // one place for the rule: the summary uses it too
-    }
-
-    /**
-     * The Output summary (resolution, frame rate, bitrate or quality, duration, format) and the estimated size of the file,
-     * like the iOS and Desktop export screens. Called when the screen opens, when the video settings close and when the
-     * render engine changes, since the engines choose their bitrate differently (see {@link ExportEstimate}).
-     */
-    private void refreshOutputSummary() {
-        if (outputEstimate == null || settings == null) return;
-        double seconds = timeline != null ? timeline.duration : 0;
-        if (seconds <= 0 && properties != null) seconds = properties.getProjectDuration() / 1000.0;   // ProjectData keeps milliseconds
-
-        final boolean openGl = settings.isOpenGlRenderEngine();
-        final boolean hardware = settings.isUseHardwareAccel();
-        ExportEstimate estimate = ExportEstimate.of(settings.getVideoWidth(), settings.getVideoHeight(), settings.getFrameRate(),
-                settings.getCRF(), settings.getBitrate(), openGl, hardware, seconds);
-
-        outputResolution.setText(settings.getVideoWidth() + " \u00D7 " + settings.getVideoHeight());
-        outputFrameRate.setText(getString(R.string.export_summary_fps, settings.getFrameRate()));
-        if (estimate.basis == ExportEstimate.Basis.CRF) {
-            outputQualityLabel.setText(R.string.export_summary_quality_crf);
-            outputQuality.setText(String.valueOf(settings.getCRF()));
-        } else {
-            outputQualityLabel.setText(estimate.basis == ExportEstimate.Basis.OPENGL_BITRATE
-                    ? R.string.export_summary_bitrate_gpu : R.string.export_summary_bitrate_hw);
-            outputQuality.setText(ExportEstimate.formatMbps(estimate.videoBitsPerSecond));
-        }
-        outputDuration.setText(ExportEstimate.formatDuration(seconds));
-        outputFormat.setText("MP4 \u00B7 H.264 + AAC");
-        outputEstimate.setText("\u2248 " + ExportEstimate.formatBytes(estimate.bytes));
-        outputEstimateNote.setVisibility(estimate.isRough() ? View.VISIBLE : View.GONE);
+        return (int) (width * height * frameRate * 0.1);
     }
 
     /** Mirrors FFmpegEdit's own rule for which clips contribute audio. */
@@ -715,7 +668,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                     boolean ok = false;
                     try {
                         tasksQueued.await();
-                        gl.start();
+                        gl.start(OpenGLEditNative.timelineUsesMotion(timeline));   // optical flow / motion blur need OpenGL ES 3.0
                         gl.exportTimeline(timeline, new OpenGLEdit(), projectPath, width, height, bitrate, frameRate, videoOnlyPath,
                                 reversedClipPaths, settings.isStretchToFull(),
                                 new OpenGLEditNative.ExportListener() {
