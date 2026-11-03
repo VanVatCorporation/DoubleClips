@@ -103,6 +103,27 @@ public final class PreviewEngine {
     private final boolean stretch;
     private final OpenGLEdit edit = new OpenGLEdit();
 
+    // ---- optical flow / motion blur (the Motion panel), see OpticalFlowGl. The preview works on a smaller picture than the export:
+    // the frames are copied at most this big and the motion is searched on this long side, so playback stays usable.
+    private static final int PREVIEW_PAIR_EDGE = 960;
+    private static final int PREVIEW_FLOW_SIDE = 240;
+    private OpticalFlowGl opticalFlow;
+    private boolean motionWarned = false;
+    /** True when the preview's context is OpenGL ES 3.x (needed for motion); false = the plain ES 2 context it always had. */
+    private boolean glEs3 = false;
+
+    /** The motion engine, or null when this GPU/context can't do it (logged once). */
+    private OpticalFlowGl motionEngine() {
+        if (opticalFlow == null) opticalFlow = new OpticalFlowGl(PREVIEW_FLOW_SIDE);
+        if (opticalFlow.ready()) return opticalFlow;
+        if (!motionWarned) {
+            motionWarned = true;
+            Log.w(TAG, "Optical flow / motion blur are not shown in the preview: "
+                    + (glEs3 ? opticalFlow.failure() : "no OpenGL ES 3.0 context"));
+        }
+        return null;
+    }
+
     // ---- diagnostics (logcat tag PreviewEngine, filter "preview"): where does playback time go, and why do decoders restart?
     private final FrameProfiler profiler = new FrameProfiler(120, System::nanoTime, this::onProfilerLine, "decode", "swap")
             .idleReset(500_000_000L);
@@ -357,6 +378,7 @@ public final class PreviewEngine {
             runOnGlThreadAndWaitQuietly(() -> {
                 try {
                     if (pool != null) pool.closeAll();
+                    if (opticalFlow != null) { opticalFlow.close(); opticalFlow = null; }
                     if (layerA != null) layerA.release();
                     if (layerB != null) layerB.release();
                     if (clipFxLayer != null) clipFxLayer.release();
@@ -429,25 +451,46 @@ public final class PreviewEngine {
         int[] version = new int[2];
         if (!EGL14.eglInitialize(eglDisplay, version, 0, version, 1)) throw new RuntimeException("Unable to initialize EGL14");
 
-        int[] configAttribs = {
-                EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 8,
-                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT | EGL14.EGL_WINDOW_BIT,
-                EGL14.EGL_NONE
-        };
         EGLConfig[] configs = new EGLConfig[1];
         int[] num = new int[1];
-        if (!EGL14.eglChooseConfig(eglDisplay, configAttribs, 0, configs, 0, 1, num, 0) || num[0] < 1) {
-            throw new RuntimeException("Unable to find a suitable EGLConfig");
+        glEs3 = false;
+        // Optical flow / motion blur need OpenGL ES 3.0. A 3.0 context runs every 2.0 shader too, so it is asked for first; any
+        // failure leaves the ES 2 context below, exactly as before (the Motion effects then just aren't shown in the preview).
+        try {
+            if (EGL14.eglChooseConfig(eglDisplay, previewConfigAttribs(android.opengl.EGLExt.EGL_OPENGL_ES3_BIT_KHR), 0, configs, 0, 1, num, 0)
+                    && num[0] >= 1 && configs[0] != null) {
+                EGLContext es3 = EGL14.eglCreateContext(eglDisplay, configs[0], EGL14.EGL_NO_CONTEXT,
+                        new int[]{EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE}, 0);
+                if (es3 != EGL14.EGL_NO_CONTEXT) {
+                    eglConfig = configs[0];
+                    eglContext = es3;
+                    glEs3 = true;
+                }
+            }
+        } catch (RuntimeException ignored) { /* ES 2 below */ }
+        if (!glEs3) {
+            if (!EGL14.eglChooseConfig(eglDisplay, previewConfigAttribs(EGL14.EGL_OPENGL_ES2_BIT), 0, configs, 0, 1, num, 0) || num[0] < 1) {
+                throw new RuntimeException("Unable to find a suitable EGLConfig");
+            }
+            eglConfig = configs[0];
+            eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT,
+                    new int[]{EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE}, 0);
+            if (eglContext == EGL14.EGL_NO_CONTEXT) throw new RuntimeException("Unable to create EGL context");
         }
-        eglConfig = configs[0];
-        eglContext = EGL14.eglCreateContext(eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT,
-                new int[]{EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE}, 0);
-        if (eglContext == EGL14.EGL_NO_CONTEXT) throw new RuntimeException("Unable to create EGL context");
+        Log.i(TAG, "preview context: OpenGL ES " + (glEs3 ? "3" : "2"));
         // Current whenever there's no window surface, so GL resources can always be created/deleted.
         pbuffer = EGL14.eglCreatePbufferSurface(eglDisplay, eglConfig, new int[]{EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE}, 0);
         if (pbuffer == EGL14.EGL_NO_SURFACE) throw new RuntimeException("Unable to create pbuffer surface");
         if (!EGL14.eglMakeCurrent(eglDisplay, pbuffer, pbuffer, eglContext)) throw new RuntimeException("Unable to make EGL current");
+    }
+
+    private static int[] previewConfigAttribs(int renderableBit) {
+        return new int[]{
+                EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 8,
+                EGL14.EGL_RENDERABLE_TYPE, renderableBit,
+                EGL14.EGL_SURFACE_TYPE, EGL14.EGL_PBUFFER_BIT | EGL14.EGL_WINDOW_BIT,
+                EGL14.EGL_NONE
+        };
     }
 
     private void destroyWindowSurface() {
@@ -666,12 +709,54 @@ public final class PreviewEngine {
 
         PreviewDecoder decoder = pool.video(cmd.clip, cmd, true);
         if (decoder == null) return false;
+        if (cmd.motion != null && decoder.framesKept()) {
+            int motionTexture = motionPicture(decoder, cmd.motion, Math.round(pool.sourceTimeSeconds(cmd.clip, cmd) * 1_000_000.0));
+            if (motionTexture != 0) {
+                // A plain texture, drawn like an image clip's: mask, chroma key, grade and transform all apply.
+                imageShader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
+                imageShader.setChromaKeys(chromaKeysOf(cmd));
+                imageShader.drawClip(motionTexture, cmd.mvpMatrix, cmd.opacity,
+                        cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
+                        cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
+                return true;
+            }
+        }
         shader.setMask(maskTextureOf(cmd), cmd.mask != null && cmd.mask.shaderInvert());
         shader.setChromaKeys(chromaKeysOf(cmd));
         shader.drawClip(decoder.textureId, decoder.texMatrix(), cmd.mvpMatrix, cmd.opacity,
                 cmd.hueDegrees, cmd.saturation, cmd.brightness, cmd.temperatureKelvin,
                 cmd.unfoldTopWidth, cmd.unfoldBottomWidth, cmd.unfoldHeight, cmd.contrast);
         return true;
+    }
+
+    /**
+     * The picture of a clip with optical flow and/or motion blur: the decoder keeps the frame before and the frame after the
+     * wanted time, OpticalFlowGl makes the in-between picture and the streak. 0 = draw the decoded frame as it is.
+     */
+    private int motionPicture(PreviewDecoder d, ClipMotionFrame motion, long sourceTimeUs) {
+        OpticalFlowGl flow = motionEngine();
+        if (flow == null || !d.hasPair()) return 0;
+        if (!d.hasPairPrevious()) return d.currentFrameTexture();   // the first frame after a jump: nothing to follow yet
+        // While the user drags the playhead a newer frame is already waiting: the heavy pass would only make it lag.
+        if (!pool.playing && hasNewerRequest()) return d.currentFrameTexture();
+        OpticalFlowGl.State state = d.motionState;
+        if (state == null) {
+            try {
+                state = flow.createState(d.pairWidth(), d.pairHeight());
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Motion in the preview is off: " + e);
+                motionWarned = true;
+                return 0;
+            }
+            d.motionState = state;
+        }
+        double alpha = 1.0;   // without optical flow the picture is the current frame, only smeared along the motion before it
+        if (motion.flow) {
+            long a = d.previousPairPtsUs(), b = d.currentPairPtsUs();
+            alpha = b > a ? Math.max(0.0, Math.min(1.0, (sourceTimeUs - a) / (double) (b - a))) : 1.0;
+        }
+        OpticalFlowGl.Blur blur = motion.smears() ? new OpticalFlowGl.Blur(motion.blurLength, motion.blend, motion.direction, motion.passes) : null;
+        return flow.render(state, d.pairSerial(), d.previousFrameTexture(), d.currentFrameTexture(), alpha, motion.flow, blur);
     }
 
     // ======================================================================
@@ -781,7 +866,13 @@ public final class PreviewEngine {
                 // from): never show it. iOS gets this from its composition segments; here it is the floor below.
                 long inPointFloorUs = clip.isReverse() ? Long.MIN_VALUE
                         : Math.round(clip.startClipTrim * 1_000_000.0) - stream.decoder.frameDurationUs();
-                ok = stream.decoder.advanceToTime(wantedUs, PreviewEngine.this::hasNewerRequest, inPointFloorUs);
+                long targetUs = wantedUs;
+                if (cmd.motion != null && motionEngine() != null) {
+                    stream.decoder.enableFrames();
+                    // optical flow draws between a frame and the one after it: the decode runs one frame interval ahead
+                    if (cmd.motion.flow) targetUs += stream.decoder.lookaheadUs();
+                }
+                ok = stream.decoder.advanceToTime(targetUs, PreviewEngine.this::hasNewerRequest, inPointFloorUs);
             } catch (RuntimeException e) {
                 ok = false;
                 if (reported.add(clip)) Log.w(TAG, "Decoder failed in preview: " + e);
@@ -1008,6 +1099,18 @@ public final class PreviewEngine {
         private long frameDurationUs = 33_333L;
         private final float[] matrix = new float[16];
 
+        // ---- optical flow / motion blur: the last two frames, kept as plain textures (see enableFrames)
+        private boolean keepFrames = false;
+        private final int[] pairTex = {0, 0}, pairFbo = {0, 0};
+        private int pairW = 0, pairH = 0, currentSlot = 0, videoW = 0, videoH = 0;
+        private long pairCurrentPts = NONE, pairPreviousPts = NONE;
+        private boolean hasPair = false, hasPairPrevious = false;
+        private long pairSerial = 0;
+        /** Counts the frames taken from the decoder; a frame's number says whether another frame lay between it and the last copy. */
+        private long consumedSeq = 0, currentSeq = -1;
+        /** The clip's optical flow state (the pyramid and made picture textures). */
+        OpticalFlowGl.State motionState;
+
         PreviewDecoder(String path) { this.path = path; }
 
         void open(long startUs) throws IOException {
@@ -1029,6 +1132,14 @@ public final class PreviewEngine {
                     if (fps > 1) frameDurationUs = 1_000_000L / fps;
                 }
             }
+
+            try {
+                int w = format.getInteger(MediaFormat.KEY_WIDTH), h = format.getInteger(MediaFormat.KEY_HEIGHT);
+                int rotation = format.containsKey(MediaFormat.KEY_ROTATION) ? format.getInteger(MediaFormat.KEY_ROTATION) : 0;
+                boolean turned = rotation == 90 || rotation == 270;   // the surface's texture matrix turns the picture upright
+                videoW = turned ? h : w;
+                videoH = turned ? w : h;
+            } catch (RuntimeException ignored) { /* the frame pair then uses a default size */ }
 
             int[] t = new int[1];
             GLES20.glGenTextures(1, t, 0);
@@ -1083,8 +1194,12 @@ public final class PreviewEngine {
                 return null;
             }
             long tolerance = playing ? PLAYING_BACKWARD_TOLERANCE_FRAMES * frameDurationUs : frameDurationUs / 2;
-            if (latchedPtsUs != NONE && wantedUs < latchedPtsUs - tolerance) {
-                return "behind the shown frame by " + (latchedPtsUs - wantedUs) / 1000 + " ms";
+            // With a frame pair the picture shown at a time sits BETWEEN the two frames (optical flow looks one frame ahead), so
+            // the frame to measure "behind" from is the older of the two, and one frame more of slack is allowed.
+            long shownUs = keepFrames && hasPairPrevious ? pairPreviousPts : latchedPtsUs;
+            if (keepFrames) tolerance += frameDurationUs;
+            if (shownUs != NONE && wantedUs < shownUs - tolerance) {
+                return "behind the shown frame by " + (shownUs - wantedUs) / 1000 + " ms";
             }
             if (wantedUs - positionUs() > FORWARD_WINDOW_US) return "ahead of the decoder by " + (wantedUs - positionUs()) / 1000 + " ms";
             return null;
@@ -1104,6 +1219,9 @@ public final class PreviewEngine {
             consumedPtsUs = NONE;
             latchedPtsUs = NONE; // the texture still holds the old picture (hasLatched) until a new one lands
             anchorUs = wantedUs;
+            hasPair = false; // the frame pair belongs to the old position
+            hasPairPrevious = false;
+            currentSeq = -1;
         }
 
         /**
@@ -1122,6 +1240,7 @@ public final class PreviewEngine {
             feedInput(MAX_FEED_PER_CALL); // keep the decoder's pipeline full before we wait on it
             int candidateIndex = -1;
             long candidatePts = NONE;
+            long candidateSeq = 0;
 
             while (true) {
                 if (candidateIndex >= 0 && abort != null && abort.getAsBoolean()) break;
@@ -1130,9 +1249,18 @@ public final class PreviewEngine {
                     if (pendingIndex < 0) break; // stream ended (or stalled)
                 }
                 if (pendingPtsUs <= targetUs || (acceptFirst && candidateIndex < 0)) {
-                    if (candidateIndex >= 0) decoder.releaseOutputBuffer(candidateIndex, false);
+                    if (candidateIndex >= 0) {
+                        // A frame passed over is still shown (copied into the pair) when it is one of the last two before the
+                        // target: the frame before the one that stays is what optical flow and motion blur follow the motion from.
+                        if (keepFrames && candidatePts >= floorUs && candidatePts >= targetUs - 2 * frameDurationUs) {
+                            latchIntoPair(candidateIndex, candidatePts, candidateSeq);
+                        } else {
+                            decoder.releaseOutputBuffer(candidateIndex, false);
+                        }
+                    }
                     candidateIndex = pendingIndex;
                     candidatePts = pendingPtsUs;
+                    candidateSeq = ++consumedSeq;
                     consumedPtsUs = pendingPtsUs;
                     pendingIndex = -1;
                 } else {
@@ -1142,6 +1270,12 @@ public final class PreviewEngine {
 
             if (candidateIndex >= 0 && candidatePts < floorUs) {
                 decoder.releaseOutputBuffer(candidateIndex, false); // before the clip starts: keep whatever is shown
+            } else if (candidateIndex >= 0 && keepFrames) {
+                if (latchIntoPair(candidateIndex, candidatePts, candidateSeq)) {
+                    hasLatched = true;
+                    latchedPtsUs = candidatePts;
+                    acceptFirst = false;
+                }
             } else if (candidateIndex >= 0) {
                 synchronized (frameLock) { frameAvailable = false; }
                 decoder.releaseOutputBuffer(candidateIndex, true); // render this one only
@@ -1174,6 +1308,7 @@ public final class PreviewEngine {
                 if (pendingPtsUs >= stopBeforeUs) return true; // close enough: keep this frame for the real draw
                 decoder.releaseOutputBuffer(pendingIndex, false);
                 consumedPtsUs = pendingPtsUs;
+                consumedSeq++;
                 pendingIndex = -1;
             }
             return false;
@@ -1199,6 +1334,62 @@ public final class PreviewEngine {
         }
 
         float[] texMatrix() { return matrix; }
+
+        // ---- the frame pair (optical flow / motion blur) ---------------------------------------------------
+
+        /** From now on every frame that is shown is also copied into a plain texture, and the one before it is kept. */
+        void enableFrames() {
+            keepFrames = true;
+        }
+
+        boolean framesKept() { return keepFrames; }
+
+        /** How far ahead of the wanted time the decode has to run so the frame after it is there too (one frame interval). */
+        long lookaheadUs() {
+            return hasPairPrevious && pairCurrentPts > pairPreviousPts ? pairCurrentPts - pairPreviousPts : frameDurationUs;
+        }
+
+        /** Renders one decoded frame and copies it into the pair (the old current frame becomes the previous one, if adjacent). */
+        private boolean latchIntoPair(int index, long ptsUs, long seq) {
+            synchronized (frameLock) { frameAvailable = false; }
+            decoder.releaseOutputBuffer(index, true);
+            if (!waitForFrame()) return false;
+            surfaceTexture.updateTexImage();
+            surfaceTexture.getTransformMatrix(matrix);
+            OpticalFlowGl flow = motionEngine();
+            if (flow == null) return true;   // the plain texture is still current: the caller draws it as before
+            if (pairTex[0] == 0) {
+                int w = videoW > 0 ? videoW : 1280, h = videoH > 0 ? videoH : 720;
+                float scale = Math.min(1f, PREVIEW_PAIR_EDGE / (float) Math.max(w, h));
+                pairW = Math.max(2, Math.round(w * scale));
+                pairH = Math.max(2, Math.round(h * scale));
+                for (int i = 0; i < 2; i++) {
+                    pairTex[i] = OpticalFlowGl.createFrameTexture(pairW, pairH);
+                    pairFbo[i] = OpticalFlowGl.createFramebuffer(pairTex[i]);
+                }
+            }
+            int next = hasPair ? 1 - currentSlot : 0;
+            flow.blitFrame(textureId, matrix, pairFbo[next], pairTex[next], pairW, pairH);
+            boolean adjacent = hasPair && currentSeq + 1 == seq;   // nothing was dropped between the two frames
+            pairPreviousPts = pairCurrentPts;
+            hasPairPrevious = adjacent;
+            currentSlot = next;
+            pairCurrentPts = ptsUs;
+            currentSeq = seq;
+            hasPair = true;
+            pairSerial++;
+            return true;
+        }
+
+        boolean hasPair() { return hasPair; }
+        boolean hasPairPrevious() { return hasPairPrevious; }
+        int currentFrameTexture() { return pairTex[currentSlot]; }
+        int previousFrameTexture() { return pairTex[1 - currentSlot]; }
+        long currentPairPtsUs() { return pairCurrentPts; }
+        long previousPairPtsUs() { return pairPreviousPts; }
+        long pairSerial() { return pairSerial; }
+        int pairWidth() { return pairW; }
+        int pairHeight() { return pairH; }
 
         private void fillPending() {
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -1248,6 +1439,16 @@ public final class PreviewEngine {
         }
 
         void release() {
+            if (motionState != null && opticalFlow != null) opticalFlow.destroyState(motionState);
+            motionState = null;
+            for (int i = 0; i < 2; i++) {
+                if (pairTex[i] != 0) GLES20.glDeleteTextures(1, new int[]{pairTex[i]}, 0);
+                if (pairFbo[i] != 0) GLES20.glDeleteFramebuffers(1, new int[]{pairFbo[i]}, 0);
+                pairTex[i] = 0;
+                pairFbo[i] = 0;
+            }
+            hasPair = false;
+            hasPairPrevious = false;
             try {
                 if (decoder != null) {
                     try { decoder.stop(); } catch (RuntimeException ignored) {}
