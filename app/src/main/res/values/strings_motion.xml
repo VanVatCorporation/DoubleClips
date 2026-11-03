@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Motion panel (optical flow + motion blur) -->
+    <string name="motion">Motion</string>
+    <string name="motion_optical_flow">Optical flow</string>
+    <string name="motion_motion_blur">Motion blur</string>
+    <string name="motion_frame_rate">Frame rate (fps)</string>
+    <string name="motion_blur_slider">Blur</string>
+    <string name="motion_blend">Blend</string>
+    <string name="motion_direction">Direction</string>
+    <string name="motion_both">Both</string>
+    <string name="motion_forward">Forward</string>
+    <string name="motion_backward">Backward</string>
+    <string name="motion_speed_times">Speed (times)</string>
+    <string name="motion_exceeds_project">The project plays at %1$d fps, so frames above that rate are not shown. Raise the project\'s frame rate in the project settings.</string>
+    <string name="motion_flow_note_on">Frames are made by following how things move between two source frames. Slow the clip down to see it.</string>
+    <string name="motion_flow_note_off">Makes smooth in-between frames when the clip is slowed down, by following how things move.</string>
+    <string name="motion_speed_note">Speed is how many times the blur is applied: more times, more obvious streaks.</string>
+    <string name="motion_blur_note_off">Streaks moving things along their path, using the same flow between frames. It works on this clip only.</string>
+    <string name="motion_video_only">Motion works on video clips.</string>
+    <string name="motion_playhead_outside">Move the playhead onto the clip to place a keyframe.</string>
+</resources>

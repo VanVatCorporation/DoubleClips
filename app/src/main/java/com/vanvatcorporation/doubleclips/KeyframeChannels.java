@@ -41,6 +41,8 @@ public final class KeyframeChannels {
 
     /** Held only by a keyframe that names it explicitly. */
     private static final String STRENGTH = "strength";
+    /** The motion blur sliders (iOS and desktop names): like "strength", only a keyframe that names them holds them. */
+    private static final String MOTION_BLUR = "motionBlur", MOTION_BLEND = "motionBlend";
     /**
      * The chroma-key sliders ("chromaIntensity0", "chromaShadow2"...: one per key per slider, desktop's names) are held only by a
      * keyframe that names them too: an old "all properties" keyframe must not start animating a colour key.
@@ -59,7 +61,7 @@ public final class KeyframeChannels {
 
     /** A property that no "all properties" keyframe holds: only a keyframe that lists it does. */
     private static boolean isExplicitOnly(String name) {
-        return STRENGTH.equals(name) || (name != null && name.startsWith(CHROMA_PREFIX));
+        return STRENGTH.equals(name) || MOTION_BLUR.equals(name) || MOTION_BLEND.equals(name) || (name != null && name.startsWith(CHROMA_PREFIX));
     }
 
     /**

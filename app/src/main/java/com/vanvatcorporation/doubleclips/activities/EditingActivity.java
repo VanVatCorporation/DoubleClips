@@ -103,6 +103,10 @@ import com.vanvatcorporation.doubleclips.ChromaKey;
 import com.vanvatcorporation.doubleclips.PreviewEngine;
 import com.vanvatcorporation.doubleclips.activities.editing.ChromaEditController;
 import com.vanvatcorporation.doubleclips.activities.editing.ChromaEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.activities.editing.MotionEditController;
+import com.vanvatcorporation.doubleclips.activities.editing.MotionEditSpecificAreaScreen;
+import com.vanvatcorporation.doubleclips.ClipMotionBlur;
+import com.vanvatcorporation.doubleclips.ClipOpticalFlow;
 import com.vanvatcorporation.doubleclips.ProjectGson;
 import com.vanvatcorporation.doubleclips.TextFonts;
 import com.vanvatcorporation.doubleclips.TextRasterizer;
@@ -184,6 +188,8 @@ public class EditingActivity extends AppCompatActivityImpl {
     private TimelineRenderer timelineRenderer;
     private ChromaEditSpecificAreaScreen chromaEditSpecificAreaScreen;
     private ChromaEditController chromaController;
+    private MotionEditSpecificAreaScreen motionEditSpecificAreaScreen; // the Motion panel (toolbar: Motion): optical flow + motion blur
+    private MotionEditController motionController;
 
     private TrackFrameLayout addNewTrackBlankTrackSpacer;
 
@@ -1488,6 +1494,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 refreshMaskKnotHighlight();
                 if (maskController != null) maskController.onPlayheadMoved(); // the open mask panel shows the values at the playhead
                 if (chromaController != null) chromaController.onPlayheadMoved(); // so does the Background panel
+                if (motionController != null) motionController.onPlayheadMoved();   // and the Motion panel
             }
 
             // Get time (- centerOffset mean remove the start spacer)
@@ -1801,6 +1808,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         toolbarClip.findViewById(R.id.chromaMediaButton).setOnClickListener(v -> {
             if (chromaController != null) chromaController.open();
         });
+        toolbarClip.findViewById(R.id.motionMediaButton).setOnClickListener(v -> {
+            if (motionController != null) motionController.open();
+        });
         toolbarClip.findViewById(R.id.addKeyframeButton).setOnClickListener(v -> {
             if(selectedClip != null) {
                 keyAllAtPlayhead(selectedClip);
@@ -2004,6 +2014,25 @@ public class EditingActivity extends AppCompatActivityImpl {
             @Override public void cancelColorPick() { if (timelineRenderer != null) timelineRenderer.cancelColorPick(); }
         });
         // ===========================       BACKGROUND (CHROMA KEY) ZONE       ====================================
+
+
+        // ===========================       MOTION (OPTICAL FLOW + MOTION BLUR) ZONE       ====================================
+        motionEditSpecificAreaScreen = (MotionEditSpecificAreaScreen) LayoutInflater.from(this).inflate(R.layout.view_edit_specific_motion, null);
+        editingZone.addView(motionEditSpecificAreaScreen);
+        motionController = new MotionEditController(motionEditSpecificAreaScreen, new MotionEditController.Host() {
+            @Override public Clip selectedClip() { return selectedClip; }
+            @Override public float currentTime() { return currentTime; }
+            @Override public int frameRate() { return settings.frameRate; }
+            @Override public EasingType easing() { return KEYFRAME_DEFAULT_EASING; }
+            @Override public void requestRender() { if (timelineRenderer != null) timelineRenderer.renderNow(currentTime); }
+            @Override public void execute(CommandUtils.Command command) { executeCommand(command); }
+            @Override public void motionChanged(Clip clip) {
+                syncKeyframeKnots(clip);
+                if (motionController != null) motionController.refresh();
+            }
+            @Override public void message(int stringRes) { LoggingManager.LogToToast(EditingActivity.this, getString(stringRes)); }
+        });
+        // ===========================       MOTION (OPTICAL FLOW + MOTION BLUR) ZONE       ====================================
 
 
         // ===========================       TRANSITION ZONE       ====================================
@@ -4764,6 +4793,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         if (maskController != null) maskController.onSelectionChanged();
         if (chromaController != null) chromaController.onSelectionChanged();
+        if (motionController != null) motionController.onSelectionChanged();
 
         if(timelineRenderer != null) timelineRenderer.refreshGizmo();
     }
@@ -5523,6 +5553,22 @@ public class EditingActivity extends AppCompatActivityImpl {
         @Expose
         public List<ChromaKey> chromaKeys = null;
 
+        /**
+         * Frame interpolation of this clip (the Motion panel), see {@link ClipOpticalFlow}; null = off. Same JSON as iOS and
+         * desktop ("opticalFlow").
+         */
+        @Expose
+        public ClipOpticalFlow opticalFlow = null;
+        /** Streaks along the clip's motion (the Motion panel), see {@link ClipMotionBlur}; null = off. Same JSON ("motionBlur"). */
+        @Expose
+        public ClipMotionBlur motionBlur = null;
+
+        /** Is this clip's optical flow switched on? */
+        public boolean hasOpticalFlow() { return opticalFlow != null && opticalFlow.enabled; }
+
+        /** Is this clip's motion blur switched on? */
+        public boolean hasMotionBlur() { return motionBlur != null && motionBlur.enabled; }
+
         /** Does a chroma key that is switched on key this clip? */
         public boolean hasChromaKeys() {
             if (chromaKeys == null) return false;
@@ -5592,6 +5638,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             this.keyframes = new AnimatedProperty(clip.keyframes);
             this.chromaKeys = ChromaKey.copyAll(clip.chromaKeys);
+            this.opticalFlow = clip.opticalFlow == null ? null : new ClipOpticalFlow(clip.opticalFlow);
+            this.motionBlur = clip.motionBlur == null ? null : new ClipMotionBlur(clip.motionBlur);
 
             this.inAnimation = new AnimationClip(clip.inAnimation);
             this.outAnimation = new AnimationClip(clip.outAnimation);
@@ -6733,6 +6781,14 @@ frameRate = 60;
          */
         @Expose
         public float[] valueChroma;
+        /**
+         * The Motion panel's Blur / Blend sliders (0 ... 100), plain or keyframed (channels "motionBlur" / "motionBlend"; the
+         * names iOS and desktop use). Like the strength they are held only by a keyframe that lists them.
+         */
+        @Expose
+        public float valueMotionBlur = ClipMotionBlur.DEFAULT_BLUR;
+        @Expose
+        public float valueMotionBlend = ClipMotionBlur.DEFAULT_BLEND;
 
         public VideoProperties()
         {
@@ -6795,6 +6851,8 @@ frameRate = 60;
             this.valueTemperature = properties.valueTemperature;
             this.valueStrength = properties.valueStrength;
             this.valueChroma = properties.valueChroma == null ? null : properties.valueChroma.clone();
+            this.valueMotionBlur = properties.valueMotionBlur;
+            this.valueMotionBlend = properties.valueMotionBlend;
         }
 
         public float getValue(ValueType valueType) {
@@ -6833,6 +6891,10 @@ frameRate = 60;
                     return valueTemperature;
                 case Strength:
                     return valueStrength;
+                case MotionBlur:
+                    return valueMotionBlur;
+                case MotionBlend:
+                    return valueMotionBlend;
                 default:
                     if (valueType.isChroma()) return valueChroma == null ? 0f : valueChroma[valueType.chromaIndex()];
                     return 1;
@@ -6889,6 +6951,12 @@ frameRate = 60;
                 case Strength:
                     valueStrength = v;
                     break;
+                case MotionBlur:
+                    valueMotionBlur = v;
+                    break;
+                case MotionBlend:
+                    valueMotionBlend = v;
+                    break;
                 default:
                     if (valueType.isChroma()) {
                         if (valueChroma == null) {
@@ -6923,6 +6991,8 @@ frameRate = 60;
             PosX, PosY, Rot, RotInRadians, ScaleX, ScaleY, PivotX, PivotY, Opacity, Speed, Volume, Hue, Saturation, Brightness, Temperature,
             /** An effect clip's strength (iOS .strength): not in {@link #CHANNELS}, an "all properties" keyframe never holds it. */
             Strength,
+            /** The Motion panel's sliders: like Strength, not in {@link #CHANNELS}. Before the chroma constants, which have to stay the LAST ones. */
+            MotionBlur, MotionBlend,
             // The chroma-key sliders (see ChromaKey), one per key per slider: the LAST constants, in this order, which isChroma() and
             // chromaIndex() rely on. Not in CHANNELS either: only a keyframe that names one holds it. Raising ChromaKey.MAX_KEYS
             // needs a group more here.
@@ -6977,6 +7047,8 @@ frameRate = 60;
                     if (type.channelName().equals(channelName)) return type;
                 }
                 if (Strength.channelName().equals(channelName)) return Strength;
+                if (MotionBlur.channelName().equals(channelName)) return MotionBlur;
+                if (MotionBlend.channelName().equals(channelName)) return MotionBlend;
                 if (channelName != null && channelName.startsWith(KeyframeChannels.CHROMA_PREFIX)) {
                     for (ValueType type : values()) if (type.isChroma() && type.channelName().equals(channelName)) return type;
                 }
@@ -6993,6 +7065,8 @@ frameRate = 60;
                     case ScaleY: return "Scale Y";
                     case PivotX: return "Pivot X";
                     case PivotY: return "Pivot Y";
+                    case MotionBlur: return "Motion blur";
+                    case MotionBlend: return "Motion blend";
                     default:
                         if (isChroma()) {
                             String[] params = {"intensity", "shadow", "feather edge", "clean up edge"};

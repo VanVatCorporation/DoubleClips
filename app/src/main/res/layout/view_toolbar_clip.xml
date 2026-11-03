@@ -95,6 +95,13 @@
             app:navText="@string/background" />
 
         <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
+            android:id="@+id/motionMediaButton"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            app:navIcon="@drawable/baseline_blur_on_24"
+            app:navText="@string/motion" />
+
+        <com.vanvatcorporation.doubleclips.impl.NavigationIconLayout
             android:id="@+id/addKeyframeButton"
             android:layout_width="64dp"
             android:layout_height="match_parent"

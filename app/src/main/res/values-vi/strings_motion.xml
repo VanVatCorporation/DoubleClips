@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Motion panel (optical flow + motion blur): the wording of the iOS vi.lproj -->
+    <string name="motion">Chuyển động</string>
+    <string name="motion_optical_flow">Luồng quang học</string>
+    <string name="motion_motion_blur">Làm mờ chuyển động</string>
+    <string name="motion_frame_rate">Tốc độ khung hình (fps)</string>
+    <string name="motion_blur_slider">Làm mờ</string>
+    <string name="motion_blend">Hòa trộn</string>
+    <string name="motion_direction">Hướng</string>
+    <string name="motion_both">Cả hai</string>
+    <string name="motion_forward">Xuôi</string>
+    <string name="motion_backward">Phía sau</string>
+    <string name="motion_speed_times">Tốc độ (số lần)</string>
+    <string name="motion_exceeds_project">Dự án phát ở %1$d fps nên các khung hình vượt tốc độ này sẽ không được hiển thị. Hãy tăng tốc độ khung hình trong cài đặt dự án.</string>
+    <string name="motion_flow_note_on">Khung hình được tạo bằng cách theo dõi chuyển động giữa hai khung hình gốc. Hãy làm chậm clip để thấy hiệu quả.</string>
+    <string name="motion_flow_note_off">Tạo các khung hình trung gian mượt khi clip bị làm chậm, bằng cách theo dõi chuyển động của vật thể.</string>
+    <string name="motion_speed_note">Tốc độ là số lần áp dụng độ mờ: càng nhiều lần, vệt càng rõ.</string>
+    <string name="motion_blur_note_off">Kéo vệt các vật đang chuyển động theo quỹ đạo của chúng, dùng cùng luồng chuyển động giữa các khung hình. Chỉ áp dụng cho clip này.</string>
+    <string name="motion_video_only">Chuyển động chỉ áp dụng cho clip video.</string>
+    <string name="motion_playhead_outside">Hãy đưa đầu phát vào clip để đặt keyframe.</string>
+</resources>
