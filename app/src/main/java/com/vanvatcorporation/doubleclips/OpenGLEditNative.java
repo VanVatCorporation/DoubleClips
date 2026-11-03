@@ -13,6 +13,7 @@ import android.opengl.EGLDisplay;
 import android.opengl.EGLSurface;
 import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Surface;
@@ -287,7 +288,10 @@ public class OpenGLEditNative {
             decoder = MediaCodec.createDecoderByType(mime);
             try {
                 // Exporting is not playback: let the codec run as fast as it can instead of pacing itself.
-                MediaFormat hinted = new MediaFormat(format);
+                MediaFormat hinted = null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    hinted = new MediaFormat(format);
+                }
                 applyThroughputHints(hinted);
                 decoder.configure(hinted, decoderSurface, null, 0);
             } catch (RuntimeException hintsRejected) {
@@ -603,7 +607,10 @@ public class OpenGLEditNative {
 
             encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
             try {
-                MediaFormat hinted = new MediaFormat(format);
+                MediaFormat hinted = null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    hinted = new MediaFormat(format);
+                }
                 applyThroughputHints(hinted);
                 encoder.configure(hinted, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             } catch (RuntimeException hintsRejected) {

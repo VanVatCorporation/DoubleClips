@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Template search window and the Templates tab's search bar -->
+    <string name="template_search_hint">Tìm mẫu...</string>
+    <string name="template_search_button">Tìm kiếm</string>
+    <string name="template_search_back">Quay lại</string>
+    <string name="template_search_clear">Xóa</string>
+    <string name="template_search_show_all">Hiện tất cả tìm kiếm</string>
+    <string name="template_search_show_less">Thu gọn</string>
+    <string name="template_search_you_may_like">Có thể bạn thích</string>
+    <string name="template_search_trending">Thịnh hành</string>
+    <string name="template_search_no_results">Không tìm thấy mẫu</string>
+
+    <!-- Export screen: Output summary and estimated size -->
+    <string name="export_summary_title">Đầu ra</string>
+    <string name="export_summary_resolution">Độ phân giải</string>
+    <string name="export_summary_frame_rate">Tốc độ khung hình</string>
+    <string name="export_summary_fps">%1$d fps</string>
+    <string name="export_summary_bitrate_hw">Bitrate (phần cứng)</string>
+    <string name="export_summary_bitrate_gpu">Bitrate (GPU)</string>
+    <string name="export_summary_quality_crf">Chất lượng (CRF)</string>
+    <string name="export_summary_duration">Thời lượng</string>
+    <string name="export_summary_format">Định dạng</string>
+    <string name="export_summary_estimated_size">Dung lượng ước tính</string>
+    <string name="export_summary_rough_note">Bộ mã hóa tự chọn bitrate nên con số này phụ thuộc vào nội dung.</string>
+</resources>

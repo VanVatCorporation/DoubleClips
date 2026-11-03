@@ -282,6 +282,49 @@ public final class TemplateApi {
         });
     }
 
+    // ---- search: hot searches, suggestions, the search log -----------------------------------------------------------
+
+    /** The hot searches ("Trending"), best first. Rows are strings or {query, count?, hot?}; see {@link TemplateSearchParse}. */
+    public static void fetchTrending(Context context, int limit, ApiCallback<java.util.List<TrendingSearch>> callback) {
+        final Context app = context.getApplicationContext();
+        ownerCheck(app);
+        HttpUrl.Builder url = HttpUrl.get(BASE + "/templates/search/trending").newBuilder()
+                .addQueryParameter("limit", String.valueOf(limit));
+        String viewer = viewer(app);
+        if (viewer != null) url.addQueryParameter("viewer", viewer);
+        send(app, new Request.Builder().url(url.build()).get(),
+                body -> TemplateSearchParse.trending(GSON.fromJson(body, Object.class)), callback);
+    }
+
+    /** Suggested searches for what was typed; an empty prefix asks for "you may like" (personal, by the viewer). */
+    public static void fetchSuggestions(Context context, String prefix, int limit, ApiCallback<java.util.List<String>> callback) {
+        final Context app = context.getApplicationContext();
+        ownerCheck(app);
+        HttpUrl.Builder url = HttpUrl.get(BASE + "/templates/search/suggest").newBuilder()
+                .addQueryParameter("q", prefix == null ? "" : prefix)
+                .addQueryParameter("limit", String.valueOf(limit));
+        String viewer = viewer(app);
+        if (viewer != null) url.addQueryParameter("viewer", viewer);
+        send(app, new Request.Builder().url(url.build()).get(),
+                body -> TemplateSearchParse.suggestions(GSON.fromJson(body, Object.class)), callback);
+    }
+
+    /** Tells the server a search was submitted, so it can rank "Trending". Best effort: nobody waits for it. */
+    public static void logSearch(Context context, String query) {
+        if (query == null || query.trim().isEmpty()) return;
+        final Context app = context.getApplicationContext();
+        ownerCheck(app);
+        JsonObject json = new JsonObject();
+        json.addProperty("query", query.trim());
+        String viewer = viewer(app);
+        if (viewer != null) json.addProperty("username", viewer);
+        send(app, new Request.Builder().url(BASE + "/templates/search/log").post(RequestBody.create(json.toString(), JSON)),
+                body -> Boolean.TRUE, new ApiCallback<Boolean>() {
+                    @Override public void onSuccess(Boolean v) { }
+                    @Override public void onError(String message) { }
+                });
+    }
+
     // ---- plumbing -------------------------------------------------------------------------------------------------
 
     private interface Parser<T> { T parse(String body) throws Exception; }

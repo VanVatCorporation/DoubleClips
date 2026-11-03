@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Template search window and the Templates tab's search bar -->
+    <string name="template_search_hint">Search templates...</string>
+    <string name="template_search_button">Search</string>
+    <string name="template_search_back">Back</string>
+    <string name="template_search_clear">Clear</string>
+    <string name="template_search_show_all">Show all searches</string>
+    <string name="template_search_show_less">Show less</string>
+    <string name="template_search_you_may_like">You may like</string>
+    <string name="template_search_trending">Trending</string>
+    <string name="template_search_no_results">No templates found</string>
+
+    <!-- Export screen: Output summary and estimated size -->
+    <string name="export_summary_title">Output</string>
+    <string name="export_summary_resolution">Resolution</string>
+    <string name="export_summary_frame_rate">Frame rate</string>
+    <string name="export_summary_fps">%1$d fps</string>
+    <string name="export_summary_bitrate_hw">Bitrate (HW)</string>
+    <string name="export_summary_bitrate_gpu">Bitrate (GPU)</string>
+    <string name="export_summary_quality_crf">Quality (CRF)</string>
+    <string name="export_summary_duration">Duration</string>
+    <string name="export_summary_format">Format</string>
+    <string name="export_summary_estimated_size">Estimated size</string>
+    <string name="export_summary_rough_note">The encoder chooses the bitrate, so this depends on the content.</string>
+</resources>

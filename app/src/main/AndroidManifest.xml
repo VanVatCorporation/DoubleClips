@@ -104,6 +104,10 @@
         <activity android:name=".activities.TemplateCollectionActivity"
             android:exported="false">
         </activity>
+        <activity android:name=".activities.TemplateSearchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize|stateHidden">
+        </activity>
         <activity android:name=".activities.TemplateExportActivity"
             android:exported="true">
         </activity>

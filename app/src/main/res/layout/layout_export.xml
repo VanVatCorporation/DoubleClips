@@ -73,11 +73,122 @@
         </RadioGroup>
 
 
+        <!-- What the export will make, and how big (the same summary as the iOS and Desktop export screens). -->
+        <com.vanvatcorporation.doubleclips.impl.SectionView
+            android:id="@+id/outputSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/renderEngineRadioGroup"
+            app:isOpenAtStart="true"
+            app:sectionTitle="@string/export_summary_title">
+
+            <TableLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:stretchColumns="1">
+
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:text="@string/export_summary_resolution"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputResolution"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp" />
+            </TableRow>
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:text="@string/export_summary_frame_rate"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputFrameRate"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp" />
+            </TableRow>
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:id="@+id/outputQualityLabel"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputQuality"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp" />
+            </TableRow>
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:text="@string/export_summary_duration"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputDuration"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp" />
+            </TableRow>
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:text="@string/export_summary_format"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputFormat"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp" />
+            </TableRow>
+            <TableRow android:paddingTop="4dp" android:paddingBottom="4dp">
+
+                <TextView
+                    android:text="@string/export_summary_estimated_size"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/outputEstimate"
+                    android:gravity="end"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </TableRow>
+            </TableLayout>
+
+            <TextView
+                android:id="@+id/outputEstimateNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="4dp"
+                android:text="@string/export_summary_rough_note"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </com.vanvatcorporation.doubleclips.impl.SectionView>
+
+
         <com.vanvatcorporation.doubleclips.impl.SectionView
             android:id="@+id/advancedSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/renderEngineRadioGroup"
+            android:layout_below="@id/outputSection"
             app:sectionTitle="@string/advanced">
             <RelativeLayout
                 android:layout_width="wrap_content"

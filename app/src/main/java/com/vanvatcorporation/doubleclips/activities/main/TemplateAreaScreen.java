@@ -4,10 +4,8 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.AttributeSet;
-import android.widget.SearchView;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.recyclerview.widget.RecyclerView;
@@ -18,6 +16,9 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.TemplatePreviewActivity;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
 import com.vanvatcorporation.doubleclips.helper.TemplateApi;
+import com.vanvatcorporation.doubleclips.helper.TemplateSearchHints;
+import com.vanvatcorporation.doubleclips.impl.TrendingTickerView;
+import com.vanvatcorporation.doubleclips.activities.TemplateSearchActivity;
 import com.vanvatcorporation.doubleclips.helper.TemplateFeedSource;
 import com.vanvatcorporation.doubleclips.helper.TemplatePager;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -36,24 +37,26 @@ import java.util.concurrent.Future;
  * Pull to refresh starts a new feed session.
  */
 public class TemplateAreaScreen extends BaseAreaScreen {
-    public SearchView searchView;
+    /** The search bar: a button whose text is the hot-search ticker. */
+    public View searchBar;
+    public TrendingTickerView searchTicker;
     public RecyclerView templateRecyclerView;
     public TemplateGridAdapter templateAdapter;
     public SwipeRefreshLayout templateSwipeRefreshLayout;
 
     /** The preview pager gets at most this many templates in the Intent; it loads the rest itself. */
     private static final int HANDOFF_MAX = 100;
-    private static final long SEARCH_DEBOUNCE_MS = 400;
     /** Start the next page when this few rows are left below the last visible one. */
     private static final int PREFETCH_DISTANCE = 6;
 
     private TemplatePager pager;
-    private final Handler searchHandler = new Handler(Looper.getMainLooper());
-    private Runnable pendingSearch;
-    private String appliedQuery = "";
 
     private final TemplateApi.StateListener stateListener = id -> {
         if (templateAdapter != null) templateAdapter.notifyTemplateChanged(id);
+    };
+
+    private final Runnable hintsListener = () -> {
+        if (searchTicker != null) searchTicker.setTerms(TemplateSearchHints.getInstance().trendingTexts());
     };
 
 
@@ -78,7 +81,8 @@ public class TemplateAreaScreen extends BaseAreaScreen {
     public void init() {
         super.init();
 
-        searchView = findViewById(R.id.searchView);
+        searchBar = findViewById(R.id.searchBar);
+        searchTicker = findViewById(R.id.searchTicker);
         templateRecyclerView = findViewById(R.id.templateRecyclerView);
         templateSwipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
@@ -116,17 +120,10 @@ public class TemplateAreaScreen extends BaseAreaScreen {
             }
         });
 
-        // Search runs on the server (the list on screen is only a page of it), so wait for the typing to settle.
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override public boolean onQueryTextSubmit(String query) {
-                applyQuery(query, 0);
-                return false;
-            }
-            @Override public boolean onQueryTextChange(String newText) {
-                applyQuery(newText, SEARCH_DEBOUNCE_MS);
-                return false;
-            }
-        });
+        // The bar is a button: the hot searches take turns inside it, a tap opens the search window.
+        searchTicker.setHint(getContext().getString(R.string.template_search_hint));
+        searchTicker.setTerms(TemplateSearchHints.getInstance().trendingTexts());
+        searchBar.setOnClickListener(v -> openSearch());
 
         templateSwipeRefreshLayout.setOnRefreshListener(this::reload);
 
@@ -137,31 +134,36 @@ public class TemplateAreaScreen extends BaseAreaScreen {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         TemplateApi.addStateListener(stateListener);
+        TemplateSearchHints.getInstance().addListener(hintsListener);
+        TemplateSearchHints.getInstance().refresh(getContext(), false);   // the ticker's hot searches
         if (templateAdapter != null) templateAdapter.refreshAll();   // a preview may have changed things while we were away
     }
 
     @Override
     protected void onDetachedFromWindow() {
         TemplateApi.removeStateListener(stateListener);
-        if (pendingSearch != null) searchHandler.removeCallbacks(pendingSearch);
+        TemplateSearchHints.getInstance().removeListener(hintsListener);
         super.onDetachedFromWindow();
     }
 
-    /** Starts over with the current query: a new feed session (or a new search). */
+    /** Starts over: a new feed session. (Searching happens in the search window.) */
     public void reload() {
         templateSwipeRefreshLayout.setRefreshing(true);
-        pager.start(appliedQuery.isEmpty() ? TemplateFeedSource.feed() : TemplateFeedSource.search(appliedQuery));
+        pager.start(TemplateFeedSource.feed());
     }
 
-    private void applyQuery(String raw, long delayMs) {
-        final String query = raw == null ? "" : raw.trim();
-        if (pendingSearch != null) searchHandler.removeCallbacks(pendingSearch);
-        if (query.equals(appliedQuery)) return;
-        pendingSearch = () -> {
-            appliedQuery = query;
-            reload();
-        };
-        searchHandler.postDelayed(pendingSearch, delayMs);
+    /** Opens the search window. The hot search showing in the bar is its prompt, and the titles on screen back up its suggestions. */
+    private void openSearch() {
+        Intent intent = new Intent(getContext(), TemplateSearchActivity.class);
+        String hot = searchTicker.currentTerm();
+        if (hot != null) intent.putExtra(TemplateSearchActivity.EXTRA_PLACEHOLDER, hot);
+        ArrayList<String> titles = new ArrayList<>();
+        for (TemplateData d : templateAdapter.getItems()) {
+            String title = d.getTemplateTitle();
+            if (title != null && !title.trim().isEmpty() && titles.size() < 100) titles.add(title.trim());
+        }
+        intent.putStringArrayListExtra(TemplateSearchActivity.EXTRA_TITLES, titles);
+        getContext().startActivity(intent);
     }
 
     private void openPreview(List<TemplateData> items, int position) {
