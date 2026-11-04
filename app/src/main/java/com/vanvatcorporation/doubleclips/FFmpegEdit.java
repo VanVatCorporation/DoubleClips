@@ -384,7 +384,7 @@ public class FFmpegEdit {
 //                        String scaleZoompan = templateSettings.settings.isStretchToFull() ? ":s=" + scaleXCmd + "x" + scaleYCmd : "";
 
                         filterComplex
-                                .append("setpts='(PTS-STARTPTS)/").append(speedExpr).append("+").append(clip.startTime).append("/TB'").append(",")
+                                .append(speedAndShift(clip, speedExpr, templateSettings.settings.getFrameRate())).append(",")
                                 .append("scale=w='").append(scaleXStretchExpr).append("':h='").append(scaleYStretchExpr).append("':eval=frame,")
 //                                .append("pad=width=").append("'iw'").append(":height=").append("'ih'").append(":x=-1:y=-1:color=black:eval=frame,")
 //                                .append("pad=width=max(iw\\,ih*(16/9)):height=ow/(16/9):x=(ow-iw)/2:y=(oh-ih)/2:eval=frame,")
@@ -404,6 +404,10 @@ public class FFmpegEdit {
                         // If possible then merge the keyframe to clip
                         clip.mergingVideoPropertiesFromSingleKeyframe();
 
+                        // Optical flow / motion blur (the Motion panel): "" for every clip without them, so nothing changes for those.
+                        final String speedValue = String.valueOf(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Speed));
+                        final String motionHead = motionHead(clip, speedValue, templateSettings.settings.getFrameRate());
+
                         // FFmpeg uses radians rotation, so...
                         double radiansRotation = clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.RotInRadians);
                         // And then add to filterComplex no matter
@@ -415,7 +419,7 @@ public class FFmpegEdit {
                         String scaleYCmd = (templateSettings.settings.isStretchToFull() ?
                                 String.valueOf(templateSettings.settings.getRenderVideoHeight(templateSettings.isTemplateCommand)) :
                                 "ih") + "*" + clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.ScaleY);
-                        filterComplex.append("scale=").append(scaleXCmd).append(":").append(scaleYCmd).append(",")                                //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
+                        filterComplex.append(motionHead).append("scale=").append(scaleXCmd).append(":").append(scaleYCmd).append(",")                                //.append("scale=").append(clip.width).append(":").append(clip.height).append(",")
                                 .append("rotate=").append(radiansRotation).append(":ow=rotw(").append(radiansRotation).append("):oh=roth(").append(radiansRotation).append(")")
                                 .append(":fillcolor=0x00000000").append(",")
                                 .append("hue=h=").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Hue))
@@ -423,7 +427,9 @@ public class FFmpegEdit {
                                 .append(":b=").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Brightness)).append(",")
                                 .append("colortemperature=temperature=").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Temperature)).append(",")
                                 .append("format=yuva420p,colorchannelmixer=aa=").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Opacity)).append(",")
-                                .append("setpts='(PTS-STARTPTS)/").append(clip.videoProperties.getValue(EditingActivity.VideoProperties.ValueType.Speed)).append("+").append(clip.startTime).append("/TB'").append(",");
+                                .append(motionHead.isEmpty()
+                                        ? "setpts='(PTS-STARTPTS)/" + speedValue + "+" + clip.startTime + "/TB'"
+                                        : "setpts=PTS+" + clip.startTime + "/TB").append(",");
                     }
 
 
@@ -829,6 +835,77 @@ public class FFmpegEdit {
         return "(" + String.format(java.util.Locale.US, "%.5f", k) + ")*" + (horizontal ? "text_w" : "text_h");
     }
 
+    /** How many sub-frames per project frame the FFmpeg motion blur works with (more = smoother streaks, much slower). */
+    private static final int BLUR_SUBFRAMES = 4;
+    /** FFmpeg repeats the blend at most this many times for the clip's Speed setting. */
+    private static final int BLUR_MAX_REPEATS = 4;
+
+    /**
+     * The speed + "start on the timeline" step of a video clip's filter chain (the animated-speed branch). Normally one setpts;
+     * with the clip's optical flow or motion blur on, the in-between frames are made at the clip's speed and between the two steps
+     * ({@link #motionHead}), so the new frames land on the stretched clip and the shift to its timeline position keeps working.
+     */
+    private static String speedAndShift(EditingActivity.Clip clip, String speedExpr, int projectFps) {
+        String head = motionHead(clip, speedExpr, projectFps);
+        if (head.isEmpty()) return "setpts='(PTS-STARTPTS)/" + speedExpr + "+" + clip.startTime + "/TB'";
+        return head + "setpts=PTS+" + clip.startTime + "/TB";
+    }
+
+    /**
+     * The first filters of a VIDEO clip that has optical flow and/or motion blur on, each followed by a comma: the speed
+     * ({@code setpts}), {@code minterpolate=fps=N} (FFmpeg's motion-compensated interpolation, the counterpart of the OpenGL
+     * engine's flow) and {@link #motionBlurFilters}. "" for every other clip. They have to come before scale / rotate /
+     * format=yuva420p: minterpolate doesn't take a picture with alpha.
+     */
+    private static String motionHead(EditingActivity.Clip clip, String speedExpr, int projectFps) {
+        if (clip.type != EditingActivity.ClipType.VIDEO) return "";
+        boolean flow = clip.hasOpticalFlow();
+        String blur = motionBlurFilters(clip, projectFps);
+        if (!flow && blur.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("setpts='(PTS-STARTPTS)/" + speedExpr + "',");
+        if (flow) sb.append("minterpolate=fps=").append(ClipOpticalFlow.format(clip.opticalFlow.effectiveFps())).append(",");
+        sb.append(blur);
+        return sb.toString();
+    }
+
+    /**
+     * An APPROXIMATION of the clip's motion blur for the FFmpeg engine, which has no counterpart of the OpenGL engine's
+     * flow-guided streak: the clip is interpolated to {@value #BLUR_SUBFRAMES} times the project frame rate
+     * ({@code minterpolate}, motion compensated), the sub-frames inside the exposure are averaged ({@code tmix}) and the result
+     * goes back to the project rate. Returns "" (nothing) or filters that each end with a comma.
+     *
+     * <p>What carries over: Blur (how many of the sub-frames are averaged, read ONCE at the clip's start: no keyframes), Blend
+     * (how much weight the newest sub-frame keeps, so the picture stays sharper) and Speed (the blend repeated, up to
+     * {@value #BLUR_MAX_REPEATS} times). The streak always trails behind the motion: the Direction setting is not used.
+     */
+    private static String motionBlurFilters(EditingActivity.Clip clip, int projectFps) {
+        if (!clip.hasMotionBlur() || projectFps < 1) return "";
+        EditingActivity.VideoProperties.ValueType blurType = EditingActivity.VideoProperties.ValueType.MotionBlur;
+        EditingActivity.VideoProperties.ValueType blendType = EditingActivity.VideoProperties.ValueType.MotionBlend;
+        float blur = clip.keyframes != null && clip.keyframes.isAnimated(blurType)
+                ? clip.keyframes.getValueAtTime(clip, clip.startTime, blurType) : clip.videoProperties.getValue(blurType);
+        float blend = clip.keyframes != null && clip.keyframes.isAnimated(blendType)
+                ? clip.keyframes.getValueAtTime(clip, clip.startTime, blendType) : clip.videoProperties.getValue(blendType);
+        float length = Math.max(0f, Math.min(1f, blur / ClipMotionBlur.SCALE_MAX));
+        float keep = Math.max(0f, Math.min(1f, blend / ClipMotionBlur.SCALE_MAX));
+        int frames = Math.round(length * BLUR_SUBFRAMES);
+        if (length <= 0f || frames < 2) return ""; // Blur 0, or so little of the frame that there is nothing to average
+        StringBuilder weights = new StringBuilder();
+        for (int i = 0; i < frames; i++) {
+            double w = (1.0 - keep) / frames + (i == frames - 1 ? keep : 0.0); // the newest sub-frame keeps the Blend
+            if (i > 0) weights.append(' ');
+            weights.append(String.format(java.util.Locale.ROOT, "%.4f", w));
+        }
+        int repeats = Math.min(BLUR_MAX_REPEATS, clip.motionBlur.effectivePasses());
+        StringBuilder sb = new StringBuilder();
+        sb.append("minterpolate=fps=").append(projectFps * BLUR_SUBFRAMES).append(":mi_mode=mci,");
+        for (int r = 0; r < repeats; r++) {
+            sb.append("tmix=frames=").append(frames).append(":weights='").append(weights).append("',");
+        }
+        sb.append("fps=").append(projectFps).append(",");
+        return sb.toString();
+    }
+
     public static List<String> getUnsupportedAnimationFeatures(Context context, EditingActivity.Timeline timeline) {
         java.util.LinkedHashSet<String> found = new java.util.LinkedHashSet<>();
         if (timeline == null || timeline.tracks == null) return new ArrayList<>(found);
@@ -844,6 +921,16 @@ public class FFmpegEdit {
                 if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
                     // The keying (shadow, feather and clean up edge included) is drawn by the OpenGL shader only.
                     found.add("The chroma key" + (clip.chromaKeys.size() > 1 ? "s are" : " is") + " skipped (OpenGL only: FFmpeg draws the clip with its background colour)");
+                }
+                if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasOpticalFlow()) {
+                    // FFmpeg's own motion-compensated interpolation: right in kind, but a software filter on a phone's CPU.
+                    found.add("Optical flow is made by FFmpeg's minterpolate here: it looks different from the preview and is very slow on a phone "
+                            + "(the OpenGL engine uses the GPU, and is the one the preview shows)");
+                }
+                if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasMotionBlur()) {
+                    // The OpenGL engine streaks along the optical flow; FFmpeg can only blend interpolated sub-frames.
+                    found.add("Motion blur is approximated (minterpolate + frame blending, trailing only, Blur / Blend read at the clip's start, up to "
+                            + BLUR_MAX_REPEATS + " repeats; the OpenGL engine draws the real one, and this is slow)");
                 }
                 if (clip.isEndTransitionEnabled() && clip.endTransition != null && clip.endTransition.effect != null) {
                     TransitionStyle dataDriven = TransitionStyleLoader.get(clip.endTransition.effect.style);
