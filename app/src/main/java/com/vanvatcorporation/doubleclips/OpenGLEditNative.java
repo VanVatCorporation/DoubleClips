@@ -387,14 +387,9 @@ public class OpenGLEditNative {
         }
 
         private int selectVideoTrack(MediaExtractor extractor) {
-            for (int i = 0; i < extractor.getTrackCount(); i++) {
-                MediaFormat format = extractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
-                if (mime != null && mime.startsWith("video/")) {
-                    return i;
-                }
-            }
-            return -1;
+            // First video track a decoder here accepts (a Dolby Vision file lists its unplayable
+            // "video/dolby-vision" track before the "video/hevc" one), see MediaCompat.
+            return com.vanvatcorporation.doubleclips.utils.MediaCompat.selectVideoTrack(extractor);
         }
 
         private int createExternalOesTexture() {

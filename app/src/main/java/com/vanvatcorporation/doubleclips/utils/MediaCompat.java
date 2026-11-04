@@ -1,10 +1,13 @@
 package com.vanvatcorporation.doubleclips.utils;
 
+import android.graphics.SurfaceTexture;
+import android.media.MediaCodec;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.os.Build;
+import android.view.Surface;
 
 import com.vanvatcorporation.doubleclips.constants.Constants;
 
@@ -43,23 +46,21 @@ public final class MediaCompat {
     }
 
     /**
-     * True when MediaCodec can decode this file's first video track on this device.
-     * False when the file can't be opened by MediaExtractor, has no video track the
-     * extractor recognises (e.g. ProRes in MOV), or no decoder accepts the track's format
-     * (codec / profile / level / resolution).
+     * True when MediaCodec can decode this file's video on this device: a video track the
+     * extractor recognises, a decoder that claims its format, and - the part the capability
+     * tables get wrong for 10-bit / HDR streams - a decoder that really configures and starts.
+     * False for files MediaExtractor can't open, files with no recognised video track (e.g.
+     * ProRes in MOV), and streams no decoder here accepts.
+     *
+     * Opens a real codec, so call it at import / project load / export, not per frame.
      */
     public static boolean isVideoDecodable(String path) {
         if (path == null || !new File(path).isFile()) return false;
         MediaExtractor extractor = new MediaExtractor();
         try {
             extractor.setDataSource(path);
-            for (int i = 0; i < extractor.getTrackCount(); i++) {
-                MediaFormat format = extractor.getTrackFormat(i);
-                String mime = format.getString(MediaFormat.KEY_MIME);
-                if (mime == null || !mime.startsWith("video/")) continue;
-                return hasDecoder(format);
-            }
-            return false;
+            int track = selectVideoTrack(extractor);
+            return track >= 0 && canDecode(extractor.getTrackFormat(track));
         } catch (IOException | RuntimeException e) {
             return false;
         } finally {
@@ -67,16 +68,64 @@ public final class MediaCompat {
         }
     }
 
-    private static boolean hasDecoder(MediaFormat format) {
+    /**
+     * The video track a decoder should read: the first one a decoder here claims, otherwise
+     * the first video track, or -1 when there is none. The "first one a decoder claims" matters
+     * for Dolby Vision files (iPhone), where the extractor lists a "video/dolby-vision" track
+     * ahead of the plain "video/hevc" base layer: taking the first track blindly asks for a
+     * Dolby Vision decoder most devices don't have, while the HEVC track plays fine.
+     * Cheap (no codec is opened), so the decoders call it on every open.
+     */
+    public static int selectVideoTrack(MediaExtractor extractor) {
+        int firstVideo = -1;
+        for (int i = 0; i < extractor.getTrackCount(); i++) {
+            MediaFormat format = extractor.getTrackFormat(i);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (mime == null || !mime.startsWith("video/")) continue;
+            if (firstVideo < 0) firstVideo = i;
+            if (decoderName(format) != null) return i;
+        }
+        return firstVideo;
+    }
+
+    private static String decoderName(MediaFormat format) {
         try {
             if (Build.VERSION.SDK_INT < 23) {
                 // Lollipop's findDecoderForFormat rejects a format that carries a frame rate.
                 format.setString(MediaFormat.KEY_FRAME_RATE, null);
             }
-            MediaCodecList list = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-            return list.findDecoderForFormat(format) != null;
+            return new MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format);
         } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Configures and starts the decoder that claims the format, then drops it. */
+    private static boolean canDecode(MediaFormat format) {
+        String name = decoderName(format);
+        if (name == null) return false;
+        MediaCodec codec = null;
+        SurfaceTexture texture = null;
+        Surface surface = null;
+        try {
+            texture = new SurfaceTexture(0);
+            surface = new Surface(texture);
+            codec = MediaCodec.createByCodecName(name);
+            codec.configure(format, surface, null, 0);
+            codec.start();
+            return true;
+        } catch (IOException | RuntimeException e) {
             return false;
+        } finally {
+            if (codec != null) {
+                try {
+                    codec.stop();
+                } catch (RuntimeException ignored) {
+                }
+                codec.release();
+            }
+            if (surface != null) surface.release();
+            if (texture != null) texture.release();
         }
     }
 

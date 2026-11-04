@@ -1528,6 +1528,40 @@ public class EditingActivity extends AppCompatActivityImpl {
                 clip.keyframes.reassignKeyframes(settings.frameRate);
             }
 
+            // Projects made before MediaCompat (or whose conversion was cancelled) have video MediaCodec
+            // can't decode and no compat copy yet: convert those once, one task per source file.
+            java.util.Set<String> compatQueued = new java.util.HashSet<>();
+            for (Clip clip : timeline.getAllClips())
+            {
+                if (clip.type != ClipType.VIDEO) continue;
+                String originalPath = clip.getAbsolutePath(properties);
+                if (!new File(originalPath).isFile()) continue;
+
+                // The preview proxy is what thumbnails are read from (the platform retriever can't decode
+                // everything MediaCodec can, e.g. 10-bit / Dolby Vision): rebuild one that is missing or empty.
+                String mcName = clip.getClipName();
+                int mcDot = mcName.lastIndexOf('.');
+                File mcProxy = new File(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY,
+                        (mcDot > 0 ? mcName.substring(0, mcDot) : mcName) + Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION));
+                if ((!mcProxy.isFile() || mcProxy.length() == 0) && compatQueued.add(mcProxy.getPath())) {
+                    String mcPreviewPath = IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, mcName);
+                    File mcDir = mcProxy.getParentFile();
+                    if (mcDir != null) mcDir.mkdirs();
+                    previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Preview Generation",
+                            () -> {
+                                processingPreview(clip, originalPath, mcPreviewPath);
+                            }));
+                }
+
+                String compatPath = com.vanvatcorporation.doubleclips.utils.MediaCompat.compatPath(properties.getProjectPath(), clip.getClipName());
+                if (new File(compatPath).isFile() || !compatQueued.add(compatPath)) continue;
+                if (com.vanvatcorporation.doubleclips.utils.MediaCompat.isVideoDecodable(originalPath)) continue;
+                previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compatibility Conversion",
+                        () -> {
+                            processingCompat(clip, originalPath);
+                        }));
+            }
+
             // Regenerate timeline renderer when timeline finishes loading.
             regeneratingTimelineRenderer();
         });
@@ -4984,6 +5018,12 @@ public class EditingActivity extends AppCompatActivityImpl {
                     }
                     retriever.release();
                     retriever.close();
+                    if (thumbnails.isEmpty()) {
+                        // The retriever decoded no frame at all (10-bit / Dolby Vision it can't read, with no preview
+                        // proxy to read instead). Callers index the first thumbnail, so never hand back an empty list.
+                        drawable.setColorFilter(0x33FF0000, PorterDuff.Mode.SRC_ATOP);
+                        thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
+                    }
                 } catch (Exception e) {
                     LoggingManager.LogExceptionToNoteOverlay(context, e);
                     drawable.setColorFilter(0x33FF0000, PorterDuff.Mode.SRC_ATOP);
@@ -5233,7 +5273,12 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if(nearestClip != null) break;
             }
             if(nearestClip != null)
-                IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), extractThumbnail(context, nearestClip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), nearestClip, 1).get(0), 25);
+            {
+                List<Bitmap> previewFrames = extractThumbnail(context, nearestClip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION), nearestClip, 1);
+                // A clip whose frame can't be read (unsupported format) leaves the project's preview.png as it was.
+                if (!previewFrames.isEmpty() && previewFrames.get(0) != null)
+                    IOImageHelper.SaveFileAsPNGImage(context, IOHelper.CombinePath(data.getProjectPath(), "preview.png"), previewFrames.get(0), 25);
+            }
 
             data.setProjectTimestamp(new Date().getTime());
             data.setProjectDuration((long) (timeline.duration * 1000));
@@ -6336,8 +6381,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             String path = IOHelper.CombinePath(projectPath, Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, (dot > 0 ? name.substring(0, dot) : name) + previewExtension);
             // Fallback if not available yet.
             // TODO: Temporary fix for the soon preview loading. Consider block main thread for preview to have time to load first
-            if(!IOHelper.isFileExist(path))
+            if(!IOHelper.isFileExist(path)) {
                 path = getAbsolutePath(projectPath);
+                // A video MediaCodec / the retriever can't read has a compat copy instead (see MediaCompat).
+                if (type == ClipType.VIDEO && Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION.equals(previewExtension))
+                    path = com.vanvatcorporation.doubleclips.utils.MediaCompat.resolveSource(projectPath, getClipName(), path);
+            }
             return path;
         }
         public float getLocalClipTime(float playheadTime) {

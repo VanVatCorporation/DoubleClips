@@ -1119,11 +1119,9 @@ public final class PreviewEngine {
 
         void open(long startUs) throws IOException {
             extractor.setDataSource(path);
-            int track = -1;
-            for (int i = 0; i < extractor.getTrackCount(); i++) {
-                String mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME);
-                if (mime != null && mime.startsWith("video/")) { track = i; break; }
-            }
+            // First video track a decoder here accepts (a Dolby Vision file lists its unplayable
+            // "video/dolby-vision" track before the "video/hevc" one), see MediaCompat.
+            int track = com.vanvatcorporation.doubleclips.utils.MediaCompat.selectVideoTrack(extractor);
             if (track < 0) throw new IOException("No video track found in " + path);
             extractor.selectTrack(track);
             MediaFormat format = extractor.getTrackFormat(track);
