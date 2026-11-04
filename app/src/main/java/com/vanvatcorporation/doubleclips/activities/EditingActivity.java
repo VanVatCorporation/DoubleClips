@@ -423,7 +423,9 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 isClipHasAudio = "yes".equals(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
                 retriever.close();
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Not only IOException: a codec the platform can't read (e.g. ProRes) can leave the size
+                // metadata null, which used to escape as a NullPointerException / NumberFormatException.
                 LoggingManager.LogExceptionToNoteOverlay(this, e);
             }
         }
@@ -467,7 +469,15 @@ public class EditingActivity extends AppCompatActivityImpl {
                     }));
         }
 
-
+        // MediaCodec (preview without proxy, OpenGL export) can't decode every codec - ProRes for
+        // one. Those clips get a one-time hardware-decodable H.264 copy, see MediaCompat.
+        if(type == ClipType.VIDEO && !com.vanvatcorporation.doubleclips.utils.MediaCompat.isVideoDecodable(clipPath))
+        {
+            previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compatibility Conversion",
+                    () -> {
+                        processingCompat(newClip, clipPath);
+                    }));
+        }
 
         return offsetTime;
     }
@@ -534,7 +544,9 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                 isClipHasAudio = "yes".equals(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO));
                 retriever.close();
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Not only IOException: a codec the platform can't read (e.g. ProRes) can leave the size
+                // metadata null, which used to escape as a NullPointerException / NumberFormatException.
                 LoggingManager.LogExceptionToNoteOverlay(this, e);
             }
         }
@@ -1203,6 +1215,72 @@ public class EditingActivity extends AppCompatActivityImpl {
             // Any other type should be drop
             dialog.dismiss();
         }
+    }
+
+    /**
+     * Converts a video MediaCodec can't decode (e.g. ProRes) into a hardware-decodable H.264 file
+     * next to the preview proxy. PreviewEngine and the OpenGL export read that file instead of the
+     * original. See MediaCompat.
+     */
+    void processingCompat(Clip clip, String originalClipPath)
+    {
+        String compatPath = com.vanvatcorporation.doubleclips.utils.MediaCompat.compatPath(properties.getProjectPath(), clip.getClipName());
+        File compatDir = new File(compatPath).getParentFile();
+        if (compatDir != null) compatDir.mkdirs();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.popup_processing_preview, null);
+        builder.setView(dialogView);
+        builder.setCancelable(false);
+        builder.setNegativeButton(getText(R.string.alert_processing_without_preview_confirmation),
+                (d, which) -> d.dismiss());
+
+        TextView processingText = dialogView.findViewById(R.id.adsDescriptionText);
+        TextView processingDescription = dialogView.findViewById(R.id.processingDescription);
+        ProgressBar previewProgressBar = dialogView.findViewById(R.id.previewProgressBar);
+        TextView processingPercent = dialogView.findViewById(R.id.processingPercent);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.GONE);
+
+        processingText.setText(getString(R.string.processing) + " " + "\"" + clip.getClipName() + "\"");
+        processingDescription.setTextColor(0xFF00AA00);
+
+        String cmd = com.vanvatcorporation.doubleclips.utils.MediaCompat.buildCompatCommand(originalClipPath, com.vanvatcorporation.doubleclips.utils.MediaCompat.tempPath(compatPath));
+
+        runAnyCommand(this, cmd, "Converting for Compatibility",
+                () -> EditingActivity.this.runOnUiThread(() -> {
+                    com.vanvatcorporation.doubleclips.utils.MediaCompat.commit(compatPath);
+                    dialog.dismiss();
+                    previewRenderQueue.taskCompleted();
+                }), () -> {
+                    com.vanvatcorporation.doubleclips.utils.MediaCompat.discard(compatPath);
+                    EditingActivity.this.runOnUiThread(() -> {
+                        processingDescription.setTextColor(0xFFFF0000);
+                        dialog.setCancelable(true);
+                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.VISIBLE);
+                        previewRenderQueue.taskCompleted();
+                    });
+                }, new RunnableImpl() {
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        Log log = (Log) param;
+                        processingDescription.post(() -> processingDescription.setText(log.getMessage()));
+                    }
+                }, new RunnableImpl() {
+                    @Override
+                    public <T> void runWithParam(T param) {
+                        double duration = Math.max(1, clip.duration * 1000);
+                        Statistics statistics = (Statistics) param;
+                        if (statistics.getTime() > 0) {
+                            int progress = (int) Math.min(100, (statistics.getTime() * 100) / (int) duration);
+                            previewProgressBar.setMax(100);
+                            previewProgressBar.setProgress(progress);
+                            processingPercent.setText(progress + "%");
+                        }
+                    }
+                });
     }
 
     void processingMultiPreview(Uri[] uris) {

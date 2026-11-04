@@ -640,6 +640,63 @@ public class ExportActivity extends AppCompatActivityImpl {
                     ffmpegLogCallback(), ffmpegStatsCallback());
         }
 
+        // Compatibility pre-pass: OpenGL decodes through MediaCodec, which can't read every codec
+        // (ProRes, for one). Such a clip is converted once to a hardware-decodable H.264 file
+        // (kept in PreviewClips, so later exports reuse it) and OpenGL is pointed at that file via
+        // the same override map as the reversed clips. Reversed clips are skipped: their FFmpeg
+        // pass above already reads any format. See MediaCompat.
+        java.util.Map<String, List<EditingActivity.Clip>> compatPending = new java.util.LinkedHashMap<>();
+        if (timeline != null && timeline.tracks != null) {
+            for (EditingActivity.Track track : timeline.tracks) {
+                if (track == null || track.clips == null) continue;
+                for (EditingActivity.Clip clip : track.clips) {
+                    if (clip == null || clip.type != EditingActivity.ClipType.VIDEO || clip.isReverse()) continue;
+                    String compat = com.vanvatcorporation.doubleclips.utils.MediaCompat.compatPath(projectPath, clip.getClipName());
+                    if (new File(compat).isFile()) {
+                        reversedClipPaths.put(clip, compat);
+                        continue;
+                    }
+                    if (com.vanvatcorporation.doubleclips.utils.MediaCompat.isVideoDecodable(clip.getAbsolutePath(properties))) continue;
+                    List<EditingActivity.Clip> users = compatPending.get(compat);
+                    if (users == null) {
+                        users = new ArrayList<>();
+                        compatPending.put(compat, users);
+                    }
+                    users.add(clip);
+                }
+            }
+        }
+        int compatIndex = 0;
+        for (java.util.Map.Entry<String, List<EditingActivity.Clip>> entry : compatPending.entrySet()) {
+            final String compatPath = entry.getKey();
+            final List<EditingActivity.Clip> users = entry.getValue();
+            final int shownIndex = ++compatIndex;
+            File compatDir = new File(compatPath).getParentFile();
+            if (compatDir != null) compatDir.mkdirs();
+
+            String compatCmd = com.vanvatcorporation.doubleclips.utils.MediaCompat.buildCompatCommand(users.get(0).getAbsolutePath(properties),
+                    com.vanvatcorporation.doubleclips.utils.MediaCompat.tempPath(compatPath));
+
+            FFmpegEdit.runAnyCommand(this, compatCmd,
+                    "Converting Clip for Compatibility (" + shownIndex + "/" + compatPending.size() + ")",
+                    () -> {
+                        if (com.vanvatcorporation.doubleclips.utils.MediaCompat.commit(compatPath)) {
+                            for (EditingActivity.Clip user : users) reversedClipPaths.put(user, compatPath);
+                        } else {
+                            FFmpegEdit.queue.cancelAllTask();
+                            finishExportRendering();
+                        }
+                    },
+                    () -> {
+                        com.vanvatcorporation.doubleclips.utils.MediaCompat.discard(compatPath);
+                        // Stop the chain: OpenGL would otherwise open the undecodable original
+                        // and silently render black for this clip.
+                        FFmpegEdit.queue.cancelAllTask();
+                        finishExportRendering();
+                    },
+                    ffmpegLogCallback(), ffmpegStatsCallback());
+        }
+
         // Commands are built up front so all tasks are queued before anything runs
         // and the window can show "(1/3)" from the start.
         String audioCmd = null;

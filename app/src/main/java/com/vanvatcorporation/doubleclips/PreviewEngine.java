@@ -927,9 +927,13 @@ public final class PreviewEngine {
         private String videoPath(EditingActivity.Clip clip) {
             if (useProxy) {
                 String proxy = clip.getAbsolutePreviewPath(project, com.vanvatcorporation.doubleclips.constants.Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION);
-                if (new File(proxy).isFile()) return proxy;
+                // getAbsolutePreviewPath hands back the original when no proxy exists yet; that case
+                // must still go through the compat lookup below.
+                if (new File(proxy).isFile() && !proxy.equals(clip.getAbsolutePath(project))) return proxy;
             }
-            return clip.getAbsolutePath(project);
+            // Codecs MediaCodec can't decode (e.g. ProRes) are converted once at import / export,
+            // see MediaCompat; everything else still decodes the original directly.
+            return com.vanvatcorporation.doubleclips.utils.MediaCompat.resolveSource(project.getProjectPath(), clip.getClipName(), clip.getAbsolutePath(project));
         }
 
         private Stream acquire(String path, long wantedUs) throws IOException {
