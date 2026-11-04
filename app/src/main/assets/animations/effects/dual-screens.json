@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "dual-screens",
+  "name": "Dual Screens",
+  "description": "Splits the frame into two equal side-by-side copies of the same clip.",
+  "filters": [
+    {
+      "op": "tile_grid",
+      "cols": 2,
+      "rows": 1
+    }
+  ]
+}

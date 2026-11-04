@@ -1,0 +1,63 @@
+{
+ "schema": 1,
+ "id": "custom_fake-glass-shatter",
+ "name": "Fake Glass Shatter",
+ "description": "B appears in scattered square shards over A while both drift slightly (mask: noise).",
+ "defaultDuration": 0.9,
+ "mode": "mask",
+ "mask": {
+  "shape": "noise",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "softness": 0.03,
+  "grain": 36
+ },
+ "from": {
+  "channels": {
+   "scale": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      1.05
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "scale": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      1.05
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,29 @@
+{
+ "schema": 1,
+ "id": "circlecrop",
+ "name": "Circle Crop",
+ "description": "A is seen through a circle that shrinks to nothing on black, then B through a circle that grows (like xfade circlecrop).",
+ "defaultDuration": 0.9,
+ "mode": "crop",
+ "mask": {
+  "shape": "circle",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     1
+    ],
+    [
+     0.5,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  }
+ }
+}

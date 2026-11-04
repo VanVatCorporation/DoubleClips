@@ -1,0 +1,128 @@
+{
+ "schema": 1,
+ "id": "custom_massive-effect",
+ "name": "Massive Effect",
+ "description": "A is flung toward the viewer, blurred and blown out, cut at the middle; B lands from far away, spinning back to level.",
+ "defaultDuration": 1.0,
+ "cut": 0.5,
+ "from": {
+  "channels": {
+   "scale": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.5,
+      1.7
+     ]
+    ]
+   },
+   "blur": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      0.04
+     ]
+    ]
+   },
+   "exposure": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.5,
+      2.6
+     ]
+    ]
+   },
+   "rotation": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      8
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "scale": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0.5,
+      0.55
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   },
+   "blur": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0.5,
+      0.04
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   },
+   "exposure": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0.5,
+      2.6
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   },
+   "rotation": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0.5,
+      -8
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

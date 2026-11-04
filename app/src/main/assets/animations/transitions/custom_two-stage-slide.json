@@ -1,0 +1,60 @@
+{
+ "schema": 1,
+ "id": "custom_two-stage-slide",
+ "name": "Two Stage Slide",
+ "description": "Both pictures slide left in two stages with a pause in the middle; B enters from the right.",
+ "defaultDuration": 1.0,
+ "mode": "layers",
+ "from": {
+  "channels": {
+   "offsetX": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.4,
+      -0.5
+     ],
+     [
+      0.6,
+      -0.5
+     ],
+     [
+      1,
+      -1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "offsetX": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.4,
+      0.5
+     ],
+     [
+      0.6,
+      0.5
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

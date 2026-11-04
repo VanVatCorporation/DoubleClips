@@ -4,7 +4,7 @@ package com.vanvatcorporation.doubleclips;
  * One data-driven transition style (a file in {@code animations/transitions/<id>.json}), loaded by
  * {@link TransitionStyleLoader}. Immutable. Plain Java (no Android classes) so the desktop port can use it as-is.
  *
- * Three modes ({@link #getMode()}, the file's "mode"), the same as iOS:
+ * Four modes ({@link #getMode()}, the file's "mode"), the same as iOS:
  * <ul>
  * <li>{@code cut} (default): exactly one of the two pictures is drawn at any moment, each through the normal clip
  *     pipeline with its side's channels applied on top of the clip's own properties and its In / Out animation. Over
@@ -14,6 +14,8 @@ package com.vanvatcorporation.doubleclips;
  *     fades); the cut point is ignored.</li>
  * <li>{@code mask}: both are drawn and B is revealed through {@link #getMask()} (wipes, circles, slices, dissolve...).
  *     A side the file leaves out is drawn as it is.</li>
+ * <li>{@code crop}: ONE picture, A before the cut and B after it, is seen through {@link #getMask()} on black (a shape
+ *     that shrinks to nothing, then grows again: circle crop, rect crop). A side the file leaves out is drawn as it is.</li>
  * </ul>
  * A data-only model: nothing here draws; the renderers decide per mode what they can draw.
  */
@@ -32,7 +34,9 @@ public final class TransitionStyle {
 
     /** How the two pictures of a transition window are combined. */
     public enum Mode {
-        CUT("cut"), LAYERS("layers"), MASK("mask");
+        CUT("cut"), LAYERS("layers"), MASK("mask"),
+        /** One picture (A before the cut, B after) seen through the mask's shape, the rest black: circle / rect crop. */
+        CROP("crop");
 
         public final String json;
 
@@ -83,6 +87,10 @@ public final class TransitionStyle {
     public Mode getMode() { return mode; }
     public boolean isLayers() { return mode == Mode.LAYERS; }
     public boolean isMask() { return mode == Mode.MASK; }
+    /** mode crop: ONE picture (A before {@link #getCut()}, B after) is drawn through {@link #getMask()} on black. */
+    public boolean isCrop() { return mode == Mode.CROP; }
+    /** The modes that carry a {@link #getMask()} (mask and crop); their sides are optional. */
+    public boolean usesMask() { return mode == Mode.MASK || mode == Mode.CROP; }
     /** The mask that reveals B over A (mode mask only), else null. */
     public EffectFilterOps.Filter getMask() { return mask; }
 

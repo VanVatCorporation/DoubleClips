@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "pixelize",
+ "name": "Pixelize",
+ "description": "A breaks into growing square blocks, hard cut at the middle, then B's blocks shrink back to sharp (like xfade pixelize).",
+ "defaultDuration": 0.8,
+ "cut": 0.5,
+ "from": {
+  "channels": {
+   "pixelate": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      0.07
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "pixelate": {
+    "kind": "knots",
+    "interp": "linear",
+    "points": [
+     [
+      0.5,
+      0.07
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "horizontal-close",
+  "name": "Horizontal Close",
+  "description": "A slow horizontal pan-and-zoom that pushes in from the side. Strength controls zoom speed.",
+  "intensity": {
+    "label": "Speed",
+    "min": 0.2,
+    "max": 4
+  },
+  "channels": {
+    "scale": {
+      "kind": "knots",
+      "interp": "linear",
+      "points": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1.15
+        ]
+      ]
+    },
+    "offsetX": {
+      "kind": "knots",
+      "interp": "linear",
+      "points": [
+        [
+          0,
+          -0.08
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    }
+  }
+}

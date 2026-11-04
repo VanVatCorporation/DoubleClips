@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "three-screens",
+  "name": "Three Screens",
+  "description": "Splits the frame into three equal vertical strips, each showing the same clip.",
+  "filters": [
+    {
+      "op": "tile_grid",
+      "cols": 3,
+      "rows": 1
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import java.nio.FloatBuffer;
 
 /**
  * Blends two canvas-sized pictures through a transition mask (data-driven {@code "mode": "mask"} styles: wipes, circles,
- * slices, clock, dissolve): B shows where the mask is white, A where it is black. Same maths as iOS
+ * slices, clock, rect, distance, dissolve): B shows where the mask is white, A where it is black. Mode crop draws ONE picture through the shape on black. Same maths as iOS
  * {@code ClipCompositor.transitionMask} + {@code masked}, computed per pixel in the fragment shader (Core Image builds
  * a mask picture; here the mask value is a formula). Both inputs are offscreen layers (v up, canvas top = v 1), the
  * same ones the built-in blend shader reads. GL thread only; used by the export and the preview.
@@ -30,7 +30,7 @@ public final class TransitionMaskRenderer {
             "    vTexCoord = aTexCoord;\n" +
             "}\n";
 
-    /** uShape: 0 wipe, 1 circle, 2 noise, 3 slices, 4 clock. All lengths in pixels, y UP (like Core Image). */
+    /** uShape: 0 wipe, 1 circle, 2 noise, 3 slices, 4 clock, 5 rect, 6 distance. All lengths in pixels, y UP (like Core Image). */
     private static final String FS =
             "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
             "precision highp float;\n" +
@@ -50,6 +50,9 @@ public final class TransitionMaskRenderer {
             "uniform float uCount;\n" +
             "uniform float uStart;\n" +    // clock, radians clockwise from 12 o'clock
             "uniform float uFlag;\n" +     // wipe: normalized, circle: invert
+            "uniform float uCrop;\n" +     // 1 = mode crop: ONE picture (A before uCut, B after) seen through the mask, on black
+            "uniform float uCut;\n" +
+            "uniform float uProgress;\n" +
             "float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n" +
             "float maskValue(vec2 p) {\n" +
             "    float r = uReveal;\n" +
@@ -89,20 +92,35 @@ public final class TransitionMaskRenderer {
             "        if (u < 0.0 || u >= len) return 0.0;\n" +
             "        float within = u - floor(u / band) * band;\n" +
             "        return clamp(band * r - within + 0.5, 0.0, 1.0);\n" +
-            "    } else {\n" +                      // clock
+            "    } else if (uShape < 4.5) {\n" +   // clock
             "        vec2 q = p - c;\n" +
             "        float startAngle = 1.5707963 - uStart;\n" +
             "        float delta = mod(startAngle - atan(q.y, q.x), 6.2831853);\n" +
             "        float aa = 1.0 / max(length(q), 1.0);\n" +
             "        return clamp((6.2831853 * r - delta) / aa + 0.5, 0.0, 1.0);\n" +
+            "    } else {\n" +                      // rect: a centred rectangle that is `reveal` of the canvas in both directions
+            "        vec2 q = abs(p - c) - vec2(w * r, h * r) * 0.5;\n" +
+            "        float aa = max(uSoft * min(w, h), 1.0);\n" +
+            "        return clamp(0.5 - max(q.x, q.y) / aa, 0.0, 1.0);\n" +
             "    }\n" +
+            "}\n" +
+            // distance: B shows where the two pictures are close in colour first (mean channel difference below reveal)
+            "float distanceValue(vec4 a, vec4 b) {\n" +
+            "    vec3 d = abs(a.rgb - b.rgb);\n" +
+            "    float gray = (d.r + d.g + d.b) / 3.0;\n" +
+            "    return clamp((uReveal - gray) / max(uSoft, 0.001) + 0.5, 0.0, 1.0);\n" +
             "}\n" +
             "void main() {\n" +
             "    vec4 a = texture2D(uTextureA, vTexCoord);\n" +
             "    vec4 b = texture2D(uTextureB, vTexCoord);\n" +
             "    float m = 0.0;\n" +
             "    if (uReveal >= 1.0) m = 1.0;\n" +
-            "    else if (uReveal > 0.0) m = maskValue(vTexCoord * uRes);\n" +
+            "    else if (uReveal > 0.0) m = uShape > 5.5 ? distanceValue(a, b) : maskValue(vTexCoord * uRes);\n" +
+            "    if (uCrop > 0.5) {\n" +
+            "        vec4 pic = uProgress < uCut ? a : b;\n" +
+            "        gl_FragColor = vec4(pic.rgb * (pic.a * m), 1.0);\n" +          // over opaque black
+            "        return;\n" +
+            "    }\n" +
             "    gl_FragColor = mix(a, b, m);\n" +
             "}\n";
 
@@ -135,6 +153,8 @@ public final class TransitionMaskRenderer {
             case "noise": shape = 2f; break;
             case "slices": shape = 3f; break;
             case "clock": shape = 4f; break;
+            case "rect": shape = 5f; break;
+            case "distance": shape = 6f; break;
             default: shape = 0f; // wipe
         }
         GLES20.glUniform2f(loc("uRes"), width, height);
@@ -147,6 +167,9 @@ public final class TransitionMaskRenderer {
         GLES20.glUniform1f(loc("uCount"), m.count);
         GLES20.glUniform1f(loc("uStart"), (float) Math.toRadians(m.startDegrees));
         GLES20.glUniform1f(loc("uFlag"), (shape == 1f ? m.invert : m.normalized) ? 1f : 0f);
+        GLES20.glUniform1f(loc("uCrop"), m.crop ? 1f : 0f);
+        GLES20.glUniform1f(loc("uCut"), m.cut);
+        GLES20.glUniform1f(loc("uProgress"), m.progress);
 
         quad.position(0);
         GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);

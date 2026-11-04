@@ -1,0 +1,26 @@
+{
+ "schema": 1,
+ "id": "custom_expose",
+ "name": "Expose",
+ "description": "B is exposed from the top edge downward as a hard wipe (Android's Expose).",
+ "defaultDuration": 0.6,
+ "mode": "mask",
+ "mask": {
+  "shape": "wipe",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "angle": -90
+ }
+}

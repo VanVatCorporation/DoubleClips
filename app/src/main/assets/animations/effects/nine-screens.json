@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "nine-screens",
+  "name": "Nine Screens",
+  "description": "Splits the frame into a 3×3 grid of nine copies of the same clip.",
+  "filters": [
+    {
+      "op": "tile_grid",
+      "cols": 3,
+      "rows": 3
+    }
+  ]
+}

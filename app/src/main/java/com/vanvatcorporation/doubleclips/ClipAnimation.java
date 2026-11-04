@@ -72,7 +72,9 @@ public final class ClipAnimation {
         /** Red colour cast, 0 = none .. 1 = strong (same json name and range as iOS; used by effect styles). */
         RED_TINT("redTint", 0, 0, 1),
         /** Wash-out toward white, 0 = none .. 1 = all white (colours lerp toward white, alpha untouched): Fade White. */
-        WHITE_MIX("whiteMix", 0, 0, 1);
+        WHITE_MIX("whiteMix", 0, 0, 1),
+        /** Square blocks of this width, as a fraction of the canvas WIDTH, lined up with the picture's corner (0 = none): Pixelize. */
+        PIXELATE("pixelate", 0, 0, 0.2);
 
         public final String json;
         public final double neutral;

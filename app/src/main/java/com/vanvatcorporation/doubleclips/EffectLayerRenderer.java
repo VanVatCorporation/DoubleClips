@@ -316,6 +316,18 @@ public final class EffectLayerRenderer {
             "    gl_FragColor = vec4(rgb, c.a);\n" +
             "}\n";
 
+    /**
+     * tile_grid: the picture repeated cols x rows times. uGrid = (cols, rows); uCrop = how much of the picture one cell shows
+     * (u, v extents around the middle), so each copy keeps the picture's shape and is cropped, not stretched.
+     */
+    private static final String FS_TILE = FS_HEAD +
+            "uniform vec2 uGrid;\n" +
+            "uniform vec2 uCrop;\n" +
+            "void main() {\n" +
+            "    vec2 cell = fract(vTexCoord * uGrid);\n" +
+            "    gl_FragColor = texture2D(uTexture, vec2(0.5) + (cell - vec2(0.5)) * uCrop);\n" +
+            "}\n";
+
     // photoEffect names -> FS_PHOTO's uMode
     private static final String[] PHOTO_NAMES = {"noir", "chrome", "fade", "instant", "mono", "process", "tonal", "transfer"};
 
@@ -386,7 +398,7 @@ public final class EffectLayerRenderer {
     private Target[] pool;
 
     private Prog look, copy, copyMask, color, photo, sepia, vignette, pixel, dot, bright, add,
-            twirl, bump, kaleido, rgb, slice, cross, vhsFx;
+            twirl, bump, kaleido, rgb, slice, cross, vhsFx, tile;
     private ClipMaskTextures masks; // the effect clip's mask picture, created on first use
     /** The framebuffer "the picture" lives in: 0 (the frame) for an effect clip, a clip layer's FBO for a clip's own effect. */
     private int mainFramebuffer = 0;
@@ -523,6 +535,7 @@ public final class EffectLayerRenderer {
             slice = new Prog(VS_FULL, FS_SLICE);
             cross = new Prog(VS_FULL, FS_CROSS);
             vhsFx = new Prog(VS_FULL, FS_VHS);
+            tile = new Prog(VS_FULL, FS_TILE);
             postShader = new OpenGLEditNative.PostFxShader();
             postShader.init();
             blurShader = new OpenGLEditNative.GaussianBlurShader();
@@ -766,6 +779,19 @@ public final class EffectLayerRenderer {
                 dst.bindCleared();
                 cross.use();
                 drawQuad(cross, fullQuad, src, 0);
+                return dst.texture;
+            }
+            case "tile_grid": {
+                int cols = Math.max(1, Math.round(step.v("cols"))), rows = Math.max(1, Math.round(step.v("rows")));
+                if (cols == 1 && rows == 1) return src;
+                // One cell's shape against the canvas's is rows / cols: the wider side of the picture is cropped to match.
+                float k = (float) rows / cols;
+                Target dst = free(src, keep);
+                dst.bindCleared();
+                tile.use();
+                tile.f2("uGrid", cols, rows);
+                tile.f2("uCrop", Math.min(k, 1f), Math.min(1f / k, 1f));
+                drawQuad(tile, fullQuad, src, 0);
                 return dst.texture;
             }
             case "vhs":

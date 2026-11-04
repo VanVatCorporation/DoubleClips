@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "id": "hblur",
+ "name": "Horizontal Blur",
+ "description": "A smears sideways into a streaked blur, cut at the middle, B comes out of the same blur (like xfade hblur).",
+ "defaultDuration": 0.8,
+ "cut": 0.5,
+ "from": {
+  "channels": {
+   "motionBlur": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      0.5,
+      0.3
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "motionBlur": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0.5,
+      0.3
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

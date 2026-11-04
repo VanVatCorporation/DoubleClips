@@ -1959,6 +1959,8 @@ public class OpenGLEditNative {
                 "uniform vec2 uStreak;\n" +     // half-length of the motion-blur line (du, dv)
                 "uniform float uTaps;\n" +      // samples along the streak, 1 = none
                 "uniform vec2 uHalfTexel;\n" +
+                "uniform vec2 uPixel;\n" +      // pixelate: block size in u / v, 0 = none
+                "uniform vec2 uPixelOrigin;\n" + // where the block grid starts: the picture's box corner
                 "vec2 clampTo(vec2 p, vec4 box) { return clamp(p, box.xy, box.zw); }\n" +
                 "void main() {\n" +
                 "    vec4 box1 = uEdgeFill > 0.5 ? vec4(0.0, 0.0, 1.0, 1.0) : uBox;\n" +
@@ -1975,6 +1977,7 @@ public class OpenGLEditNative {
                 "        vec2 q = vec2(anchorU + (r.x - anchorU) / max(uSqueeze, 0.02), r.y);\n" + // inverse squeeze
                 "        q = clampTo(q, box1);\n" +
                 "        vec2 u = clampTo(q - uSlide, box1);\n" +                               // inverse slide
+                "        if (uPixel.x > 0.0) u = clampTo((floor((u - uPixelOrigin) / uPixel) + 0.5) * uPixel + uPixelOrigin, box1);\n" + // pixelate
                 "        vec2 v = uEdgeFill > 0.5 ? clamp(u, uBox.xy + uHalfTexel, uBox.zw - uHalfTexel) : u;\n" + // edge fill
                 "        sum += texture2D(uTexture, v);\n" +
                 "    }\n" +
@@ -1994,7 +1997,7 @@ public class OpenGLEditNative {
 
         private int program;
         private int aPositionLoc, aTexCoordLoc, uTextureLoc, uExposureLoc, uBoxLoc, uEdgeFillLoc, uSlideLoc,
-                uSqueezeLoc, uAnchorLoc, uStreakLoc, uTapsLoc, uHalfTexelLoc, uRedTintLoc, uWhiteMixLoc;
+                uSqueezeLoc, uAnchorLoc, uStreakLoc, uTapsLoc, uHalfTexelLoc, uRedTintLoc, uWhiteMixLoc, uPixelLoc, uPixelOriginLoc;
         private java.nio.FloatBuffer vertexBuffer;
 
         public void init() {
@@ -2013,6 +2016,8 @@ public class OpenGLEditNative {
             uStreakLoc = GLES20.glGetUniformLocation(program, "uStreak");
             uTapsLoc = GLES20.glGetUniformLocation(program, "uTaps");
             uHalfTexelLoc = GLES20.glGetUniformLocation(program, "uHalfTexel");
+            uPixelLoc = GLES20.glGetUniformLocation(program, "uPixel");
+            uPixelOriginLoc = GLES20.glGetUniformLocation(program, "uPixelOrigin");
 
             java.nio.ByteBuffer bb = java.nio.ByteBuffer.allocateDirect(QUAD_VERTICES.length * 4);
             bb.order(java.nio.ByteOrder.nativeOrder());
@@ -2048,6 +2053,8 @@ public class OpenGLEditNative {
                 GLES20.glUniform1f(uAnchorLoc, 0.5f);
                 GLES20.glUniform2f(uStreakLoc, 0f, 0f);
                 GLES20.glUniform1f(uTapsLoc, 1f);
+                GLES20.glUniform2f(uPixelLoc, 0f, 0f);
+                GLES20.glUniform2f(uPixelOriginLoc, 0f, 0f);
             } else {
                 // The box can poke out of the canvas (a clip bigger than the frame); the layer only holds the canvas.
                 float minU = Math.max(0f, fx.boxMinU), minV = Math.max(0f, fx.boxMinV);
@@ -2062,6 +2069,8 @@ public class OpenGLEditNative {
                 GLES20.glUniform1f(uAnchorLoc, fx.squeezeAnchor);
                 GLES20.glUniform2f(uStreakLoc, fx.streakU, fx.streakV);
                 GLES20.glUniform1f(uTapsLoc, tapsFor(fx.streakLengthFraction * targetWidth));
+                GLES20.glUniform2f(uPixelLoc, fx.pixelU, fx.pixelV);
+                GLES20.glUniform2f(uPixelOriginLoc, fx.boxMinU, fx.boxMinV);
             }
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);

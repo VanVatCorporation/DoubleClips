@@ -49,6 +49,9 @@ final class EffectFilterSpecs {
         filters.put("tearSlices", spec(new EffectFilterOps.Param[]{P("amount", 1.0, 0.0, 0.0, 3.0, true)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         filters.put("crossProcess", spec(new EffectFilterOps.Param[]{}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         filters.put("vhs", spec(new EffectFilterOps.Param[]{P("amount", 1.0, 0.0, 0.0, 2.0, true)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
+        // Added by hand to match iOS (see EffectFilterSpecs.swift): the picture repeated in a cols x rows grid, each copy cropped to
+        // the cell's shape. Not scaled by the strength slider.
+        filters.put("tile_grid", spec(new EffectFilterOps.Param[]{P("cols", 2.0, 1.0, 1.0, 8.0, false), P("rows", 1.0, 1.0, 1.0, 8.0, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         FILTERS = Collections.unmodifiableMap(filters);
 
         Map<String, EffectFilterOps.Spec> masks = new LinkedHashMap<>();
@@ -57,6 +60,10 @@ final class EffectFilterSpecs {
         masks.put("noise", spec(new EffectFilterOps.Param[]{P("reveal", 0.0, 0.0, 0.0, 1.0, false), P("softness", 0.001, 0.001, 0.001, 0.5, false), P("grain", 1.0, 1.0, 1.0, 64.0, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         masks.put("slices", spec(new EffectFilterOps.Param[]{P("reveal", 0.0, 0.0, 0.0, 1.0, false), P("angle", 0.0, 0.0, -360.0, 360.0, false), P("count", 10.0, 10.0, 1.0, 64.0, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         masks.put("clock", spec(new EffectFilterOps.Param[]{P("reveal", 0.0, 0.0, 0.0, 1.0, false), P("start", 0.0, 0.0, -360.0, 360.0, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
+        // Added by hand to match iOS (see TransitionMaskSpecs.swift): "rect" = a centred rectangle that is `reveal` of the canvas in both
+        // directions (crop transitions); "distance" = B shows where A and B differ least first (needs both pictures).
+        masks.put("rect", spec(new EffectFilterOps.Param[]{P("reveal", 0.0, 0.0, 0.0, 1.0, false), P("softness", 0.0, 0.0, 0.0, 0.5, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
+        masks.put("distance", spec(new EffectFilterOps.Param[]{P("reveal", 0.0, 0.0, 0.0, 1.0, false), P("softness", 0.04, 0.04, 0.001, 0.5, false)}, new String[]{}, new EffectFilterOps.StringOption[]{}));
         MASKS = Collections.unmodifiableMap(masks);
     }
 }

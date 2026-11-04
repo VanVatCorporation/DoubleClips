@@ -1,0 +1,80 @@
+{
+ "schema": 1,
+ "id": "custom_radial-shockwave",
+ "name": "Radial Shockwave",
+ "description": "B bursts out of the centre as a soft ring: a flash on A, B lands slightly enlarged and settles.",
+ "defaultDuration": 0.9,
+ "mode": "mask",
+ "mask": {
+  "shape": "circle",
+  "reveal": {
+   "kind": "knots",
+   "interp": "smooth",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "softness": 0.2
+ },
+ "from": {
+  "channels": {
+   "exposure": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      1
+     ],
+     [
+      0.4,
+      1.7
+     ],
+     [
+      0.8,
+      1
+     ]
+    ]
+   }
+  }
+ },
+ "to": {
+  "channels": {
+   "scale": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      1.12
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   },
+   "blur": {
+    "kind": "knots",
+    "interp": "smooth",
+    "points": [
+     [
+      0,
+      0.012
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   }
+  }
+ }
+}

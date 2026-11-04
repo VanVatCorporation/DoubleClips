@@ -1,0 +1,26 @@
+{
+ "schema": 1,
+ "id": "distance",
+ "name": "Distance",
+ "description": "B takes over pixel by pixel, first where the two pictures are closest in colour (mask: distance).",
+ "defaultDuration": 0.8,
+ "mode": "mask",
+ "mask": {
+  "shape": "distance",
+  "reveal": {
+   "kind": "knots",
+   "interp": "linear",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "softness": 0.04
+ }
+}

@@ -71,7 +71,7 @@ public class OpenGLEdit {
      */
     public static final Set<String> SUPPORTED_EFFECT_OPS = new java.util.HashSet<>(java.util.Arrays.asList(
             "blur", "colorControls", "photoEffect", "sepia", "vignette", "bloom", "pixellate", "dotScreen",
-            "kaleidoscope", "twirl", "bump", "rgbShift", "tearSlices", "crossProcess", "vhs"
+            "kaleidoscope", "twirl", "bump", "rgbShift", "tearSlices", "crossProcess", "vhs", "tile_grid"
     ));
     public static final boolean SUPPORTS_REVERSE = true;
     public static final boolean SUPPORTS_KEYFRAMES = true;
@@ -209,10 +209,14 @@ public class OpenGLEdit {
         public final boolean edgeFill;
         /** The picture's own bounding box on the canvas (minU, minV, maxU, maxV): what edge fill extends from. */
         public final float boxMinU, boxMinV, boxMaxU, boxMaxV;
+        /** Pixelate: the square block's size in canvas u / v (0 = none); the grid starts at the picture's box corner (boxMinU, boxMinV). */
+        public final float pixelU, pixelV;
 
         PostFx(float exposure, float redTint, float whiteMix, float streakU, float streakV, float streakLengthFraction,
                float slideU, float slideV, float squeezeX, float squeezeAnchor, boolean edgeFill,
-               float boxMinU, float boxMinV, float boxMaxU, float boxMaxV) {
+               float boxMinU, float boxMinV, float boxMaxU, float boxMaxV, float pixelU, float pixelV) {
+            this.pixelU = pixelU;
+            this.pixelV = pixelV;
             this.exposure = exposure;
             this.redTint = redTint;
             this.whiteMix = whiteMix;
@@ -244,7 +248,10 @@ public class OpenGLEdit {
             boolean hasSqueeze = Math.abs(squeeze - 1f) > 0.002f;
             float redTint = anim.redTint(), whiteMix = anim.whiteMix();
             boolean hasTint = redTint > 0.001f || whiteMix > 0.001f;
-            if (!hasExposure && !hasStreak && !hasSlide && !hasSqueeze && !fill && !hasTint) return null;
+            // Pixelate (iOS only until now): blocks a fraction of the canvas WIDTH wide; iOS skips anything under 1.5 px.
+            float pixelFraction = anim.pixelateWidthFraction();
+            boolean hasPixel = pixelFraction * canvasWidth > 1.5f;
+            if (!hasExposure && !hasStreak && !hasSlide && !hasSqueeze && !fill && !hasTint && !hasPixel) return null;
 
             // The picture's bounding box: where the quad's corners land (mvp maps the unit quad to NDC; NDC +1 = canvas top = v 1).
             float minU = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxU = -Float.MAX_VALUE, maxV = -Float.MAX_VALUE;
@@ -268,7 +275,8 @@ public class OpenGLEdit {
             float streakU = hasStreak ? (float) Math.cos(angle) * half : 0f;
             float streakV = hasStreak ? (float) Math.sin(angle) * half * aspect : 0f;
             return new PostFx(exposure, redTint, whiteMix, streakU, streakV, hasStreak ? motion : 0f, slideU, slideV,
-                    squeeze, anim.squeezeAnchor(), fill, minU, minV, maxU, maxV);
+                    squeeze, anim.squeezeAnchor(), fill, minU, minV, maxU, maxV,
+                    hasPixel ? pixelFraction : 0f, hasPixel ? pixelFraction * aspect : 0f);
         }
     }
 
@@ -405,8 +413,21 @@ public class OpenGLEdit {
         public final String shape;
         public final float reveal, angleDegrees, softness, cx, cy, grain, count, startDegrees;
         public final boolean normalized, invert;
+        /** Mode crop: one picture (A before {@link #cut}, B after) is seen through the shape on black, instead of B over A. */
+        public final boolean crop;
+        /** Window progress at which crop switches from A to B. */
+        public final float cut;
+        /** Window progress now (0..1): what {@link #cut} is compared with. */
+        public final float progress;
 
         MaskSpec(EffectFilterOps.Filter mask, float p) {
+            this(mask, p, false, 0.5f);
+        }
+
+        MaskSpec(EffectFilterOps.Filter mask, float p, boolean crop, float cut) {
+            this.crop = crop;
+            this.cut = cut;
+            this.progress = p;
             shape = mask.getOp();
             reveal = (float) Math.min(Math.max(mask.raw("reveal", p), 0.0), 1.0);
             angleDegrees = (float) mask.raw("angle", p);
@@ -570,15 +591,15 @@ public class OpenGLEdit {
                 float p = both.window.progressAt(outputTimeSeconds);
                 TransitionStyle style = both.style;
                 // A mask style may leave a side out (that clip is then drawn as it is); a layers style always has both looks.
-                ClipAnimationFrame fromLook = style.isMask() && style.getFrom().channels().isEmpty() ? null : style.getFrom().evaluate(p);
-                ClipAnimationFrame toLook = style.isMask() && style.getTo().channels().isEmpty() ? null : style.getTo().evaluate(p);
+                ClipAnimationFrame fromLook = style.usesMask() && style.getFrom().channels().isEmpty() ? null : style.getFrom().evaluate(p);
+                ClipAnimationFrame toLook = style.usesMask() && style.getTo().channels().isEmpty() ? null : style.getTo().evaluate(p);
                 DrawCommand a = buildDrawCommand(both.clipA, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
                         fromLook, both.window);
                 DrawCommand b = buildDrawCommand(both.clipB, outputTimeSeconds, canvasWidth, canvasHeight, stretchToFull, projection,
                         toLook, null);
                 if (a != null || b != null) {
-                    if (style.isMask()) {
-                        TransitionCommand tc = new TransitionCommand(a, b, new MaskSpec(style.getMask(), p), p);
+                    if (style.usesMask()) {
+                        TransitionCommand tc = new TransitionCommand(a, b, new MaskSpec(style.getMask(), p, style.isCrop(), (float) style.getCut()), p);
                         tc.clipAEffect = a == null ? null : ownEffectOf(both.clipA, outputTimeSeconds, canvasWidth, canvasHeight, projection);
                         tc.clipBEffect = b == null ? null : ownEffectOf(both.clipB, outputTimeSeconds, canvasWidth, canvasHeight, projection);
                         layers.add(FrameLayer.of(tc));
@@ -1236,7 +1257,7 @@ public class OpenGLEdit {
     private static DataWindow findBothSidedWindow(EditingActivity.Track track, float t) {
         for (int i = 0; i < track.clips.size() - 1; i++) {
             DataWindow w = dataWindowAt(track, i);
-            if (w != null && w.window.contains(t) && (w.style.isLayers() || w.style.isMask())) return w;
+            if (w != null && w.window.contains(t) && (w.style.isLayers() || w.style.usesMask())) return w;
         }
         return null;
     }
@@ -1246,7 +1267,7 @@ public class OpenGLEdit {
         for (int i = 0; i < track.clips.size() - 1; i++) {
             DataWindow w = dataWindowAt(track, i);
             if (w == null || !w.window.contains(t)) continue;
-            if (w.style.isLayers() || w.style.isMask()) continue; // drawn by findBothSidedWindow
+            if (w.style.isLayers() || w.style.usesMask()) continue; // drawn by findBothSidedWindow
             float progress = w.window.progressAt(t);
             boolean showA = w.style.showsFrom(progress);
             return new DataDrivenHit(showA ? w.clipA : w.clipB, w.style.frameAt(progress), showA ? w.window : null);

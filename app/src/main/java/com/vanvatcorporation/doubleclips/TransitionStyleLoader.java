@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   "defaultDuration": 1.1,          // optional, seconds, (0, 30]; default 0.5
  *   "mode": "cut",                   // optional: cut (default) | layers (both drawn, B over A) | mask (B revealed through "mask")
  *   "cut": 0.76,                     // where A is replaced by B, 0.05 .. 0.95 of the window (default 0.5); cut mode only
- *   "mask": { "shape": "wipe", "reveal": { ... }, "angle": 180 },  // mode mask only, shapes in EffectFilterSpecs
+ *   "mask": { "shape": "wipe", "reveal": { ... }, "angle": 180 },  // modes mask and crop, shapes in EffectFilterSpecs
  *   "referenceFrames": 100,          // only needed by "frames" knots
  *   "from": { "channels": { ... } }, // the look of A, curves over the WHOLE window (p = 0..1); optional in mask mode
  *   "to":   { "channels": { ... } }  // the look of B, same p; optional in mask mode
@@ -136,7 +136,7 @@ public final class TransitionStyleLoader {
         if (top.containsKey("mode")) {
             String word = ClipAnimationLoader.reqString(top, "mode", "$", 16);
             mode = TransitionStyle.Mode.fromJson(word);
-            if (mode == null) throw new ClipAnimationLoader.FormatException("$.mode: must be \"cut\", \"layers\" or \"mask\"");
+            if (mode == null) throw new ClipAnimationLoader.FormatException("$.mode: must be \"cut\", \"layers\", \"mask\" or \"crop\"");
         }
         int referenceFrames = 0;
         if (top.containsKey("referenceFrames")) {
@@ -149,15 +149,15 @@ public final class TransitionStyleLoader {
 
         EffectFilterOps.Filter mask = null;
         if (top.containsKey("mask")) {
-            if (mode != TransitionStyle.Mode.MASK) {
-                throw new ClipAnimationLoader.FormatException("$.mask: only allowed with \"mode\": \"mask\"");
+            if (mode != TransitionStyle.Mode.MASK && mode != TransitionStyle.Mode.CROP) {
+                throw new ClipAnimationLoader.FormatException("$.mask: only allowed with \"mode\": \"mask\" or \"crop\"");
             }
             mask = EffectFilterOps.parseMask(top.get("mask"), "$.mask");
-        } else if (mode == TransitionStyle.Mode.MASK) {
-            throw new ClipAnimationLoader.FormatException("$.mask: required when \"mode\" is \"mask\"");
+        } else if (mode == TransitionStyle.Mode.MASK || mode == TransitionStyle.Mode.CROP) {
+            throw new ClipAnimationLoader.FormatException("$.mask: required when \"mode\" is \"mask\" or \"crop\"");
         }
 
-        boolean sidesOptional = mode == TransitionStyle.Mode.MASK;
+        boolean sidesOptional = mode == TransitionStyle.Mode.MASK || mode == TransitionStyle.Mode.CROP;
         ClipAnimation from = side(top, "from", ClipAnimation.Direction.OUT, id, name, (float) duration, referenceFrames, sidesOptional);
         ClipAnimation to = side(top, "to", ClipAnimation.Direction.IN, id, name, (float) duration, referenceFrames, sidesOptional);
         return new TransitionStyle(id, name, description, author, (float) duration, cut, from, to, mode, mask);
