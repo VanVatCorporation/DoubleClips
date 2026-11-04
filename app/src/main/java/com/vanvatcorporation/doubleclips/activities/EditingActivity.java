@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities;
 
+import com.vanvatcorporation.doubleclips.ClipTimeMap;
 import com.vanvatcorporation.doubleclips.EffectStyleLoader;
 
 import static com.vanvatcorporation.doubleclips.FFmpegEdit.runAnyCommand;
@@ -6446,6 +6447,38 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void setClipHasAudio(boolean clipHasAudio) {
             isClipHasAudio = clipHasAudio;
             noSoundViewRef.setVisibility(!clipHasAudio ? View.VISIBLE : View.GONE);
+        }
+
+        // ---- speed: timeline time <-> source time ----------------------------------------------------
+
+        private transient ClipTimeMap timeMapCache;
+        private transient String timeMapSignature;
+
+        /**
+         * The clip's speed over its local time: the static Speed value, or a curve when speed has keyframes. Cached until
+         * the speed or the speed keyframes change, so it is cheap to ask for on every frame (preview and export).
+         */
+        public ClipTimeMap timeMap() {
+            float base = videoProperties == null ? 1f : videoProperties.valueSpeed;
+            boolean animated = keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed);
+            StringBuilder sig = new StringBuilder();
+            sig.append(animated ? 'c' : 'k').append(base);
+            if (animated) {
+                sig.append('|').append(startTime);
+                for (Keyframe k : keyframes.keyframes) {
+                    if (!k.animates(VideoProperties.ValueType.Speed)) continue;
+                    sig.append(';').append(k.getLocalTime()).append(',').append(k.value.getValue(VideoProperties.ValueType.Speed)).append(',').append(k.easing);
+                }
+            }
+            String signature = sig.toString();
+            ClipTimeMap cached = timeMapCache;
+            if (cached != null && signature.equals(timeMapSignature)) return cached;
+            ClipTimeMap map = animated
+                    ? ClipTimeMap.curve(t -> keyframes.getValueAtTime(this, startTime + (float) t, VideoProperties.ValueType.Speed))
+                    : ClipTimeMap.constant(base);
+            timeMapCache = map;
+            timeMapSignature = signature;
+            return map;
         }
 
         public boolean isReverse()

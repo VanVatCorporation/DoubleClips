@@ -1045,15 +1045,10 @@ public class OpenGLEdit {
             textH = size[1];
         }
 
-        // Speed: FFmpeg remaps clip-local time via
-        // setpts='(PTS-STARTPTS)/Speed+...' (FFmpegEdit.java:426), i.e. the
-        // clip plays Speed times faster than the output timeline. Elapsed
-        // OUTPUT time must be scaled by Speed to get elapsed SOURCE time -
-        // this was missing before (localSourceTime just used elapsed output
-        // time directly), which made any clip with Speed != 1.0 drift out
-        // of sync with FFmpeg's export and eventually its own audio.
-        float speed = readAtTime(clip, outputTimeSeconds, EditingActivity.VideoProperties.ValueType.Speed);
-        if (speed <= 0f) speed = 1f; // guard against a bad/zero value stalling the decoder forever
+        // Speed: the clip plays the source at its speed, which can change over the clip (speed keyframes). The source time
+        // is the INTEGRAL of the speed over the elapsed output time (Clip.timeMap, iOS's ClipTimeMap), not the speed at this
+        // instant times the elapsed time: that is only right for a constant speed. For a ramp it drifts, and when the speed
+        // falls the product goes BACKWARD (the preview played in reverse, the export held one frame).
         float elapsedOutput = outputTimeSeconds - clip.startTime;
         // Optical flow makes its frames on a grid of its own frame rate (ffmpeg's minterpolate=fps=N does the same): the clip's time
         // is the start of the grid frame this moment falls in, and the picture for that time is drawn between two source frames.
@@ -1070,9 +1065,10 @@ public class OpenGLEdit {
         // duration (clipA continuing past its nominal end, during a
         // transition) - both are correct here, matching what FFmpeg's own
         // xfade does with the same underlying clip stream.
+        float sourceElapsed = (float) clip.timeMap().sourceOffset(elapsedOutput);
         float localSourceTime = clip.isReverse()
-                ? elapsedOutput * speed
-                : clip.startClipTrim + elapsedOutput * speed;
+                ? sourceElapsed
+                : clip.startClipTrim + sourceElapsed;
 
         // Every channel is neutral outside the animation window (the shared NEUTRAL frame, no
         // allocation), so the overwhelming majority of frames pay nothing for this.
