@@ -3238,8 +3238,10 @@ public class EditingActivity extends AppCompatActivityImpl {
     private static final class KeyframeSnapshot {
         final VideoProperties statics;
         final List<Keyframe> keys = new ArrayList<>();
+        final String speedSignature;
 
         private KeyframeSnapshot(Clip clip) {
+            speedSignature = clip.speedSignature();
             statics = new VideoProperties(clip.videoProperties);
             for (Keyframe k : clip.keyframes.keyframes) keys.add(k.copy());
         }
@@ -3275,10 +3277,31 @@ public class EditingActivity extends AppCompatActivityImpl {
         if (clip == null || before == null) return;
         KeyframeSnapshot after = KeyframeSnapshot.of(clip);
         if (before.sameAs(after)) return;
+        // A speed key added / removed / moved / changed (by the sheet, the keyframe list, the timeline knots or "clear"):
+        // the clip plays a different amount of source, so its timeline length follows.
+        if (!before.speedSignature.equals(after.speedSignature)) refitForSpeed(clip);
         // The clip already holds the "after" state; executing the command re-applies it (idempotent) and puts it on the stack.
         executeCommand(new TransformGestureCommand(name,
-                () -> { after.restoreInto(clip); keyframesRestored(clip); },
-                () -> { before.restoreInto(clip); keyframesRestored(clip); }));
+                () -> { String speedBefore = clip.speedSignature(); after.restoreInto(clip); refitIfSpeedMoved(clip, speedBefore); keyframesRestored(clip); },
+                () -> { String speedBefore = clip.speedSignature(); before.restoreInto(clip); refitIfSpeedMoved(clip, speedBefore); keyframesRestored(clip); }));
+    }
+
+    /** The clip's speed (a value or a keyframe) changed: its timeline length follows, as on Desktop / iOS. Video and audio only. */
+    private void refitForSpeed(Clip clip) {
+        if (clip == null || (clip.type != ClipType.VIDEO && clip.type != ClipType.AUDIO)) return;
+        float before = clip.duration;
+        clip.refitDuration();
+        if (Math.abs(clip.duration - before) < 1e-4f) return;
+        if (clip.viewRef != null) {
+            revalidationClipView(clip);
+            clip.viewRef.requestLayout();
+        }
+        updateCurrentClipEnd();
+    }
+
+    /** Undo / redo put the properties back: refit only when that moved the speed (a clip never refitted keeps its length). */
+    private void refitIfSpeedMoved(Clip clip, String speedBefore) {
+        if (clip != null && !clip.speedSignature().equals(speedBefore)) refitForSpeed(clip);
     }
 
     private void keyframesRestored(Clip clip) {
@@ -3470,15 +3493,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                 changed = true;
             }
         }
-        if (speedChanged && (clip.type == ClipType.VIDEO || clip.type == ClipType.AUDIO)) {
-            // Speed changes how long the clip plays its source: the timeline length follows (Desktop / iOS do the same).
-            clip.refitDuration();
-            if (clip.viewRef != null) {
-                revalidationClipView(clip);
-                clip.viewRef.requestLayout();
-            }
-            updateCurrentClipEnd();
-        }
+        // Speed changes how long the clip plays its source: the timeline length follows (Desktop / iOS do the same).
+        if (speedChanged) refitForSpeed(clip);
         if (changed) syncKeyframeKnots(clip);
         return changed;
     }
@@ -3707,6 +3723,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         Clip clip = selectedClip;
         if (clip == null || !sheetPlayheadInsideClip()) return;
         applySheetProperties(); // anything typed but not applied yet comes first, or toggling would lose it
+        final String speedBefore = clip.speedSignature();
         float local = sheetLocalTime();
         if (clip.keyframes.keyframeIndex(local, type) >= 0) {
             Float removed = clip.keyframes.removeKey(type, local);
@@ -3716,6 +3733,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             float value = clip.keyframes.getValueAtTime(clip, currentTime, type);
             clip.keyframes.setKey(type, local, value, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
         }
+        // A speed key turned on / off: removing one changes the curve, and so what the clip plays.
+        if (type == VideoProperties.ValueType.Speed) refitIfSpeedMoved(clip, speedBefore);
         syncKeyframeKnots(clip);
         rebuildSheetKeyframeList();
         populateSheetProperties();
@@ -6518,6 +6537,12 @@ public class EditingActivity extends AppCompatActivityImpl {
          * A speed map frozen at the clip's CURRENT start time, not cached: for the export's audio graph, which reads it
          * once per clip while the clip may still be moved afterwards.
          */
+        /** Changes whenever the speed map would (the static speed, or any speed keyframe): a cache key, and how an edit tells it moved the speed. */
+        public String speedSignature() {
+            timeMap();
+            return timeMapSignature;
+        }
+
         public ClipTimeMap timeMapSnapshot() {
             float base = videoProperties == null ? 1f : videoProperties.valueSpeed;
             boolean animated = keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed);
@@ -8152,7 +8177,7 @@ frameRate = 60;
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
             if (audioTrack == null || audioExtractor == null) return;
-            float clipTime = playheadTime - clip.startTime + clip.startClipTrim;
+            float clipTime = clip.startClipTrim + (float) clip.timeMap().sourceOffset(playheadTime - clip.startTime);
             long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
             audioTrack.flush(); // discard stale buffered audio from previous position
             audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -8175,6 +8200,13 @@ frameRate = 60;
 
             stopAudio();
             audioRunning = true;
+
+            // At another speed the audio is resampled to follow it (same varispeed as the export's audio graph).
+            final ClipTimeMap speedMap = clip.timeMap();
+            if (!speedMap.isIdentity()) {
+                streamVarispeedAudio(clipTime, speedMap);
+                return;
+            }
 
             renderThreadExecutorAudio.execute(() -> {
                 try {
@@ -8216,6 +8248,88 @@ frameRate = 60;
                     e.printStackTrace();
                 } finally {
                     // Optional: If the loop finishes naturally (end of file), stop the track
+                    if (audioRunning && audioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                        audioTrack.stop();
+                    }
+                }
+            });
+        }
+
+        /**
+         * Plays the clip's audio at the clip's speed, from {@code clipTime} (SOURCE seconds): the source is read at the pace
+         * the speed map consumes it and resampled (linear) into the track's own rate, so the pitch follows the speed like
+         * the export's asetrate graph (AudioSpeedGraph). A changing speed is followed block by block (about 10 ms): each block
+         * consumes exactly what the integral of the curve says, so it cannot drift. Ends with the clip.
+         */
+        private void streamVarispeedAudio(float clipTime, ClipTimeMap map) {
+            renderThreadExecutorAudio.execute(() -> {
+                try {
+                    final int rate = audioTrack.getSampleRate();
+                    final int channels = Math.max(1, audioTrack.getChannelCount());
+                    final long ptsUs = (long) (clipTime * 1_000_000L);
+
+                    audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
+                    audioTrack.play();
+
+                    // The extractor lands on the chunk at or before the wanted time: skip to the exact frame inside it.
+                    long chunkStartUs = audioExtractor.getSampleTime();
+                    double pos = chunkStartUs >= 0 ? Math.max(0, ptsUs - chunkStartUs) * rate / 1_000_000.0 : 0;
+
+                    final int block = 512; // output frames per step
+                    short[] in = new short[0]; // source frames not consumed yet, interleaved
+                    int inFrames = 0;
+                    boolean sourceEnded = false;
+                    short[] out = new short[block * channels];
+                    ByteBuffer chunk = ByteBuffer.allocate(65536).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+
+                    // timeline seconds into the clip at the first output frame (the inverse of the speed integral)
+                    double t = map.localTime(Math.max(0, clipTime - clip.startClipTrim));
+
+                    while (audioRunning && t < clip.duration) {
+                        double t1 = t + (double) block / rate;
+                        // source frames this block of output consumes, from the integral of the speed
+                        double step = Math.max(0, (map.sourceOffset(t1) - map.sourceOffset(t)) * rate / block);
+
+                        int produced = 0;
+                        for (; produced < block; produced++) {
+                            int i0 = (int) pos;
+                            while (i0 + 1 >= inFrames && !sourceEnded) {
+                                // drop what was consumed, append the next chunk
+                                chunk.clear();
+                                int size = audioExtractor.readSampleData(chunk, 0);
+                                if (size < 0) { sourceEnded = true; break; }
+                                audioExtractor.advance();
+                                int newFrames = size / (2 * channels);
+                                int keepFrames = Math.max(0, inFrames - i0);
+                                short[] merged = new short[(keepFrames + newFrames) * channels];
+                                System.arraycopy(in, i0 * channels, merged, 0, keepFrames * channels);
+                                chunk.position(0).limit(newFrames * 2 * channels);
+                                chunk.asShortBuffer().get(merged, keepFrames * channels, newFrames * channels);
+                                in = merged;
+                                inFrames = keepFrames + newFrames;
+                                pos -= i0;
+                                i0 = 0;
+                            }
+                            if (i0 >= inFrames) break; // out of source
+                            double frac = pos - i0;
+                            boolean hasNext = i0 + 1 < inFrames;
+                            for (int c = 0; c < channels; c++) {
+                                int a = in[i0 * channels + c];
+                                int b = hasNext ? in[(i0 + 1) * channels + c] : a;
+                                out[produced * channels + c] = (short) (a + (b - a) * frac);
+                            }
+                            pos += step;
+                        }
+                        if (produced > 0) {
+                            int written = audioTrack.write(out, 0, produced * channels, AudioTrack.WRITE_BLOCKING);
+                            if (written < 0) break;
+                        }
+                        if (produced < block) break; // the source ended inside this block
+                        t = t1;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
                     if (audioRunning && audioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                         audioTrack.stop();
                     }
@@ -8340,7 +8454,9 @@ frameRate = 60;
 
                 }
 
-                float clipTime = Math.max(0, playheadTime - clip.startTime + clip.startClipTrim);
+                // SOURCE seconds the playhead is at: the trim plus what the speed has consumed (identical to the old
+                // "playhead - start + trim" at speed 1).
+                float clipTime = clip.startClipTrim + (float) clip.timeMap().sourceOffset(Math.max(0, playheadTime - clip.startTime));
 
                 if (isSeekingOnly) {
                     softStopAudio();
