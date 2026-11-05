@@ -592,8 +592,16 @@ public class FFmpegEdit {
                 case AUDIO:
                     // 🎵 Pure audio clip logic
                     int delayMs = (int) (clip.startTime * 1000);
-                    filterComplex.append("[").append(inputLayerIndex).append(":a]")
-                            .append("atrim=start=").append(clip.startClipTrim).append(":end=").append(clip.startClipTrim + clip.duration).append(",")
+                    // At a speed other than 1 the source the clip consumes is cut and played at that speed first (as Desktop does,
+                    // see AudioSpeedGraph); at speed 1 it is the plain atrim, exactly as before.
+                    final String speedLabel = "[asp" + audioClipCount + "]";
+                    final String speedStatements = AudioSpeedGraph.statements(
+                            "[" + inputLayerIndex + ":a]", speedLabel, "asp" + audioClipCount, clip.startClipTrim,
+                            clip.timeMapSnapshot(), clip.duration);
+                    if (speedStatements != null) filterComplex.append(speedStatements).append(speedLabel);
+                    else filterComplex.append("[").append(inputLayerIndex).append(":a]")
+                            .append("atrim=start=").append(clip.startClipTrim).append(":end=").append(clip.startClipTrim + clip.duration).append(",");
+                    filterComplex
                             .append("adelay=").append(delayMs).append("|").append(delayMs).append(",")
 //                            .append("volume=").append(clip.getAudioVolume()).append(",")
                             .append("aformat=sample_fmts=s16").append(",")
@@ -620,8 +628,16 @@ public class FFmpegEdit {
                     (inputLayerIndex - (IOHelper.isFileExist(clip.getCutoutPath(templateSettings.data.getProjectPath()) + ".mp4") ? 2 : 1)) :
                     (inputLayerIndex - 1);
 
-                filterComplex.append("[").append(effectiveSourceInputIndex).append(":a]")
-                        .append("atrim=start=").append(clip.startClipTrim).append(":end=").append(clip.startClipTrim + clip.duration + extendMediaDuration).append(",")
+                // At a speed other than 1 the source the clip consumes is cut and played at that speed first; the transition's
+                // extension stays silent padding (apad below). At speed 1: the plain atrim, exactly as before.
+                final String videoSpeedLabel = "[asp" + audioClipCount + "]";
+                final String videoSpeedStatements = AudioSpeedGraph.statements(
+                        "[" + effectiveSourceInputIndex + ":a]", videoSpeedLabel, "asp" + audioClipCount, clip.startClipTrim,
+                        clip.timeMapSnapshot(), clip.duration);
+                if (videoSpeedStatements != null) filterComplex.append(videoSpeedStatements).append(videoSpeedLabel);
+                else filterComplex.append("[").append(effectiveSourceInputIndex).append(":a]")
+                        .append("atrim=start=").append(clip.startClipTrim).append(":end=").append(clip.startClipTrim + clip.duration + extendMediaDuration).append(",");
+                filterComplex
                         .append("adelay=").append(delayMs).append("|").append(delayMs).append(",")
                         // This handle the extension in silent to match the video
                         .append("apad=pad_dur=").append(freezeFrameDuration).append(",")
@@ -749,14 +765,21 @@ public class FFmpegEdit {
         // audioOnly for a timeline with no audio clips - the graph would be empty.)
         String graphText = filterComplex.toString();
         if (templateSettings.audioOnly) {
-            StringBuilder audioGraph = new StringBuilder();
-            for (String statement : graphText.split(";\n")) {
-                String trimmed = statement.trim();
-                if (trimmed.matches("(?s)^\\[\\d+:a\\].*") || trimmed.contains("[aout]")) {
-                    audioGraph.append(trimmed).append(";\n");
+            // Walk back from [aout] (AudioGraphSlicer): a clip at another speed is "[N:a]...[aspK];" then "[aspK]...[audio-X];",
+            // and the old "keep what starts with [N:a]" rule below dropped the second one, leaving [audio-X] undefined.
+            String sliced = AudioGraphSlicer.slice(graphText, "[aout]");
+            if (!sliced.isEmpty()) {
+                graphText = sliced;
+            } else {
+                StringBuilder audioGraph = new StringBuilder();
+                for (String statement : graphText.split(";\n")) {
+                    String trimmed = statement.trim();
+                    if (trimmed.matches("(?s)^\\[\\d+:a\\].*") || trimmed.contains("[aout]")) {
+                        audioGraph.append(trimmed).append(";\n");
+                    }
                 }
+                graphText = audioGraph.toString();
             }
-            graphText = audioGraph.toString();
         }
         cmd.append("-filter_complex \"").append(graphText).append("\" ");
 
@@ -921,6 +944,14 @@ public class FFmpegEdit {
                 if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
                     // The keying (shadow, feather and clean up edge included) is drawn by the OpenGL shader only.
                     found.add("The chroma key" + (clip.chromaKeys.size() > 1 ? "s are" : " is") + " skipped (OpenGL only: FFmpeg draws the clip with its background colour)");
+                }
+                if (clip.keyframes != null && clip.keyframes.keyframes != null) {
+                    int speedKeys = 0;
+                    for (EditingActivity.Keyframe k : clip.keyframes.keyframes) if (k.animates(EditingActivity.VideoProperties.ValueType.Speed)) speedKeys++;
+                    if (speedKeys > 1) {
+                        // The OpenGL export integrates the speed curve (Clip.timeMap); the filter graph only has setpts with the speed at each instant.
+                        found.add("Speed curves are approximated (only the OpenGL export follows a changing speed exactly)");
+                    }
                 }
                 if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasOpticalFlow()) {
                     // FFmpeg's own motion-compensated interpolation: right in kind, but a software filter on a phone's CPU.

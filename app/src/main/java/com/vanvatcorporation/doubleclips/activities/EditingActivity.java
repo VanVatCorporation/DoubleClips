@@ -3448,10 +3448,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         float local = sheetLocalTime();
         Keyframe keyframeHere = clip.keyframes.keyframeAtLocal(local); // before any edit can add one
         boolean changed = false;
+        boolean speedChanged = false;
         for (VideoProperties.ValueType type : VideoProperties.ValueType.CHANNELS) {
             float current = clampSheetValue(type, clip.keyframes.getValueAtTime(clip, currentTime, type));
             float edited = readSheetValue(type, current);
             if (Math.abs(edited - current) <= KeyframeChannels.SAME_VALUE_TOLERANCE) continue;
+            if (type == VideoProperties.ValueType.Speed) speedChanged = true;
             if (clip.keyframes.isAnimated(type)) {
                 if (!inside) continue; // a keyframe can't be placed outside the clip
                 clip.keyframes.setKey(type, local, edited, clip, settings.frameRate, KEYFRAME_DEFAULT_EASING);
@@ -3467,6 +3469,15 @@ public class EditingActivity extends AppCompatActivityImpl {
                 keyframeHere.easing = easing;
                 changed = true;
             }
+        }
+        if (speedChanged && (clip.type == ClipType.VIDEO || clip.type == ClipType.AUDIO)) {
+            // Speed changes how long the clip plays its source: the timeline length follows (Desktop / iOS do the same).
+            clip.refitDuration();
+            if (clip.viewRef != null) {
+                revalidationClipView(clip);
+                clip.viewRef.requestLayout();
+            }
+            updateCurrentClipEnd();
         }
         if (changed) syncKeyframeKnots(clip);
         return changed;
@@ -5939,7 +5950,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         public boolean onTouch(View v, MotionEvent event) {
                             Clip clip = (Clip) clipView.getTag();
                             int minWidth = (int) (MIN_CLIP_DURATION * pixelsPerSecond);
-                            int maxWidth = (int) (clip.originalDuration * pixelsPerSecond);
+                            int maxWidth = (int) (clip.fullSpeedDuration() * pixelsPerSecond);
                             switch (event.getAction()) {
                                 case MotionEvent.ACTION_DOWN:
                                     dX = event.getRawX();
@@ -5954,7 +5965,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     
                                     // Clamping only for video and audio as these type has limited duration
                                     if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
-                                        deltaX = (Math.min(-deltaX, clip.startClipTrim * pixelsPerSecond));
+                                        deltaX = (Math.min(-deltaX, clip.startRoomOnTimeline() * pixelsPerSecond));
                                         deltaX = -deltaX;
                                     }
                                     
@@ -5971,9 +5982,17 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     deltaX = currentWidthExact - proposedNewWidthExact;
                                     float deltaTime = deltaX / pixelsPerSecond;
 
-                                    clip.startTime += deltaTime;
-                                    clip.startClipTrim += deltaTime;
-                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
+                                        // deltaTime is timeline time, the trim is in source seconds: a speed != 1 stretches it
+                                        // (read the map before the start moves). At speed 1 this is exactly the old line.
+                                        clip.startClipTrim += (float) clip.timeMap().sourceOffset(deltaTime);
+                                        clip.startTime += deltaTime;
+                                        clip.setDuration(clip.fittedDuration());
+                                    } else {
+                                        clip.startTime += deltaTime;
+                                        clip.startClipTrim += deltaTime;
+                                        clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+                                    }
 
                                     // In sync with clip metadata perfectly
                                     clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
@@ -6011,7 +6030,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         public boolean onTouch(View v, MotionEvent event) {
                             Clip clip = (Clip) clipView.getTag();
                             int minWidth = (int) (MIN_CLIP_DURATION * pixelsPerSecond);
-                            int maxWidth = (int) (clip.originalDuration * pixelsPerSecond);
+                            int maxWidth = (int) (clip.fullSpeedDuration() * pixelsPerSecond);
                             switch (event.getAction())
                             {
                                 case MotionEvent.ACTION_DOWN:
@@ -6027,7 +6046,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
                                     // Clamping only for video and audio as these type has limited duration
                                     if(type == ClipType.VIDEO || type == ClipType.AUDIO) {
-                                        deltaX = Math.min(deltaX, clip.endClipTrim * pixelsPerSecond);
+                                        deltaX = Math.min(deltaX, clip.endRoomOnTimeline() * pixelsPerSecond);
                                     }
                                     
                                     float proposedNewWidthExact = currentWidthExact + deltaX;
@@ -6042,8 +6061,16 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     deltaX = proposedNewWidthExact - currentWidthExact;
                                     float deltaTime = deltaX / pixelsPerSecond;
 
-                                    clip.endClipTrim -= deltaTime;
-                                    clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+                                    if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
+                                        // the new timeline length consumes this much source (a speed != 1 stretches it); at speed 1
+                                        // endClipTrim ends up exactly where the old "-= deltaTime" put it.
+                                        double newDuration = clip.duration + deltaTime;
+                                        clip.endClipTrim = (float) (clip.originalDuration - clip.startClipTrim - clip.timeMap().sourceOffset(newDuration));
+                                        clip.setDuration((float) newDuration);
+                                    } else {
+                                        clip.endClipTrim -= deltaTime;
+                                        clip.setDuration(clip.originalDuration - clip.endClipTrim - clip.startClipTrim);
+                                    }
 
                                     // In sync with clip metadata perfectly
                                     clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
@@ -6249,14 +6276,20 @@ public class EditingActivity extends AppCompatActivityImpl {
             float oldEndClipTrim = endClipTrim;
             float oldStartClipTrim = startClipTrim;
 
+            // A constant speed maps the cut point (timeline time) to source seconds; a speed curve keeps the old 1:1 mapping
+            // (its keyframes are not re-based by a split, so the pieces would not agree with a curve-based fit).
+            boolean constantSpeed = !(keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed));
+            float cutInSource = (followsSpeed() && constantSpeed) ? (float) timeMap().sourceOffset(translatedLocalCurrentTime) : translatedLocalCurrentTime;
+
             // Primary clip
-            endClipTrim = originalDuration - (translatedLocalCurrentTime + oldStartClipTrim);
-            setDuration(originalDuration - endClipTrim - startClipTrim);
+            endClipTrim = originalDuration - (cutInSource + oldStartClipTrim);
+            setDuration((followsSpeed() && constantSpeed) ? fittedDuration() : originalDuration - endClipTrim - startClipTrim);
 
             // Secondary clip
-            secondaryClip.startClipTrim = translatedLocalCurrentTime + oldStartClipTrim;
+            secondaryClip.startClipTrim = cutInSource + oldStartClipTrim;
             secondaryClip.endClipTrim = oldEndClipTrim;
-            secondaryClip.setDuration(secondaryClip.originalDuration - secondaryClip.endClipTrim - secondaryClip.startClipTrim);
+            secondaryClip.setDuration((followsSpeed() && constantSpeed) ? secondaryClip.fittedDuration()
+                    : secondaryClip.originalDuration - secondaryClip.endClipTrim - secondaryClip.startClipTrim);
 
             activity.addClipToTrack(currentTrack, secondaryClip);
             activity.revalidationClipView(this);
@@ -6481,6 +6514,18 @@ public class EditingActivity extends AppCompatActivityImpl {
             return map;
         }
 
+        /**
+         * A speed map frozen at the clip's CURRENT start time, not cached: for the export's audio graph, which reads it
+         * once per clip while the clip may still be moved afterwards.
+         */
+        public ClipTimeMap timeMapSnapshot() {
+            float base = videoProperties == null ? 1f : videoProperties.valueSpeed;
+            boolean animated = keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed);
+            if (!animated) return ClipTimeMap.constant(base);
+            final float frozenStart = startTime;
+            return ClipTimeMap.curve(t -> keyframes.getValueAtTime(this, frozenStart + (float) t, VideoProperties.ValueType.Speed));
+        }
+
         public boolean isReverse()
         {
             return isReverse;
@@ -6545,7 +6590,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void setStartClipTrim(float value)
         {
             startClipTrim = value;
-            setDuration(originalDuration - endClipTrim - startClipTrim);
+            setDuration(fittedDuration());
         }
         public float getEndClipTrim()
         {
@@ -6554,7 +6599,45 @@ public class EditingActivity extends AppCompatActivityImpl {
         public void setEndClipTrim(float value)
         {
             endClipTrim = value;
-            setDuration(originalDuration - endClipTrim - startClipTrim);
+            setDuration(fittedDuration());
+        }
+
+        private boolean followsSpeed() {
+            return (type == ClipType.VIDEO || type == ClipType.AUDIO) && originalDuration > 0;
+        }
+
+        /**
+         * The timeline length that plays the source between the trims at the clip's speed (Desktop / iOS store this as the
+         * duration). The trims stay in SOURCE seconds; only the length on the timeline stretches or shrinks with the speed.
+         * At speed 1 (and for every other clip type) it is the plain {@code originalDuration - trims}, exactly as before.
+         */
+        public float fittedDuration() {
+            float source = originalDuration - endClipTrim - startClipTrim;
+            if (!followsSpeed()) return source;
+            return (float) timeMap().localTime(Math.max(0, source));
+        }
+
+        /** Sets the duration to what the trims and the speed need (video / audio). Call after a speed or speed-key edit. */
+        public void refitDuration() {
+            if (followsSpeed()) setDuration(fittedDuration());
+        }
+
+        /** The timeline length of the WHOLE source at the clip's speed: how wide the clip can be dragged out to. */
+        public float fullSpeedDuration() {
+            if (!followsSpeed()) return originalDuration;
+            return (float) timeMap().localTime(originalDuration);
+        }
+
+        /** How much longer (timeline seconds) the clip can be dragged out at its end before it runs out of source. */
+        public float endRoomOnTimeline() {
+            if (!followsSpeed()) return endClipTrim;
+            return (float) Math.max(0, timeMap().localTime(originalDuration - startClipTrim) - duration);
+        }
+
+        /** How much of the clip's start (timeline seconds) can be dragged in front of it before the source starts. */
+        public float startRoomOnTimeline() {
+            if (!followsSpeed()) return startClipTrim;
+            return (float) timeMap().localTime(Math.max(0, startClipTrim));
         }
 
         public void resetKeyframes(EditingActivity instance) {
