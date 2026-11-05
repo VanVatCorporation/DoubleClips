@@ -324,7 +324,7 @@ public class FFmpegEdit {
                             templateSettings.isTrimAllowed ?
                                     Constants.DEFAULT_TEMPLATE_TRIM_MARK(clipIndex) :
                                     clip.type == EditingActivity.ClipType.VIDEO ?
-                                            "trim=start=" + clip.startClipTrim + ":end=" + (clip.startClipTrim + clip.duration + extendMediaDuration) :
+                                            "trim=start=" + clip.startClipTrim + ":end=" + videoTrimEnd(clip, extendMediaDuration) :
                                             "trim=duration=" + (clip.duration + fillingTransitionDuration);
 
                     // First we declared the stream of video
@@ -870,8 +870,34 @@ public class FFmpegEdit {
      */
     private static String speedAndShift(EditingActivity.Clip clip, String speedExpr, int projectFps) {
         String head = motionHead(clip, speedExpr, projectFps);
-        if (head.isEmpty()) return "setpts='(PTS-STARTPTS)/" + speedExpr + "+" + clip.startTime + "/TB'";
+        if (head.isEmpty()) {
+            String curved = curvedSetptsBody(clip, clip.startTime);
+            if (curved != null) return "setpts='" + curved + "'";
+            return "setpts='(PTS-STARTPTS)/" + speedExpr + "+" + clip.startTime + "/TB'";
+        }
         return head + "setpts=PTS+" + clip.startTime + "/TB";
+    }
+
+    /**
+     * A video clip whose speed has keyframes: the {@code setpts} body that places each source frame where the speed CURVE puts it
+     * ({@link VideoSpeedGraph}, the same integral the OpenGL export, the preview and the audio use), plus {@code shiftSeconds}.
+     * null for a clip at one constant speed: the caller keeps {@code (PTS-STARTPTS)/speed}.
+     */
+    private static String curvedSetptsBody(EditingActivity.Clip clip, double shiftSeconds) {
+        if (clip.type != EditingActivity.ClipType.VIDEO || clip.keyframes == null || clip.keyframes.keyframes == null
+                || !clip.keyframes.isAnimated(EditingActivity.VideoProperties.ValueType.Speed)) return null;
+        return VideoSpeedGraph.setptsBody(clip.timeMapSnapshot(), clip.duration, shiftSeconds);
+    }
+
+    /**
+     * Where a video clip's {@code trim} ends, in SOURCE seconds. A clip's duration is its length on the TIMELINE (it follows the
+     * speed), so the source it consumes is read through the speed map, plus a transition's extension. At speed 1 it is the
+     * plain {@code start + duration + extension}, exactly as before.
+     */
+    private static String videoTrimEnd(EditingActivity.Clip clip, double extendMediaDuration) {
+        ClipTimeMap map = clip.timeMapSnapshot();
+        if (map.isIdentity()) return String.valueOf(clip.startClipTrim + clip.duration + extendMediaDuration);
+        return String.format(java.util.Locale.US, "%.6f", clip.startClipTrim + map.sourceOffset(clip.duration + extendMediaDuration));
     }
 
     /**
@@ -885,7 +911,8 @@ public class FFmpegEdit {
         boolean flow = clip.hasOpticalFlow();
         String blur = motionBlurFilters(clip, projectFps);
         if (!flow && blur.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder("setpts='(PTS-STARTPTS)/" + speedExpr + "',");
+        String curved = curvedSetptsBody(clip, 0);
+        StringBuilder sb = new StringBuilder(curved != null ? "setpts='" + curved + "'," : "setpts='(PTS-STARTPTS)/" + speedExpr + "',");
         if (flow) sb.append("minterpolate=fps=").append(ClipOpticalFlow.format(clip.opticalFlow.effectiveFps())).append(",");
         sb.append(blur);
         return sb.toString();
@@ -944,14 +971,6 @@ public class FFmpegEdit {
                 if (clip.hasChromaKeys() && (clip.type == EditingActivity.ClipType.VIDEO || clip.type == EditingActivity.ClipType.IMAGE)) {
                     // The keying (shadow, feather and clean up edge included) is drawn by the OpenGL shader only.
                     found.add("The chroma key" + (clip.chromaKeys.size() > 1 ? "s are" : " is") + " skipped (OpenGL only: FFmpeg draws the clip with its background colour)");
-                }
-                if (clip.keyframes != null && clip.keyframes.keyframes != null) {
-                    int speedKeys = 0;
-                    for (EditingActivity.Keyframe k : clip.keyframes.keyframes) if (k.animates(EditingActivity.VideoProperties.ValueType.Speed)) speedKeys++;
-                    if (speedKeys > 1) {
-                        // The OpenGL export integrates the speed curve (Clip.timeMap); the filter graph only has setpts with the speed at each instant.
-                        found.add("Speed curves are approximated (only the OpenGL export follows a changing speed exactly)");
-                    }
                 }
                 if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasOpticalFlow()) {
                     // FFmpeg's own motion-compensated interpolation: right in kind, but a software filter on a phone's CPU.

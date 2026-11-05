@@ -25,4 +25,10 @@ public class ClipAnimationTest {
         List<String> fails = ClipAnimationFFmpegChecks.runAll();
         assertTrue(fails.toString(), fails.isEmpty());
     }
+
+    @Test
+    public void videoSpeedCurveSetptsMatchesTheTimeMap() {
+        List<String> fails = VideoSpeedGraphChecks.runAll();
+        assertTrue(fails.toString(), fails.isEmpty());
+    }
 }

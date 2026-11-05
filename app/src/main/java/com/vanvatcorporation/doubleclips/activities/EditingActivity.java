@@ -5999,6 +5999,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             leftHandle.setOnTouchListener(
                     new View.OnTouchListener() {
                         float dX;
+                        // Where the drag started: a speed curve is integrated from the START of the drag (one number per press, not a sum of
+                        // small steps), with the map frozen then. Same as Desktop's trim handles.
+                        float downX, startTime0, duration0, startTrim0, endTrim0;
+                        ClipTimeMap map0;
                         @Override
                         public boolean onTouch(View v, MotionEvent event) {
                             Clip clip = (Clip) clipView.getTag();
@@ -6007,12 +6011,41 @@ public class EditingActivity extends AppCompatActivityImpl {
                             switch (event.getAction()) {
                                 case MotionEvent.ACTION_DOWN:
                                     dX = event.getRawX();
+                                    downX = event.getRawX();
+                                    startTime0 = clip.startTime;
+                                    duration0 = clip.duration;
+                                    startTrim0 = clip.startClipTrim;
+                                    endTrim0 = clip.endClipTrim;
+                                    map0 = clip.timeMapSnapshot();
                                     break;
                                 case MotionEvent.ACTION_MOVE:
                                     timelineScroll.requestDisallowInterceptTouchEvent(true);
 
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
+
+                                    if ((type == ClipType.VIDEO || type == ClipType.AUDIO) && map0 != null) {
+                                        // The handle moves in TIMELINE seconds; the trim is in SOURCE seconds (they differ when the speed
+                                        // is not 1, and a curve needs the integral). Measured from where the drag began.
+                                        float delta = (event.getRawX() - downX) / pixelsPerSecond;
+                                        delta = Math.min(duration0 - MIN_CLIP_DURATION, delta);
+                                        double source = map0.sourceOffset(delta);
+                                        if (source < -startTrim0) { // cannot go before the first frame of the file
+                                            source = -startTrim0;
+                                            delta = (float) (source / map0.speedAt(0));
+                                        }
+                                        float newDuration = duration0 - delta;
+                                        if (newDuration * pixelsPerSecond < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
+                                        clip.startTime = startTime0 + delta;
+                                        clip.startClipTrim = startTrim0 + (float) source;
+                                        clip.setDuration(newDuration);
+
+                                        clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
+                                        clipView.setX(activity.getTimeInX(clip.startTime));
+                                        clipView.requestLayout();
+                                        resetHandlesPosition();
+                                        break;
+                                    }
 
                                     float currentWidthExact = clip.duration * pixelsPerSecond;
                                     
@@ -6079,6 +6112,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             rightHandle.setOnTouchListener(
                     new View.OnTouchListener() {
                         float dX;
+                        // Where the drag started: a speed curve is integrated from the START of the drag (one number per press, not a sum of
+                        // small steps), with the map frozen then. Same as Desktop's trim handles.
+                        float downX, startTime0, duration0, startTrim0, endTrim0;
+                        ClipTimeMap map0;
                         @Override
                         public boolean onTouch(View v, MotionEvent event) {
                             Clip clip = (Clip) clipView.getTag();
@@ -6088,12 +6125,38 @@ public class EditingActivity extends AppCompatActivityImpl {
                             {
                                 case MotionEvent.ACTION_DOWN:
                                     dX = event.getRawX();
+                                    downX = event.getRawX();
+                                    startTime0 = clip.startTime;
+                                    duration0 = clip.duration;
+                                    startTrim0 = clip.startClipTrim;
+                                    endTrim0 = clip.endClipTrim;
+                                    map0 = clip.timeMapSnapshot();
                                     break;
                                 case MotionEvent.ACTION_MOVE:
                                     timelineScroll.requestDisallowInterceptTouchEvent(true);
 
                                     float deltaX = event.getRawX() - dX;
                                     dX = event.getRawX();
+
+                                    if ((type == ClipType.VIDEO || type == ClipType.AUDIO) && map0 != null) {
+                                        float delta = (event.getRawX() - downX) / pixelsPerSecond;
+                                        delta = Math.max(-(duration0 - MIN_CLIP_DURATION), delta);
+                                        double base = map0.sourceOffset(duration0);
+                                        double source = map0.sourceOffset(duration0 + delta) - base; // source the drag adds (+) or gives back (-)
+                                        if (source > endTrim0) { // cannot go past the last frame of the file
+                                            source = endTrim0;
+                                            delta = (float) (map0.localTime(base + source) - duration0);
+                                        }
+                                        float newDuration = duration0 + delta;
+                                        if (newDuration * pixelsPerSecond < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
+                                        clip.setDuration(newDuration);
+                                        clip.endClipTrim = endTrim0 - (float) source;
+
+                                        clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
+                                        clipView.requestLayout();
+                                        resetHandlesPosition();
+                                        break;
+                                    }
 
                                     float currentWidthExact = clip.duration * pixelsPerSecond;
 
@@ -6329,19 +6392,22 @@ public class EditingActivity extends AppCompatActivityImpl {
             float oldEndClipTrim = endClipTrim;
             float oldStartClipTrim = startClipTrim;
 
-            // A constant speed maps the cut point (timeline time) to source seconds; a speed curve keeps the old 1:1 mapping
-            // (its keyframes are not re-based by a split, so the pieces would not agree with a curve-based fit).
+            // The cut point (timeline time) in source seconds: the speed, a number or a curve, decides how much source the first
+            // part has used by then (= the plain local time at speed 1). Desktop and iOS cut the same way.
+            float oldDuration = duration;
+            boolean fits = followsSpeed();
             boolean constantSpeed = !(keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed));
-            float cutInSource = (followsSpeed() && constantSpeed) ? (float) timeMap().sourceOffset(translatedLocalCurrentTime) : translatedLocalCurrentTime;
+            float cutInSource = fits ? (float) timeMap().sourceOffset(translatedLocalCurrentTime) : translatedLocalCurrentTime;
 
-            // Primary clip
+            // Primary clip: ends at the cut. A curve starts over at the second half, so the halves are cut by TIMELINE length
+            // (iOS): the first is what was played, the second is what was left.
             endClipTrim = originalDuration - (cutInSource + oldStartClipTrim);
-            setDuration((followsSpeed() && constantSpeed) ? fittedDuration() : originalDuration - endClipTrim - startClipTrim);
+            setDuration(fits ? (constantSpeed ? fittedDuration() : translatedLocalCurrentTime) : originalDuration - endClipTrim - startClipTrim);
 
             // Secondary clip
             secondaryClip.startClipTrim = cutInSource + oldStartClipTrim;
             secondaryClip.endClipTrim = oldEndClipTrim;
-            secondaryClip.setDuration((followsSpeed() && constantSpeed) ? secondaryClip.fittedDuration()
+            secondaryClip.setDuration(fits ? (constantSpeed ? secondaryClip.fittedDuration() : Math.max(0f, oldDuration - translatedLocalCurrentTime))
                     : secondaryClip.originalDuration - secondaryClip.endClipTrim - secondaryClip.startClipTrim);
 
             activity.addClipToTrack(currentTrack, secondaryClip);
