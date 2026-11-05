@@ -10,8 +10,8 @@
         android:title="@string/main_template" />
     <item
         android:id="@+id/message_search"
-        android:icon="@drawable/baseline_search_24"
-        android:title="@string/main_search" />
+        android:icon="@drawable/baseline_assets_24"
+        android:title="@string/main_assets" />
     <item
         android:id="@+id/message_storage"
         android:icon="@drawable/baseline_history_24"

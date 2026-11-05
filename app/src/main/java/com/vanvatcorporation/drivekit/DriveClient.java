@@ -17,7 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -129,6 +131,55 @@ public class DriveClient {
         Map<String, Object> m = new HashMap<>();
         for (int i = 0; i + 1 < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
         return m;
+    }
+
+    // ── generic calls (the Assets API is built on these) ────────────────────
+
+    /**
+     * One JSON call to any route under /api/v2/drive. {@code authed} false is for the anonymous browse routes; {@code body} is
+     * ready-made JSON text or null. Returns the answer as an object (an empty one when the server answered nothing).
+     */
+    public JsonObject json(String method, String path, Map<String, String> query, String body, boolean authed) throws DriveException {
+        HttpUrl url = HttpUrl.parse(base + "/api/v2/drive" + path);
+        if (url == null) throw new DriveException(0, "bad_url", "Bad address: " + path);
+        HttpUrl.Builder ub = url.newBuilder();
+        if (query != null) for (Map.Entry<String, String> e : query.entrySet()) ub.addQueryParameter(e.getKey(), e.getValue());
+        Request.Builder rb = new Request.Builder().url(ub.build());
+        if (authed) {
+            String h = authHeader();
+            if (h != null) rb.header("Authorization", h);
+        }
+        boolean hasBody = body != null || "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method);
+        rb.method(method, hasBody ? RequestBody.create(body == null ? "{}" : body, JSON) : null);
+        String text = exec(rb);
+        if (text == null || text.trim().isEmpty()) return new JsonObject();
+        try {
+            JsonElement e = JsonParser.parseString(text);
+            return e.isJsonObject() ? e.getAsJsonObject() : new JsonObject();
+        } catch (RuntimeException e) {
+            throw new DriveException(0, "bad_answer", "The server's answer is not what was expected.");
+        }
+    }
+
+    /** Sends raw bytes (an asset's preview picture) to a route under /api/v2/drive with PUT. */
+    public void putBinary(String path, byte[] body, String contentType) throws DriveException {
+        Request.Builder rb = req(path, true).put(RequestBody.create(body, MediaType.parse(contentType)));
+        exec(rb);
+    }
+
+    /** A link the server gave as a path ("/api/v2/drive/public/assets/x/preview") made absolute; absolute links stay as they are. */
+    public String absoluteUrl(String url) {
+        if (url == null || url.isEmpty()) return null;
+        if (url.startsWith("http://") || url.startsWith("https://")) return url;
+        return base + (url.startsWith("/") ? "" : "/") + url;
+    }
+
+    /**
+     * Downloads any signed-in content route under /api/v2/drive (a community asset's file is one) to {@code dest}. {@code cancel}
+     * (may be null) is checked between blocks: when set the partial file is dropped and a "cancelled" DriveException is thrown.
+     */
+    public File downloadPath(String path, File dest, Progress progress, AtomicBoolean cancel) throws DriveException {
+        return downloadTo(req(path, true), dest, progress, cancel);
     }
 
     // ── legal (Terms of Service / Privacy Policy) ───────────────────────────
@@ -272,6 +323,10 @@ public class DriveClient {
     }
 
     private File downloadTo(Request.Builder rb, File dest, Progress progress) throws DriveException {
+        return downloadTo(rb, dest, progress, null);
+    }
+
+    private File downloadTo(Request.Builder rb, File dest, Progress progress, AtomicBoolean cancel) throws DriveException {
         File parent = dest.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) throw new DriveException("Couldn't create the download folder.", null);
         File tmp = new File(dest.getPath() + ".part");
@@ -285,6 +340,7 @@ public class DriveClient {
                 long done = 0;
                 int n;
                 while ((n = in.read(buf)) > 0) {
+                    if (cancel != null && cancel.get()) throw new DriveException(0, "cancelled", "Cancelled.");
                     out.write(buf, 0, n);
                     done += n;
                     if (progress != null) progress.onProgress(done, total);

@@ -109,7 +109,11 @@ import com.vanvatcorporation.doubleclips.activities.editing.MotionEditSpecificAr
 import com.vanvatcorporation.doubleclips.ClipMotionBlur;
 import com.vanvatcorporation.doubleclips.ClipOpticalFlow;
 import com.vanvatcorporation.doubleclips.ProjectGson;
+import com.vanvatcorporation.doubleclips.AssetLibrary;
 import com.vanvatcorporation.doubleclips.TextFonts;
+import com.vanvatcorporation.doubleclips.assets.AssetTarget;
+import com.vanvatcorporation.doubleclips.assets.AssetsSheet;
+import com.vanvatcorporation.drivekit.AssetKind;
 import com.vanvatcorporation.doubleclips.TextRasterizer;
 import com.vanvatcorporation.doubleclips.TextStyle;
 import com.vanvatcorporation.doubleclips.TextStyleInterop;
@@ -999,6 +1003,36 @@ public class EditingActivity extends AppCompatActivityImpl {
     {
         clipEditSpecificAreaScreen.inAnimationPicker.refresh();
         clipEditSpecificAreaScreen.outAnimationPicker.refresh();
+    }
+
+    /**
+     * The editor's Assets sheet: the community's assets, live from the server. Video / image / audio and fonts go straight into
+     * this project; effects and animation packs are installed in the app (iOS: the Assets sheet next to Files).
+     */
+    public void openAssetsSheet()
+    {
+        AssetsSheet.show(this, new AssetTarget() {
+            @Override public String projectTitle() { return properties.getProjectTitle(); }
+
+            @Override public String add(File file, AssetKind kind) throws AssetLibrary.InstallException {
+                String line;
+                if (kind == AssetKind.FONT) {
+                    String relative = AssetLibrary.addFont(EditingActivity.this, properties.getProjectPath(), file);
+                    line = getString(R.string.assets_added_font, TextFonts.labelFor(properties.getProjectPath(), relative));
+                } else {
+                    AssetLibrary.addMedia(properties.getProjectPath(), file);
+                    line = getString(R.string.assets_added_media);
+                }
+                runOnUiThread(() -> {
+                    if (projectFilesEditSpecificAreaScreen != null) projectFilesEditSpecificAreaScreen.reloadingProject();
+                });
+                return line;
+            }
+
+            @Override public void onInstalled(AssetKind kind) {
+                if (kind == AssetKind.PACK) refreshAnimationPickers();
+            }
+        });
     }
     public void importSingularClip()
     {

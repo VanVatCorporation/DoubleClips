@@ -29,6 +29,7 @@ import com.vanvatcorporation.doubleclips.BuildConfig;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.UncaughtExceptionHandler;
 import com.vanvatcorporation.doubleclips.ProjectZip;
+import com.vanvatcorporation.doubleclips.activities.main.AssetsAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.ProfileAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.StorageAreaScreen;
@@ -61,6 +62,7 @@ public class MainActivity extends AppCompatActivityImpl {
 
     MainAreaScreen homeAreaScreen;
     TemplateAreaScreen templateAreaScreen;
+    AssetsAreaScreen assetsAreaScreen;
     ProfileAreaScreen profileAreaScreen;
     public StorageAreaScreen storageAreaScreen;
 
@@ -153,13 +155,14 @@ public class MainActivity extends AppCompatActivityImpl {
 
         homeAreaScreen = (MainAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_homepage, null);
         templateAreaScreen = (TemplateAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_template, null);
-        View View3 = getLayoutInflater().inflate(R.layout.pager_main_search, null);
+        assetsAreaScreen = (AssetsAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_assets, null);
+        assetsAreaScreen.setProjectsProvider(() -> homeAreaScreen.projectList);
         storageAreaScreen = (StorageAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_storage, null);
         profileAreaScreen = (ProfileAreaScreen) getLayoutInflater().inflate(R.layout.pager_main_profile, null);
 
 
         viewPager = findViewById(R.id.mainViewPager);
-        viewPager.insertView(homeAreaScreen, templateAreaScreen, View3, storageAreaScreen, profileAreaScreen);
+        viewPager.insertView(homeAreaScreen, templateAreaScreen, assetsAreaScreen, storageAreaScreen, profileAreaScreen);
         viewPager.setupActions(
                 new RunnableImpl2() {
                     @Override
@@ -188,6 +191,7 @@ public class MainActivity extends AppCompatActivityImpl {
                         if (menuItemId != -1) {
                             bottomNavigationView.getMenu().findItem(menuItemId).setChecked(true);
                         }
+                        if (position == 2 && assetsAreaScreen != null) assetsAreaScreen.onShown();
                         if (position == 3 && storageAreaScreen != null) storageAreaScreen.onShown();
                     }
                 }

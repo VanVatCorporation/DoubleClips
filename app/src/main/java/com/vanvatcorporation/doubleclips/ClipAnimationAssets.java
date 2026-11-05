@@ -67,6 +67,7 @@ public final class ClipAnimationAssets {
         if (builtInsLoaded) return errors;
         errors.addAll(loadTransitionStyles(context));
         errors.addAll(loadEffectStyles(context));
+        errors.addAll(AssetLibrary.loadInstalledEffects(context)); // effects downloaded from the Assets tab
 
         AssetManager assets = context.getAssets();
         List<Pending> pending = new ArrayList<>();

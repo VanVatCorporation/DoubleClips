@@ -110,6 +110,9 @@ public class ProjectFilesEditSpecificAreaScreen extends BaseEditSpecificAreaScre
         findViewById(R.id.importFilesButton).setOnClickListener(v -> {
             if (activityInstance != null) activityInstance.importFilesToProject();
         });
+        findViewById(R.id.browseAssetsButton).setOnClickListener(v -> {
+            if (activityInstance != null) activityInstance.openAssetsSheet();
+        });
         findViewById(R.id.deleteUnusedButton).setOnClickListener(v -> confirmDeleteUnused());
 
         findViewById(R.id.createButton).setOnClickListener(v -> {

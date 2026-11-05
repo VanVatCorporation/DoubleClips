@@ -182,6 +182,19 @@
                 android:layout_height="wrap_content"
                 app:sectionTitle="Manage">
 
+                <!-- Community assets (videos, images, audio, fonts, effects, packs) from the Assets list -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/browseAssetsButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/assets_browse_button"
+                    android:textAllCaps="false"
+                    android:textColor="@color/ios_blue"
+                    app:cornerRadius="12dp" />
+
                 <!-- Copies files into the project without putting them on the timeline -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/importFilesButton"

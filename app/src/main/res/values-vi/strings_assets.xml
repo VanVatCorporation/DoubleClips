@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tab Tài nguyên (tài nguyên cộng đồng) và bảng Tài nguyên trong trình chỉnh sửa -->
+    <string name="main_assets">Tài nguyên</string>
+    <string name="assets_title">Tài nguyên</string>
+    <string name="assets_editor_title">Tài nguyên - %1$s</string>
+    <string name="assets_browse_button">Duyệt tài nguyên cộng đồng</string>
+
+    <string name="assets_kind_all">Tất cả</string>
+    <string name="assets_kind_videos">Video</string>
+    <string name="assets_kind_images">Hình ảnh</string>
+    <string name="assets_kind_audio">Âm thanh</string>
+    <string name="assets_kind_fonts">Phông chữ</string>
+    <string name="assets_kind_effects">Hiệu ứng</string>
+    <string name="assets_kind_packs">Gói</string>
+    <string name="assets_kind_video">Video</string>
+    <string name="assets_kind_image">Hình ảnh</string>
+    <string name="assets_kind_audio_one">Âm thanh</string>
+    <string name="assets_kind_font">Phông chữ</string>
+    <string name="assets_kind_effect">Hiệu ứng</string>
+    <string name="assets_kind_pack">Gói hoạt ảnh</string>
+
+    <string name="assets_sort_new">Mới nhất</string>
+    <string name="assets_sort_popular">Tải nhiều nhất</string>
+
+    <string name="assets_loading">Đang tải…</string>
+    <string name="assets_none">Chưa có tài nguyên nào</string>
+    <string name="assets_none_found">Không tìm thấy tài nguyên</string>
+    <string name="assets_error_retry">%1$s - chạm hoặc kéo xuống để thử lại</string>
+
+    <string name="assets_install">Cài đặt</string>
+    <string name="assets_get">Tải về</string>
+    <string name="assets_add_to">Thêm vào %1$s</string>
+    <string name="assets_save_copy">Lưu bản sao</string>
+    <string name="assets_cancel">Hủy</string>
+    <string name="assets_report">Báo cáo…</string>
+    <string name="assets_sign_in_needed">Hãy đăng nhập từ tab Hồ sơ để thực hiện.</string>
+    <string name="assets_effect_installed">Đã cài hiệu ứng “%1$s”. Bạn sẽ thấy nó trong danh sách Hiệu ứng.</string>
+    <string name="assets_pack_installed">Đã cài gói hoạt ảnh “%1$s”. Các hoạt ảnh của gói có trong danh sách hoạt ảnh.</string>
+    <string name="assets_font_added">Đã thêm phông chữ vào %1$s.</string>
+    <string name="assets_added_media">Đã thêm vào tệp của dự án.</string>
+    <string name="assets_added_font">Đã thêm phông chữ “%1$s” vào dự án.</string>
+    <string name="assets_save_media_hint">Để thêm vào một dự án, hãy mở dự án và dùng Tài nguyên trong trình chỉnh sửa. Đang lưu thành tệp thay thế.</string>
+    <string name="assets_no_projects">Chưa có dự án nào. Hãy tạo một dự án trước.</string>
+    <string name="assets_pick_project_title">Thêm phông chữ này vào dự án nào?</string>
+    <string name="assets_saved">Đã lưu.</string>
+    <string name="assets_save_failed">Không thể lưu tệp: %1$s</string>
+    <string name="assets_report_what">Tài nguyên này có vấn đề gì?</string>
+    <string name="assets_report_note_hint">Cho chúng tôi biết thêm (không bắt buộc)</string>
+    <string name="assets_report_thanks">Cảm ơn bạn. Chúng tôi sẽ xem xét.</string>
+    <string name="assets_reason_spam">Spam</string>
+    <string name="assets_reason_copyright">Bản quyền</string>
+    <string name="assets_reason_inappropriate">Không phù hợp</string>
+    <string name="assets_reason_malware">Mã độc</string>
+    <string name="assets_reason_other">Khác</string>
+    <string name="assets_disclaimer">Do một thành viên cộng đồng đăng. Chỉ dùng những gì bạn có quyền sử dụng; hãy báo cáo bất cứ điều gì không nên có ở đây.</string>
+</resources>

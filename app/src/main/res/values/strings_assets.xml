@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Assets tab (community assets) and the editor's Assets sheet -->
+    <string name="main_assets">Assets</string>
+    <string name="assets_title">Assets</string>
+    <string name="assets_editor_title">Assets - %1$s</string>
+    <string name="assets_browse_button">Browse community assets</string>
+
+    <string name="assets_kind_all">All</string>
+    <string name="assets_kind_videos">Videos</string>
+    <string name="assets_kind_images">Images</string>
+    <string name="assets_kind_audio">Audio</string>
+    <string name="assets_kind_fonts">Fonts</string>
+    <string name="assets_kind_effects">Effects</string>
+    <string name="assets_kind_packs">Packs</string>
+    <string name="assets_kind_video">Video</string>
+    <string name="assets_kind_image">Image</string>
+    <string name="assets_kind_audio_one">Audio</string>
+    <string name="assets_kind_font">Font</string>
+    <string name="assets_kind_effect">Effect</string>
+    <string name="assets_kind_pack">Animation pack</string>
+
+    <string name="assets_sort_new">Newest</string>
+    <string name="assets_sort_popular">Most downloaded</string>
+
+    <string name="assets_loading">Loading…</string>
+    <string name="assets_none">No assets yet</string>
+    <string name="assets_none_found">No assets found</string>
+    <string name="assets_error_retry">%1$s - tap or pull down to try again</string>
+
+    <string name="assets_install">Install</string>
+    <string name="assets_get">Get</string>
+    <string name="assets_add_to">Add to %1$s</string>
+    <string name="assets_save_copy">Save a copy</string>
+    <string name="assets_cancel">Cancel</string>
+    <string name="assets_report">Report…</string>
+    <string name="assets_sign_in_needed">Sign in from the Profile tab to do this.</string>
+    <string name="assets_effect_installed">Effect “%1$s” installed. Find it in the Effects list.</string>
+    <string name="assets_pack_installed">Animation pack “%1$s” installed. Its animations are in the animation lists.</string>
+    <string name="assets_font_added">Font added to %1$s.</string>
+    <string name="assets_added_media">Added to the project files.</string>
+    <string name="assets_added_font">Font “%1$s” added to the project.</string>
+    <string name="assets_save_media_hint">To add this to a project, open the project and use Assets in the editor. Saving it as a file instead.</string>
+    <string name="assets_no_projects">There are no projects yet. Create one first.</string>
+    <string name="assets_pick_project_title">Which project should get this font?</string>
+    <string name="assets_saved">Saved.</string>
+    <string name="assets_save_failed">Couldn’t save the file: %1$s</string>
+    <string name="assets_report_what">What is wrong with this asset?</string>
+    <string name="assets_report_note_hint">Tell us more (optional)</string>
+    <string name="assets_report_thanks">Thank you. We will take a look.</string>
+    <string name="assets_reason_spam">Spam</string>
+    <string name="assets_reason_copyright">Copyright</string>
+    <string name="assets_reason_inappropriate">Inappropriate</string>
+    <string name="assets_reason_malware">Malware</string>
+    <string name="assets_reason_other">Other</string>
+    <string name="assets_disclaimer">Posted by a member of the community. Only use what you have the right to use; report anything that shouldn’t be here.</string>
+</resources>
