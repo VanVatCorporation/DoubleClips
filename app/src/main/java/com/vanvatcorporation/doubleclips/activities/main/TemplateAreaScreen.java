@@ -16,6 +16,7 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.TemplatePreviewActivity;
 import com.vanvatcorporation.doubleclips.helper.ImageHelper;
 import com.vanvatcorporation.doubleclips.helper.TemplateApi;
+import com.vanvatcorporation.doubleclips.helper.HiddenTemplates;
 import com.vanvatcorporation.doubleclips.helper.TemplateSearchHints;
 import com.vanvatcorporation.doubleclips.impl.TrendingTickerView;
 import com.vanvatcorporation.doubleclips.activities.TemplateSearchActivity;
@@ -53,6 +54,13 @@ public class TemplateAreaScreen extends BaseAreaScreen {
 
     private final TemplateApi.StateListener stateListener = id -> {
         if (templateAdapter != null) templateAdapter.notifyTemplateChanged(id);
+    };
+
+    /** Hidden in the preview: the card leaves the list. Shown again in Settings: the feed reloads so the template can come back. */
+    private final HiddenTemplates.Listener hiddenListener = unhid -> {
+        if (templateAdapter == null) return;
+        if (unhid) reload();
+        else templateAdapter.retain(d -> !HiddenTemplates.getInstance(getContext()).contains(d.getTemplateId()));
     };
 
     private final Runnable hintsListener = () -> {
@@ -135,6 +143,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
         super.onAttachedToWindow();
         TemplateApi.addStateListener(stateListener);
         TemplateSearchHints.getInstance().addListener(hintsListener);
+        HiddenTemplates.getInstance(getContext()).addListener(hiddenListener);
         TemplateSearchHints.getInstance().refresh(getContext(), false);   // the ticker's hot searches
         if (templateAdapter != null) templateAdapter.refreshAll();   // a preview may have changed things while we were away
     }
@@ -143,6 +152,7 @@ public class TemplateAreaScreen extends BaseAreaScreen {
     protected void onDetachedFromWindow() {
         TemplateApi.removeStateListener(stateListener);
         TemplateSearchHints.getInstance().removeListener(hintsListener);
+        HiddenTemplates.getInstance(getContext()).removeListener(hiddenListener);
         super.onDetachedFromWindow();
     }
 

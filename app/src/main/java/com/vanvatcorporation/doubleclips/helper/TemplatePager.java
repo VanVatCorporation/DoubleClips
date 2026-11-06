@@ -91,9 +91,12 @@ public class TemplatePager {
                 cursor = page.nextCursor;
                 hasMore = page.hasMore && cursor != null && !cursor.isEmpty();
 
+                // Templates the user hid stay out of the discovery lists (feed, search); Liked / Saved / My lists are their own picks
+                boolean discovery = source.kind == TemplateFeedSource.Kind.FEED || source.kind == TemplateFeedSource.Kind.SEARCH;
+                HiddenTemplates hidden = HiddenTemplates.getInstance(context);
                 List<TemplateData> fresh = new ArrayList<>();
                 for (TemplateData d : page.items) {
-                    if (delivered.add(d.getTemplateId().toLowerCase())) fresh.add(d);
+                    if (delivered.add(d.getTemplateId().toLowerCase()) && !(discovery && hidden.contains(d.getTemplateId()))) fresh.add(d);
                 }
                 if (fresh.isEmpty() && hasMore && emptyRetries < MAX_EMPTY_RETRIES) {
                     loadNext(emptyRetries + 1);          // a whole page of repeats: ask for the next one

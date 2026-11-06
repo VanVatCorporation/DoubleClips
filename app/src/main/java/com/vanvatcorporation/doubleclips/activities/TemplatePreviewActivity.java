@@ -218,10 +218,40 @@ public class TemplatePreviewActivity extends AppCompatActivityImpl {
         findViewById(R.id.backButton).setOnClickListener(v -> {
             finish();
         });
+        findViewById(R.id.moreButton).setOnClickListener(this::showMoreMenu);
 
         setupSpecificEdit();
     }
 
+
+    /** The "..." menu: Hide this template. */
+    private void showMoreMenu(View anchor) {
+        android.widget.PopupMenu menu = new android.widget.PopupMenu(this, anchor);
+        menu.getMenu().add(0, 0, 0, R.string.template_hide);
+        menu.setOnMenuItemClickListener(item -> {
+            hideCurrentTemplate();
+            return true;
+        });
+        menu.show();
+    }
+
+    /** Asks, then hides the template on this phone and closes the preview (the list underneath drops its card). */
+    private void hideCurrentTemplate() {
+        int position = mediaViewPager.getCurrentItem();
+        if (position < 0 || position >= dataList.size()) return;
+        final TemplateAreaScreen.TemplateData data = dataList.get(position);
+        String title = data.getTemplateTitle();
+        String name = title == null || title.trim().isEmpty() ? getString(R.string.template_hide_fallback_name) : title.trim();
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.template_hide_title, name))
+                .setMessage(R.string.template_hide_message)
+                .setPositiveButton(R.string.template_hide_confirm, (dialog, which) -> {
+                    com.vanvatcorporation.doubleclips.helper.HiddenTemplates.getInstance(this).hide(data);
+                    finish();
+                })
+                .setNegativeButton(R.string.assets_cancel, null)
+                .show();
+    }
 
     private void setupSpecificEdit() {
 

@@ -23,6 +23,20 @@
         app:tint="@android:color/white"
         android:elevation="4dp"/>
 
+    <!-- "..." menu: hide this template (it leaves the Templates tab and the search; Settings > Hidden content shows it again) -->
+    <ImageButton
+        android:id="@+id/moreButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="48dp"
+        android:layout_marginEnd="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/template_more"
+        android:elevation="4dp"
+        android:src="@drawable/baseline_more_vert_24"
+        app:tint="@android:color/white" />
+
     <!-- Center Status Icons -->
     <ProgressBar
         android:id="@+id/mediaLoadingIcon"

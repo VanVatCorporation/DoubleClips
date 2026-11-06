@@ -32,6 +32,7 @@ import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.vanvatcorporation.doubleclips.AssetLibrary;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
+import com.vanvatcorporation.doubleclips.helper.BlockedAuthors;
 import com.vanvatcorporation.drivekit.AssetKind;
 import com.vanvatcorporation.drivekit.AssetsClient;
 import com.vanvatcorporation.drivekit.CommunityAsset;
@@ -149,6 +150,13 @@ public class AssetDetailSheet extends BottomSheetDialogFragment {
         saveButton.setOnClickListener(v -> get(true));
         root.findViewById(R.id.detailCancelButton).setOnClickListener(v -> { if (cancel != null) cancel.set(true); });
         root.findViewById(R.id.detailReportButton).setOnClickListener(v -> report());
+        MaterialButton hide = root.findViewById(R.id.detailHideButton);
+        if (asset.ownerName == null || asset.ownerName.trim().isEmpty()) {
+            hide.setVisibility(View.GONE);
+        } else {
+            hide.setText(getString(R.string.assets_hide_owner, asset.ownerName));
+            hide.setOnClickListener(v -> hideOwner());
+        }
         return root;
     }
 
@@ -357,6 +365,21 @@ public class AssetDetailSheet extends BottomSheetDialogFragment {
                 onUi(() -> showNotice(getString(R.string.assets_save_failed, describe(e)), true));
             }
         });
+    }
+
+    // ---- hide ----------------------------------------------------------------------------------------------
+
+    /** "Hide assets from ...": asks, then hides every asset from this poster on this phone (Settings > Hidden content shows them again). */
+    private void hideOwner() {
+        final String owner = asset.ownerName;
+        new AlertDialog.Builder(requireContext())
+                .setMessage(getString(R.string.assets_hide_owner_confirm, owner))
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    BlockedAuthors.getInstance(requireContext()).block(owner);   // the lists redraw without them
+                    dismissAllowingStateLoss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     // ---- report ------------------------------------------------------------------------------------------

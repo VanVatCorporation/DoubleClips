@@ -110,4 +110,23 @@
     <string name="assets_my_remove_restrict">Gỡ và hạn chế tệp</string>
     <string name="assets_ok">OK</string>
     <string name="assets_save">Lưu</string>
+
+    <!-- Nội dung đã ẩn (Cài đặt), Ẩn mẫu này, Ẩn tài nguyên của một người đăng -->
+    <string name="assets_hide_owner">Ẩn tài nguyên từ %1$s</string>
+    <string name="assets_hide_owner_confirm">Ẩn mọi tài nguyên từ %1$s trên điện thoại này?</string>
+    <string name="template_more">Tùy chọn khác</string>
+    <string name="template_hide">Ẩn mẫu này</string>
+    <string name="template_hide_title">Ẩn “%1$s”?</string>
+    <string name="template_hide_message">Mẫu sẽ biến mất khỏi tab Mẫu và phần tìm kiếm mẫu. Bạn có thể hiện lại trong Cài đặt &gt; Nội dung đã ẩn.</string>
+    <string name="template_hide_confirm">Ẩn</string>
+    <string name="template_hide_fallback_name">Mẫu</string>
+    <string name="hidden_content_title">Nội dung đã ẩn</string>
+    <string name="hidden_content_summary">Đã ẩn: %1$d người đăng tài nguyên, %2$d mẫu</string>
+    <string name="hidden_content_note">Những gì bạn đã ẩn chỉ bị ẩn trên điện thoại này. Hiện lại tại đây.</string>
+    <string name="hidden_content_authors">Người đăng tài nguyên</string>
+    <string name="hidden_content_templates">Mẫu</string>
+    <string name="hidden_content_none_authors">Không có người đăng nào bị ẩn.</string>
+    <string name="hidden_content_none_templates">Không có mẫu nào bị ẩn.</string>
+    <string name="hidden_content_show_all">Hiện tất cả</string>
+    <string name="hidden_content_show_again">Hiện lại</string>
 </resources>

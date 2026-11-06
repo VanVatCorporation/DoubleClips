@@ -5,12 +5,15 @@ import android.os.Handler;
 import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.fragment.app.FragmentActivity;
 import androidx.preference.ListPreference;
+import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreference;
 
 import com.vanvatcorporation.doubleclips.AppLanguage;
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.assets.HiddenContentSheet;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.RetrofitClient;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
 import com.vanvatcorporation.drivekit.DriveClient;
@@ -29,6 +32,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.settings_preferences, rootKey);
+
+        setUpHiddenContent();
 
         ListPreference themePref = findPreference("theme_mode");
         if (themePref != null) {
@@ -127,6 +132,28 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
             return true;
         });
+    }
+
+    /** "Hidden content": the asset authors and templates the user hid, with a way back. The summary counts them. */
+    private void setUpHiddenContent() {
+        Preference hidden = findPreference("hidden_content");
+        if (hidden == null) return;
+        hidden.setSummary(HiddenContentSheet.summary(requireContext()));
+        hidden.setOnPreferenceClickListener(p -> {
+            HiddenContentSheet.show((FragmentActivity) requireActivity(), this::updateHiddenSummary);
+            return true;
+        });
+    }
+
+    private void updateHiddenSummary() {
+        Preference hidden = findPreference("hidden_content");
+        if (hidden != null && getContext() != null) hidden.setSummary(HiddenContentSheet.summary(getContext()));
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateHiddenSummary();
     }
 
     @Override

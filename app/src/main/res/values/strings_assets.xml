@@ -110,4 +110,23 @@
     <string name="assets_my_remove_restrict">Remove and restrict the file</string>
     <string name="assets_ok">OK</string>
     <string name="assets_save">Save</string>
+
+    <!-- Hidden content (Settings), Hide this template, Hide assets from a poster -->
+    <string name="assets_hide_owner">Hide assets from %1$s</string>
+    <string name="assets_hide_owner_confirm">Hide every asset from %1$s on this phone?</string>
+    <string name="template_more">More options</string>
+    <string name="template_hide">Hide this template</string>
+    <string name="template_hide_title">Hide “%1$s”?</string>
+    <string name="template_hide_message">It will leave the Templates tab and the template search. You can show it again in Settings &gt; Hidden content.</string>
+    <string name="template_hide_confirm">Hide</string>
+    <string name="template_hide_fallback_name">Template</string>
+    <string name="hidden_content_title">Hidden content</string>
+    <string name="hidden_content_summary">Hidden: %1$d asset authors, %2$d templates</string>
+    <string name="hidden_content_note">What you hid stays hidden on this phone only. Show it again here.</string>
+    <string name="hidden_content_authors">Asset authors</string>
+    <string name="hidden_content_templates">Templates</string>
+    <string name="hidden_content_none_authors">No hidden asset authors.</string>
+    <string name="hidden_content_none_templates">No hidden templates.</string>
+    <string name="hidden_content_show_all">Show all</string>
+    <string name="hidden_content_show_again">Show again</string>
 </resources>

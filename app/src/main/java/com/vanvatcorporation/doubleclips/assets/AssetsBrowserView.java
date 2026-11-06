@@ -20,6 +20,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.vanvatcorporation.doubleclips.R;
+import com.vanvatcorporation.doubleclips.helper.BlockedAuthors;
 import com.vanvatcorporation.drivekit.AssetKind;
 import com.vanvatcorporation.drivekit.AssetsClient;
 import com.vanvatcorporation.drivekit.CommunityAsset;
@@ -68,6 +69,9 @@ public class AssetsBrowserView extends LinearLayout {
     private String errorText;
     /** Bumped at every restart: the answer of an older request is dropped. */
     private int generation;
+
+    /** Someone was hidden (or shown again) in a detail sheet or in Settings: the grid redraws without them. */
+    private final Runnable blockedListener = this::redraw;
 
     public AssetsBrowserView(Context context) {
         super(context);
@@ -168,9 +172,10 @@ public class AssetsBrowserView extends LinearLayout {
     /** The titles of the first {@code max} assets shown. */
     public List<String> titles(int max) {
         List<String> out = new ArrayList<>();
+        BlockedAuthors blocked = BlockedAuthors.getInstance(getContext());
         for (CommunityAsset a : items) {
             if (out.size() >= max) break;
-            out.add(a.title);
+            if (!blocked.contains(a.ownerName)) out.add(a.title);
         }
         return out;
     }
@@ -227,14 +232,8 @@ public class AssetsBrowserView extends LinearLayout {
         }
         cursor = page.next;
         hasMore = page.next != null && !page.items.isEmpty();   // an empty page never asks for another
-        adapter.setItems(items);
-        updateStatus();
+        redraw();
         if (onPageLoaded != null) onPageLoaded.run();
-        // a tall screen can show a whole page and still have room: ask for the next one
-        recycler.post(() -> {
-            GridLayoutManager lm = (GridLayoutManager) recycler.getLayoutManager();
-            if (lm != null && hasMore && lm.findLastVisibleItemPosition() >= adapter.getItemCount() - PREFETCH_DISTANCE) loadNext();
-        });
     }
 
     private void onError(int gen, String message) {
@@ -249,12 +248,41 @@ public class AssetsBrowserView extends LinearLayout {
     private void updateStatus() {
         String text = null;
         if (errorText != null) text = errorText;
-        else if (loading && items.isEmpty()) text = getContext().getString(R.string.assets_loading);
-        else if (items.isEmpty() && !hasMore) {
+        else if (loading && adapter.getItemCount() == 0) text = getContext().getString(R.string.assets_loading);
+        else if (adapter.getItemCount() == 0 && !hasMore) {
             text = getContext().getString(query.isEmpty() ? R.string.assets_none : R.string.assets_none_found);
         }
         status.setText(text == null ? "" : text);
         status.setVisibility(text == null ? GONE : VISIBLE);
+    }
+
+    /** The grid from the loaded items, minus those of hidden people (desktop and iOS do the same when the lists are drawn). */
+    private void redraw() {
+        BlockedAuthors blocked = BlockedAuthors.getInstance(getContext());
+        List<CommunityAsset> shown = new ArrayList<>();
+        for (CommunityAsset a : items) {
+            if (!blocked.contains(a.ownerName)) shown.add(a);
+        }
+        adapter.setItems(shown);
+        updateStatus();
+        // a page that was all hidden people leaves the screen empty: ask for the next one
+        recycler.post(() -> {
+            GridLayoutManager lm = (GridLayoutManager) recycler.getLayoutManager();
+            if (lm != null && hasMore && lm.findLastVisibleItemPosition() >= adapter.getItemCount() - PREFETCH_DISTANCE) loadNext();
+        });
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        BlockedAuthors.getInstance(getContext()).addListener(blockedListener);
+        if (started) redraw();      // someone may have been hidden or shown again while this was off screen
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        BlockedAuthors.getInstance(getContext()).removeListener(blockedListener);
+        super.onDetachedFromWindow();
     }
 
     // ---- opening one -------------------------------------------------------------------------------------

@@ -30,6 +30,12 @@
             android:key="early_access_issues_notification"
             android:title="@string/settings_general_early_access_issues_notification" />
 
+        <!-- What was hidden in the Assets tab and in the template preview, with a way back; the summary is filled in by SettingsFragment -->
+        <Preference
+            android:key="hidden_content"
+            android:persistent="false"
+            android:title="@string/hidden_content_title" />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/van_vat_drive">

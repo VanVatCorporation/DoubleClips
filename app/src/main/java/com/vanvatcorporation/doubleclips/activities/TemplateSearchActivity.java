@@ -32,6 +32,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateAreaScreen.TemplateData;
 import com.vanvatcorporation.doubleclips.activities.main.TemplateGridAdapter;
+import com.vanvatcorporation.doubleclips.helper.HiddenTemplates;
 import com.vanvatcorporation.doubleclips.helper.TemplateApi;
 import com.vanvatcorporation.doubleclips.helper.TemplateFeedSource;
 import com.vanvatcorporation.doubleclips.helper.TemplatePager;
@@ -180,6 +181,8 @@ public class TemplateSearchActivity extends AppCompatActivityImpl {
         hints.addListener(refreshInput);
         history.addListener(refreshInput);
         TemplateApi.addStateListener(stateListener);
+        // a template hidden in a preview opened from here leaves the results (the screen was stopped under the preview)
+        if (adapter != null) adapter.retain(d -> !HiddenTemplates.getInstance(this).contains(d.getTemplateId()));
     }
 
     @Override
