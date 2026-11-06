@@ -20,6 +20,8 @@
     <string name="assets_kind_effect">Effect</string>
     <string name="assets_kind_pack">Animation pack</string>
 
+    <string name="assets_search_hint">Search assets...</string>
+
     <string name="assets_sort_new">Newest</string>
     <string name="assets_sort_popular">Most downloaded</string>
 

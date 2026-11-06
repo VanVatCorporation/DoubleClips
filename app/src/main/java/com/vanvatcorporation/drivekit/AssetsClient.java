@@ -33,6 +33,16 @@ public final class AssetsClient {
         Page(List<CommunityAsset> items, String next) { this.items = items; this.next = next; }
     }
 
+    /** One hot search, as the server ranks it. */
+    public static final class HotSearch {
+        public final String text;
+        /** How many searches it had lately; null = the server sent no count (a title that tops the list up). */
+        public final Integer count;
+        /** Gets the little flame. */
+        public final boolean hot;
+        HotSearch(String text, Integer count, boolean hot) { this.text = text; this.count = count; this.hot = hot; }
+    }
+
     private final DriveClient drive;
     private final File cacheRoot;
 
@@ -71,6 +81,62 @@ public final class AssetsClient {
         }
         String next = DriveJson.str(o, "nextCursor");
         return new Page(Collections.unmodifiableList(items), next == null || next.isEmpty() ? null : next);
+    }
+
+    // ---- search hints (public) ---------------------------------------------------------------------------
+
+    /**
+     * The hot searches, best first (last 72 h; the same for everyone). When fewer than {@code limit} terms qualify the server
+     * tops the list up with titles of the most downloaded assets (no count, no flame). The routes need a migration on the server:
+     * until it ran they answer 500 and the caller keeps the phone's own hints.
+     */
+    public List<HotSearch> trending(int limit) throws IOException {
+        Map<String, String> q = new LinkedHashMap<>();
+        q.put("limit", String.valueOf(limit));
+        JsonObject o = drive.json("GET", "/public/assets/search/trending", q, null, false);
+        List<HotSearch> out = new ArrayList<>();
+        JsonElement array = o.get("items");
+        if (array != null && array.isJsonArray()) {
+            for (JsonElement e : array.getAsJsonArray()) {
+                if (!e.isJsonObject()) continue;
+                JsonObject row = e.getAsJsonObject();
+                String text = DriveJson.str(row, "query");
+                if (text == null || text.trim().isEmpty()) continue;
+                Integer count = row.has("count") && !row.get("count").isJsonNull() ? Integer.valueOf((int) DriveJson.lng(row, "count", 0)) : null;
+                out.add(new HotSearch(text.trim(), count, DriveJson.bool(row, "hot")));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Autocomplete for what is typed: earlier searches, then titles of assets that are shown, then their tags. An empty
+     * {@code typed} asks for "You may like": popular shown assets' titles, in an order that is stable for the day.
+     */
+    public List<String> suggest(String typed, int limit) throws IOException {
+        Map<String, String> q = new LinkedHashMap<>();
+        q.put("q", typed == null ? "" : typed.trim());
+        q.put("limit", String.valueOf(limit));
+        JsonObject o = drive.json("GET", "/public/assets/search/suggest", q, null, false);
+        List<String> out = new ArrayList<>();
+        JsonElement array = o.get("items");
+        if (array != null && array.isJsonArray()) {
+            for (JsonElement e : array.getAsJsonArray()) {
+                try {
+                    String text = e.getAsString();
+                    if (text != null && !text.trim().isEmpty()) out.add(text.trim());
+                } catch (RuntimeException ignored) { /* not a string: skip */ }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Tells the server a search was submitted so "Trending" can rank it. Signed in only (one person can't push a term up); best
+     * effort: the caller ignores a failure.
+     */
+    public void logSearch(String query) throws IOException {
+        drive.json("POST", "/assets/search/log", null, "{\"query\":" + DriveJson.quote(query) + "}", true);
     }
 
     // ---- get (signed in) ---------------------------------------------------------------------------------

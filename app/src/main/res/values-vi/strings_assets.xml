@@ -20,6 +20,8 @@
     <string name="assets_kind_effect">Hiệu ứng</string>
     <string name="assets_kind_pack">Gói hoạt ảnh</string>
 
+    <string name="assets_search_hint">Tìm tài nguyên...</string>
+
     <string name="assets_sort_new">Mới nhất</string>
     <string name="assets_sort_popular">Tải nhiều nhất</string>
 

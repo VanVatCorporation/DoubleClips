@@ -6,6 +6,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.fragment.app.FragmentActivity;
+
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.vanvatcorporation.doubleclips.R;
@@ -23,6 +25,12 @@ public final class AssetsSheet {
         ((TextView) root.findViewById(R.id.assetsSheetTitle)).setText(activity.getString(R.string.assets_editor_title, target.projectTitle()));
         AssetsBrowserView browser = root.findViewById(R.id.assetsSheetBrowser);
         browser.setTarget(target);
+        // the search window opens over the sheet; what is got there goes into the same project
+        root.findViewById(R.id.assetsSheetSearch).setOnClickListener(v -> {
+            if (activity instanceof FragmentActivity) {
+                AssetSearchFragment.show((FragmentActivity) activity, null, browser.titles(100), target, null);
+            }
+        });
 
         // a tall sheet: the list needs the room (a sheet that wraps its content would be as small as its first page)
         int height = (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.88f);
