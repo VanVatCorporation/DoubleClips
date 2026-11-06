@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.vanvatcorporation.doubleclips.activities.main.AssetsAreaScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground">
@@ -23,6 +24,33 @@
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="32sp"
             android:textStyle="bold" />
+
+        <!-- Post an asset / everything I posted -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/assetsPostButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/assets_post_button"
+                android:textAllCaps="false"
+                app:icon="@drawable/baseline_add_24" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/assetsMineButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/assets_my_button"
+                android:textAllCaps="false" />
+        </LinearLayout>
 
         <com.vanvatcorporation.doubleclips.assets.AssetsBrowserView
             android:id="@+id/assetsBrowser"
