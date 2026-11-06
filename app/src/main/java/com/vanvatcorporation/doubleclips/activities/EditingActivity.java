@@ -1,5 +1,6 @@
 package com.vanvatcorporation.doubleclips.activities;
 
+import com.vanvatcorporation.doubleclips.ClipEndSnap;
 import com.vanvatcorporation.doubleclips.ClipTimeMap;
 import com.vanvatcorporation.doubleclips.EffectStyleLoader;
 
@@ -148,6 +149,7 @@ import com.vanvatcorporation.doubleclips.helper.ParserHelper;
 import com.vanvatcorporation.doubleclips.helper.StringFormatHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 import com.vanvatcorporation.doubleclips.impl.ImageGroupView;
+import com.vanvatcorporation.doubleclips.impl.WaveformBandView;
 import com.vanvatcorporation.doubleclips.impl.TrackFrameLayout;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -1199,12 +1201,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                         if(clip.viewRef != null)
                         {
                             // After preview process, render the thumbnail
-                            Executors.newSingleThreadExecutor().execute(() -> {
-                                Bitmap retrieveBitmap = thumbnailStrip(clip);
-                                clip.viewRef.post(() -> {
-                                    clip.viewRef.setFilledImageBitmap(retrieveBitmap);
-                                });
-                            });
+                            loadClipVisuals(clip, clip.viewRef);
                         }
                     }), () -> {
                         processingDescription.post(() -> {
@@ -1632,7 +1629,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (!Float.isNaN(playheadSnapTime) && Math.abs(scrolledTo - playheadSnapTime) <= 1.5f / pixelsPerSecond) {
                     currentTime = playheadSnapTime;
                 } else {
-                    currentTime = scrolledTo;
+                    // A finger scrub lands on a whole frame (the scroll itself is whole pixels, so at most zoom levels it
+                    // can't say which frame it means). Playback is not snapped: it runs smoothly and settles on stop.
+                    currentTime = nearestFrameTime(scrolledTo);
                     playheadSnapTime = Float.NaN;
                 }
             }
@@ -2821,6 +2820,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
     private void stopPlayback(boolean recreateTimeline) {
+        boolean wasPlaying = isPlaying;
         isPlaying = false;
 
         if (playbackFrameCallback != null) {
@@ -2829,6 +2829,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         if (playbackLoop != null) playbackHandler.removeCallbacks(playbackLoop);
         playPauseButton.setImageResource(R.drawable.baseline_play_circle_24);
+
+        // The clock runs between frames; a paused playhead sits on the frame that was showing. (The end of the timeline stays.)
+        if (wasPlaying && currentTime < timeline.duration) snapPlayheadTo(floorToFrameTime(currentTime));
 
         timelineRenderer.updateTime(currentTime, true); // To stop audio playback
 
@@ -2858,12 +2861,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         for (Clip clip : timeline.getStreamOfClip()) {
             clip.viewRef.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF000000));
             clip.viewRef.showLoading();
-            Executors.newSingleThreadExecutor().execute(() -> {
-                Bitmap retrieveBitmap = thumbnailStrip(clip);
-                clip.viewRef.post(() -> {
-                    clip.viewRef.setFilledImageBitmap(retrieveBitmap);
-                });
-            });
+            loadClipVisuals(clip, clip.viewRef);
         }
     }
     private void releaseTimelineRenderer()
@@ -2871,6 +2869,18 @@ public class EditingActivity extends AppCompatActivityImpl {
         timelineRenderer.release();
         pausedCanvasAlertPanel.setVisibility(View.VISIBLE);
     }
+    /** The time of the NEAREST frame (what a scrub lands on). */
+    private float nearestFrameTime(float seconds) {
+        return FrameHelper.calculateToNearestFrame(Math.max(0f, seconds), settings.frameRate);
+    }
+
+    /** The time at the start of the frame {@code seconds} is inside (what playback was showing at that moment). */
+    private float floorToFrameTime(float seconds) {
+        int fps = Math.max(1, settings.frameRate);
+        double frame = Math.floor(Math.max(0f, seconds) * (double) fps + 1e-4);
+        return (float) (frame / fps);
+    }
+
     private void setCurrentTime(float value)
     {
         currentTime = value;
@@ -3216,12 +3226,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         clipView.setBackgroundColor(0xFF000000);
         clipView.showLoading();
         // Set the thumbnail using preview for less resource consumption.
-        Executors.newSingleThreadExecutor().execute(() -> {
-            Bitmap retrieveBitmap = thumbnailStrip(data);
-            clipView.post(() -> {
-                clipView.setFilledImageBitmap(retrieveBitmap);
-            });
-        });
+        loadClipVisuals(data, clipView);
 //        clipView.setFilledImageBitmap(combineThumbnails(extractThumbnail(this, data.getAbsolutePreviewPath(properties), data)));
         clipView.setTag(data);
 
@@ -4491,6 +4496,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             ImageGroupView ghost = new ImageGroupView(c.viewRef.getContext());
             ghost.setLayoutParams(new TrackFrameLayout.LayoutParams(c.viewRef.getWidth(), c.viewRef.getHeight()));
             ghost.setFilledImageBitmap(c.viewRef.getFilledImageBitmap());
+            ghost.copyWaveformFrom(c.viewRef);
             ghost.setAlpha(0.5f);
             timeline.tracks.get(c.trackIndex).viewRef.addView(ghost);
             ghost.setX(left);
@@ -5124,33 +5130,50 @@ public class EditingActivity extends AppCompatActivityImpl {
     }
 
     /**
-     * The clip's thumbnail strip (its frames side by side). A video clip also gets its sound as a thin waveform band along the
-     * bottom, like on iOS; a video without an audio track just has none. Runs on a background thread (decodes audio).
+     * The clip's thumbnail strip (its frames side by side). Runs on a background thread. A video clip's sound is NOT part of it
+     * any more: baked into this bitmap the waveform was stretched with it when zooming (see {@link #loadClipVisuals}).
      */
     private Bitmap thumbnailStrip(Clip clip)
     {
-        Bitmap strip;
         try {
             // Only picture / sound clips have a file behind them; an effect, text or 3D clip has none (its thumbnail is a tint).
             boolean hasFile = clip.type == ClipType.VIDEO || clip.type == ClipType.IMAGE || clip.type == ClipType.AUDIO;
             String path = hasFile ? clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION) : "";
-            strip = combineThumbnails(extractThumbnail(this, path, clip));
+            return combineThumbnails(extractThumbnail(this, path, clip));
         } catch (Exception | OutOfMemoryError e) {
             // Whatever goes wrong, the caller (a background thread) must still get a bitmap: without one the clip's loading
             // circle never stops and the drag ghost, which copies that bitmap, is invisible.
-            strip = ImageHelper.createSolidColorBitmap(100, 100, 0xFF333333);
+            return ImageHelper.createSolidColorBitmap(100, 100, 0xFF333333);
         }
-        if (clip.type != ClipType.VIDEO || strip == null) return strip;
-        try {
-            int bandHeight = Math.round(strip.getHeight() * 0.3f);
-            Bitmap band = AudioUtils.generateWaveformBand(clip.getAbsolutePath(properties), clip, pixelsPerSecond,
-                    Math.round(TRACK_HEIGHT * 0.3f), thumbnailAudioBarWidth, thumbnailAudioBarGap);
-            new Canvas(strip).drawBitmap(band, null, new android.graphics.RectF(0, strip.getHeight() - bandHeight, strip.getWidth(), strip.getHeight()), null);
-            band.recycle();
-        } catch (Exception | OutOfMemoryError e) {
-            // No audio track (or it couldn't be decoded): the clip just has no waveform band.
-        }
-        return strip;
+    }
+
+    /** The height of a video clip's waveform band, as a share of the clip's height (like iOS). */
+    private static final float WAVEFORM_BAND_HEIGHT_SHARE = 0.3f;
+
+    /**
+     * Fills a clip's view on a background thread: its thumbnail strip, then (video clips) its sound as a waveform band. The band
+     * is a view that draws itself from the decoded loudness at the clip's current width, so zooming a long video no longer
+     * stretches it and nothing is regenerated on zoom. A video without an audio track just has no band.
+     */
+    private void loadClipVisuals(Clip clip, ImageGroupView view)
+    {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            Bitmap strip = thumbnailStrip(clip);
+            view.post(() -> view.setFilledImageBitmap(strip));
+            if (clip.type != ClipType.VIDEO) return;
+            try {
+                AudioUtils.WaveformLevels sound = AudioUtils.decodeWaveformLevels(clip.getAbsolutePath(properties), clip);
+                // The band reads the clip's trim on every draw, so trimming it later shows the right part without a new decode.
+                view.post(() -> view.setWaveform(sound.levels, sound.startSec, sound.spanSec,
+                        new WaveformBandView.Window() {
+                            @Override public float sourceStartSeconds() { return clip.startClipTrim; }
+                            @Override public float sourceSpanSeconds() { return clip.duration; }
+                        },
+                        Math.round(TRACK_HEIGHT * WAVEFORM_BAND_HEIGHT_SHARE), thumbnailAudioBarWidth, thumbnailAudioBarGap));
+            } catch (Exception | OutOfMemoryError e) {
+                // No audio track (or it couldn't be decoded): the clip just has no waveform band.
+            }
+        });
     }
 
     private static Bitmap combineThumbnails(List<Bitmap> frames)
@@ -5472,6 +5495,7 @@ public class EditingActivity extends AppCompatActivityImpl {
 
             for (Clip clip : clips) {
                 clip.setStartTime(clip.getStartTime(), framePerSecond);
+                clip.snapEndToFrame(framePerSecond); // the end too, or a trimmed clip ends between frames and leaves a gap
             }
         }
         public List<Clip> getClipsAtCurrentTime(float playheadTime) {
@@ -6098,6 +6122,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                                         clip.startTime = 0;
                                     }
 
+                                    // The handle moves freely while dragging; on release both edges settle on whole frames.
+                                    clip.snapToFrames(activity.settings.frameRate);
+                                    activity.updateClipLayouts();
                                     resetHandlesPosition();
 
                                     activity.updateCurrentClipEnd();
@@ -6198,6 +6225,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                                 case MotionEvent.ACTION_UP:
                                 case MotionEvent.ACTION_CANCEL:
                                     timelineScroll.requestDisallowInterceptTouchEvent(false);
+                                    // The handle moves freely while dragging; on release both edges settle on whole frames.
+                                    clip.snapToFrames(activity.settings.frameRate);
+                                    activity.updateClipLayouts();
                                     resetHandlesPosition();
                                     activity.updateCurrentClipEnd();
                                     break;
@@ -6697,6 +6727,25 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         public void setStartTime(float startTime, int frameRate) {
             this.startTime = FrameHelper.calculateToNearestFrame(startTime, frameRate);
+        }
+
+        /**
+         * Moves the END of the clip (start + duration) to the nearest frame, keeping the start; a video / audio clip's end trim
+         * follows in source seconds and never past the end of the source (see {@link ClipEndSnap}). Same as Desktop.
+         */
+        public void snapEndToFrame(int frameRate) {
+            boolean trims = followsSpeed();
+            ClipEndSnap.Result r = ClipEndSnap.snap(startTime, duration, endClipTrim, frameRate, trims ? timeMapSnapshot() : null, trims);
+            if (!r.changed) return;
+            setDuration(r.duration);
+            endClipTrim = r.endClipTrim;
+        }
+
+        /** Both edges of the clip (its start and its end) on whole frames. */
+        public void snapToFrames(int frameRate) {
+            if (frameRate <= 0) return;
+            setStartTime(startTime, frameRate);
+            snapEndToFrame(frameRate);
         }
         public float getDuration()
         {
