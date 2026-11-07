@@ -369,4 +369,13 @@
     <string name="sign_in_from_the_profile_tab_to_ch">Đăng nhập ở tab Hồ sơ để thay đổi mục này.</string>
     <string name="settings_general_language">Ngôn ngữ</string>
     <string name="language_system_default">Theo hệ thống</string>
+
+    <string name="licenses_group_about">Giới thiệu</string>
+    <string name="open_source_licenses">Giấy phép mã nguồn mở</string>
+    <string name="licenses_summary">Các phần mềm bên thứ ba mà DoubleClips sử dụng và giấy phép của chúng</string>
+    <string name="licenses_used_for">Dùng để: %1$s</string>
+    <string name="licenses_license">Giấy phép: %1$s</string>
+    <string name="licenses_show_text">Hiện nội dung giấy phép</string>
+    <string name="licenses_hide_text">Ẩn nội dung giấy phép</string>
+    <string name="licenses_text_missing">Bản dựng này chưa kèm toàn văn giấy phép. Hãy dùng liên kết giấy phép ở trên.</string>
 </resources>

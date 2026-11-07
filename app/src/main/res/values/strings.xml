@@ -394,4 +394,13 @@
 
     <string name="settings_general_language">Language</string>
     <string name="language_system_default">System Default</string>
+
+    <string name="licenses_group_about">About</string>
+    <string name="open_source_licenses">Open-source licences</string>
+    <string name="licenses_summary">The third-party software DoubleClips is built with, and its licences</string>
+    <string name="licenses_used_for">Used for: %1$s</string>
+    <string name="licenses_license">Licence: %1$s</string>
+    <string name="licenses_show_text">Show the licence text</string>
+    <string name="licenses_hide_text">Hide the licence text</string>
+    <string name="licenses_text_missing">The full text isn\'t bundled with this build. Use the licence link above.</string>
 </resources>

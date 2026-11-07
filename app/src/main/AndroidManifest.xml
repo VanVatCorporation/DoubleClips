@@ -96,6 +96,9 @@
         <activity android:name=".activities.SettingsActivity"
             android:exported="true">
         </activity>
+        <activity android:name=".activities.LicensesActivity"
+            android:exported="false">
+        </activity>
         <activity android:name=".activities.TemplatePreviewActivity"
             android:exported="true"
             android:attributionTags="audioPlayback">

@@ -29,11 +29,22 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private DriveClient drive;
 
+    /** "Open-source licences": the third-party software inside the app (LicensesActivity). */
+    private void setUpLicenses() {
+        Preference pref = findPreference("open_source_licenses");
+        if (pref == null) return;
+        pref.setOnPreferenceClickListener(p -> {
+            startActivity(new android.content.Intent(requireContext(), com.vanvatcorporation.doubleclips.activities.LicensesActivity.class));
+            return true;
+        });
+    }
+
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.settings_preferences, rootKey);
 
         setUpHiddenContent();
+        setUpLicenses();
 
         ListPreference themePref = findPreference("theme_mode");
         if (themePref != null) {

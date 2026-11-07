@@ -62,4 +62,15 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/licenses_group_about">
+
+        <!-- The third-party software inside the app and its licences (LicensesActivity) -->
+        <Preference
+            android:key="open_source_licenses"
+            android:persistent="false"
+            android:title="@string/open_source_licenses"
+            android:summary="@string/licenses_summary" />
+
+    </PreferenceCategory>
+
 </PreferenceScreen>
