@@ -370,6 +370,9 @@
     <string name="settings_general_language">Ngôn ngữ</string>
     <string name="language_system_default">Theo hệ thống</string>
 
+    <string name="processing_percent">Đang xử lý %1$s</string>
+    <string name="reverse_failed">Không thể đảo ngược clip này: %1$s</string>
+
     <string name="licenses_group_about">Giới thiệu</string>
     <string name="open_source_licenses">Giấy phép mã nguồn mở</string>
     <string name="licenses_summary">Các phần mềm bên thứ ba mà DoubleClips sử dụng và giấy phép của chúng</string>

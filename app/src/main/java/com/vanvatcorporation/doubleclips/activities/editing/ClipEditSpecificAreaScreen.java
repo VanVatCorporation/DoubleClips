@@ -42,6 +42,8 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public IndicatorSeekBar opacitySeekbar, speedSeekbar, saturationSeekbar, brightnessSeekbar, temperatureSeekbar;
     public SwitchMaterial muteAudioCheckbox, lockMediaForTemplateCheckbox, reverseCheckbox, removeBackgroundCheckbox;
     public android.widget.ProgressBar removeBackgroundProgress;
+    /** "Processing 52.6%" under the Reverse switch while its copy is being made. */
+    public android.widget.TextView reverseProcessingText;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
     public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
@@ -119,6 +121,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
         muteAudioCheckbox = findViewById(R.id.muteAudioCheckbox);
         lockMediaForTemplateCheckbox = findViewById(R.id.lockMediaForTemplateCheckbox);
         reverseCheckbox = findViewById(R.id.reverseCheckbox);
+        reverseProcessingText = findViewById(R.id.reverseProcessingText);
         removeBackgroundCheckbox = findViewById(R.id.removeBackgroundCheckbox);
         removeBackgroundProgress = findViewById(R.id.removeBackgroundProgress);
 

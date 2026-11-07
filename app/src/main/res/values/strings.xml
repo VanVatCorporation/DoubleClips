@@ -395,6 +395,9 @@
     <string name="settings_general_language">Language</string>
     <string name="language_system_default">System Default</string>
 
+    <string name="processing_percent">Processing %1$s</string>
+    <string name="reverse_failed">Couldn\'t reverse this clip: %1$s</string>
+
     <string name="licenses_group_about">About</string>
     <string name="open_source_licenses">Open-source licences</string>
     <string name="licenses_summary">The third-party software DoubleClips is built with, and its licences</string>

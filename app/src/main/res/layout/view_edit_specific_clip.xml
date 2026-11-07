@@ -1589,6 +1589,17 @@
 
                 </RelativeLayout>
 
+                <TextView
+                    android:id="@+id/reverseProcessingText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="10dp"
+                    android:paddingStart="50dp"
+                    android:textColor="@color/ios_blue"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
             </com.vanvatcorporation.doubleclips.impl.SectionView>
 
             <!-- ── Motion Blur ─────────────────────────────────────── -->

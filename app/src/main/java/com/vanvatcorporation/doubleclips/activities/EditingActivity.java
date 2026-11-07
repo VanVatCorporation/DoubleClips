@@ -136,6 +136,9 @@ import com.vanvatcorporation.doubleclips.commands.SplitClipCommand;
 import com.vanvatcorporation.doubleclips.commands.BatchCommand;
 import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
+import com.vanvatcorporation.doubleclips.ClipProcessingTracker;
+import com.vanvatcorporation.doubleclips.ReverseManager;
+import com.vanvatcorporation.doubleclips.commands.ClipPropertyCommand;
 import com.vanvatcorporation.doubleclips.helper.ClipGroupMath;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
 import com.vanvatcorporation.doubleclips.helper.EdgeScrollHelper;
@@ -1498,15 +1501,18 @@ public class EditingActivity extends AppCompatActivityImpl {
             @Override
             public void onCommandExecuted(CommandUtils.Command command) {
                 // Don't show toast for regular executions, only for undo/redo
+                if (reverseManager != null) reverseManager.syncAll();
             }
 
             @Override
             public void onCommandUndone(CommandUtils.Command command) {
+                if (reverseManager != null) reverseManager.syncAll();
                 showUndoRedoToast("Undo", command.toString(), R.drawable.baseline_undo_24);
             }
 
             @Override
             public void onCommandRedone(CommandUtils.Command command) {
+                if (reverseManager != null) reverseManager.syncAll();
                 showUndoRedoToast("Redo", command.toString(), R.drawable.baseline_redo_24);
             }
         });
@@ -1559,6 +1565,15 @@ public class EditingActivity extends AppCompatActivityImpl {
             {
                 clip.keyframes.reassignKeyframes(settings.frameRate);
             }
+
+            // Reversed copies: make the missing ones of flagged clips, drop the unused ones.
+            reverseManager = new ReverseManager(() -> properties.getProjectPath(), () -> timeline.getAllClips(),
+                    task -> runOnUiThread(task),
+                    () -> Timeline.saveTimeline(this, timeline, properties, settings),
+                    this::onReverseFailed, ClipProcessingTracker.get());
+            reverseStatusListener = () -> runOnUiThread(this::refreshReverseStatus);
+            ClipProcessingTracker.get().addListener(reverseStatusListener);
+            reverseManager.syncAll();
 
             // Projects made before MediaCompat (or whose conversion was cancelled) have video MediaCodec
             // can't decode and no compat copy yet: convert those once, one task per source file.
@@ -2413,7 +2428,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                 selectedClip.setAdditionalFFmpegCommand(clipEditSpecificAreaScreen.additionFFmpegCommandField.getText().toString());
                 selectedClip.setMute(clipEditSpecificAreaScreen.muteAudioCheckbox.isChecked());
                 selectedClip.setLockedForTemplate(clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.isChecked());
-                selectedClip.setReverse(clipEditSpecificAreaScreen.reverseCheckbox.isChecked());
+                // (Reverse is applied the moment its switch is flipped, see onReverseSwitched.)
                 selectedClip.removeBackground = clipEditSpecificAreaScreen.removeBackgroundCheckbox.isChecked();
 
                 if (selectedClip.inAnimation == null) selectedClip.inAnimation = new AnimationClip("none", 0.5f);
@@ -2448,7 +2463,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.additionFFmpegCommandField.setText(selectedClip.additionalFFmpegCommand);
             clipEditSpecificAreaScreen.muteAudioCheckbox.setChecked(selectedClip.isMute());
             clipEditSpecificAreaScreen.lockMediaForTemplateCheckbox.setChecked(selectedClip.isLockedForTemplate());
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener(null);
             clipEditSpecificAreaScreen.reverseCheckbox.setChecked(selectedClip.isReverse());
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener((button, checked) -> onReverseSwitched(checked));
+            refreshReverseStatus();
             clipEditSpecificAreaScreen.removeBackgroundCheckbox.setChecked(selectedClip.removeBackground);
             clipEditSpecificAreaScreen.removeBackgroundProgress.setVisibility(View.GONE);
 
@@ -3229,6 +3247,73 @@ public class EditingActivity extends AppCompatActivityImpl {
      * @param commandDescription Description of the command
      * @param iconResId Icon resource ID
      */
+    // ── Reverse (a reversed copy of the whole source file, made once; see ReverseManager) ─────────────
+
+    private ReverseManager reverseManager;
+    private Runnable reverseStatusListener;
+
+    @Override
+    protected void onDestroy() {
+        if (reverseStatusListener != null) ClipProcessingTracker.get().removeListener(reverseStatusListener);
+        if (reverseManager != null) reverseManager.shutdown();
+        super.onDestroy();
+    }
+
+    /** The Reverse switch of the clip panel was flipped: applied at once (and undoable), the copy is made in the background. */
+    private void onReverseSwitched(boolean checked) {
+        final Clip clip = selectedClip;
+        if (clip == null || reverseManager == null) return;
+        final boolean before = clip.isReverse();
+        if (before == checked) return;
+        if (clip.type != ClipType.VIDEO) {
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener(null);
+            clipEditSpecificAreaScreen.reverseCheckbox.setChecked(before);
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener((button, c) -> onReverseSwitched(c));
+            return;
+        }
+        executeCommand(new ClipPropertyCommand<Boolean>(this, clip, "Reverse", before, checked, (c, value) -> {
+            c.setReverse(value);
+            if (value) reverseManager.apply(c, true);
+            else reverseManager.release(c);
+            Timeline.saveTimeline(this, timeline, properties, settings);
+            refreshReverseStatus();
+        }));
+    }
+
+    /** A copy could not be made for a clip the user had just switched on: it goes back off, and the user is told. */
+    private void onReverseFailed(Clip clip, String why) {
+        if (clip.isReverse()) clip.setReverse(false);
+        clip.reversedCopy = null;
+        if (clip == selectedClip && clipEditSpecificAreaScreen != null) {
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener(null);
+            clipEditSpecificAreaScreen.reverseCheckbox.setChecked(false);
+            clipEditSpecificAreaScreen.reverseCheckbox.setOnCheckedChangeListener((button, c) -> onReverseSwitched(c));
+        }
+        Timeline.saveTimeline(this, timeline, properties, settings);
+        android.widget.Toast.makeText(this, getString(R.string.reverse_failed, why), android.widget.Toast.LENGTH_LONG).show();
+        refreshReverseStatus();
+    }
+
+    /** The "Processing xx%" line under the Reverse switch follows the running job of the selected clip. */
+    private void refreshReverseStatus() {
+        if (clipEditSpecificAreaScreen == null || clipEditSpecificAreaScreen.reverseProcessingText == null) return;
+        String label = selectedClip == null ? null : ClipProcessingTracker.get().propertiesLabel(selectedClip);
+        if (label == null) {
+            clipEditSpecificAreaScreen.reverseProcessingText.setVisibility(View.GONE);
+        } else {
+            clipEditSpecificAreaScreen.reverseProcessingText.setText(getString(R.string.processing_percent,
+                    ClipProcessingTracker.percent(averageProgress(selectedClip))));
+            clipEditSpecificAreaScreen.reverseProcessingText.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private static double averageProgress(Clip clip) {
+        double sum = 0;
+        java.util.List<ClipProcessingTracker.Job> jobs = ClipProcessingTracker.get().runningFor(clip);
+        for (ClipProcessingTracker.Job j : jobs) sum += j.progress();
+        return jobs.isEmpty() ? 0 : sum / jobs.size();
+    }
+
     private void showUndoRedoToast(String action, String commandDescription, int iconResId) {
         try {
             LayoutInflater inflater = getLayoutInflater();
@@ -5808,6 +5893,12 @@ public class EditingActivity extends AppCompatActivityImpl {
         public boolean isLockedForTemplate;    // for VIDEO type
         @Expose
         public boolean isReverse;    // for VIDEO type
+        /**
+         * The name (inside Clips/) of the reversed copy of this clip's source file, once it has been made (see ReverseManager).
+         * The same JSON key as iOS and Desktop. null = no copy yet (or not reversed).
+         */
+        @Expose
+        public String reversedCopy;
         @Expose
         public boolean removeBackground;
 
@@ -5911,6 +6002,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             this.videoProperties = new VideoProperties(clip.videoProperties);
             this.isMute = clip.isMute;
             this.isReverse = clip.isReverse;
+            this.reversedCopy = clip.reversedCopy;
             this.removeBackground = clip.removeBackground;
             this.isLockedForTemplate = clip.isLockedForTemplate;
 
