@@ -87,6 +87,17 @@ public class ImageGroupView extends RelativeLayout {
         waveformBand.setVisibility(VISIBLE);
     }
 
+    /** A standalone audio clip: its sound fills the whole clip view in the audio look, redrawn at any zoom. */
+    public void setAudioWaveform(float[] levels, float startSec, float spanSec, WaveformBandView.Window window,
+                                 int barWidthPx, int barGapPx) {
+        ViewGroup.LayoutParams lp = waveformBand.getLayoutParams();
+        lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+        waveformBand.setLayoutParams(lp);
+        waveformBand.setAudioClipStyle(true);
+        waveformBand.setLevels(levels, startSec, spanSec, window, barWidthPx, barGapPx);
+        waveformBand.setVisibility(VISIBLE);
+    }
+
     /** The drag ghost shows the same sound as the clip it stands for. */
     public void copyWaveformFrom(ImageGroupView other) {
         if (other == null || other.waveformBand == null || !other.waveformBand.hasLevels()) return;

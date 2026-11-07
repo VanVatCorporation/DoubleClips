@@ -5109,13 +5109,9 @@ public class EditingActivity extends AppCompatActivityImpl {
                 thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
                 break;
             case AUDIO:
-                try {
-                    thumbnails.add(AudioUtils.generateAudioWaveformBitmap(filePath, clip, pixelsPerSecond, TRACK_HEIGHT, thumbnailAudioBarWidth, thumbnailAudioBarGap));
-                } catch (Exception e) {
-                    // Fallback to tinted placeholder on decode failure
-                    drawable.setColorFilter(0xAA1565C0, android.graphics.PorterDuff.Mode.SRC_ATOP);
-                    thumbnails.add(ImageHelper.createBitmapFromDrawable(drawable));
-                }
+                // Just the backdrop: the waveform itself is a view drawn at the clip's current width (see loadClipVisuals),
+                // not a bitmap here, which was capped at 4096 px and stretched when zooming.
+                thumbnails.add(ImageHelper.createSolidColorBitmap(100, 100, 0xFF0D1B2A));
                 break;
             case EFFECT:
                 drawable.setColorFilter(0xAAFFFF00, PorterDuff.Mode.SRC_ATOP);
@@ -5151,7 +5147,7 @@ public class EditingActivity extends AppCompatActivityImpl {
     private static final float WAVEFORM_BAND_HEIGHT_SHARE = 0.3f;
 
     /**
-     * Fills a clip's view on a background thread: its thumbnail strip, then (video clips) its sound as a waveform band. The band
+     * Fills a clip's view on a background thread: its thumbnail strip, then its sound as a waveform (a thin band on video clips, the whole clip on audio clips). The band
      * is a view that draws itself from the decoded loudness at the clip's current width, so zooming a long video no longer
      * stretches it and nothing is regenerated on zoom. A video without an audio track just has no band.
      */
@@ -5160,6 +5156,22 @@ public class EditingActivity extends AppCompatActivityImpl {
         Executors.newSingleThreadExecutor().execute(() -> {
             Bitmap strip = thumbnailStrip(clip);
             view.post(() -> view.setFilledImageBitmap(strip));
+            if (clip.type == ClipType.AUDIO) {
+                try {
+                    String audioPath = clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION);
+                    AudioUtils.WaveformLevels sound = AudioUtils.decodeWaveformLevels(audioPath, clip);
+                    view.post(() -> view.setAudioWaveform(sound.levels, sound.startSec, sound.spanSec,
+                            new WaveformBandView.Window() {
+                                @Override public float sourceStartSeconds() { return clip.startClipTrim; }
+                                @Override public float sourceSpanSeconds() { return clip.duration; }
+                            },
+                            thumbnailAudioBarWidth, thumbnailAudioBarGap));
+                } catch (Exception | OutOfMemoryError e) {
+                    // Couldn't decode: a tinted placeholder, as before
+                    view.post(() -> view.setFilledImageBitmap(ImageHelper.createSolidColorBitmap(100, 100, 0xFF1565C0)));
+                }
+                return;
+            }
             if (clip.type != ClipType.VIDEO) return;
             try {
                 AudioUtils.WaveformLevels sound = AudioUtils.decodeWaveformLevels(clip.getAbsolutePath(properties), clip);

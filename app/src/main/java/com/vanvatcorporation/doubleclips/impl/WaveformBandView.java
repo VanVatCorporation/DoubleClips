@@ -32,6 +32,8 @@ public class WaveformBandView extends View {
     private float levelsStartSec, levelsSpanSec;
     private Window window;
     private int barWidthPx = 1, barGapPx = 0;
+    /** An audio clip's own look (opaque navy, centre line, blue bars that fade with loudness) instead of the video band's. */
+    private boolean audioClipStyle = false;
 
     private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF barRect = new RectF();
@@ -68,9 +70,16 @@ public class WaveformBandView extends View {
 
     public boolean hasLevels() { return levels != null; }
 
+    /** The look of a standalone audio clip's waveform (the whole clip view) rather than a video clip's thin band. */
+    public void setAudioClipStyle(boolean audioClipStyle) {
+        this.audioClipStyle = audioClipStyle;
+        invalidate();
+    }
+
     /** Gives another band (the drag ghost's copy) the same sound. */
     public void copyFrom(WaveformBandView other) {
         if (other == null || other.levels == null) return;
+        audioClipStyle = other.audioClipStyle;
         setLevels(other.levels, other.levelsStartSec, other.levelsSpanSec, other.window, other.barWidthPx, other.barGapPx);
     }
 
@@ -97,7 +106,14 @@ public class WaveformBandView extends View {
         final int w = getWidth(), h = getHeight();
         if (levels == null || levels.length == 0 || window == null || w <= 0 || h <= 0) return;
 
-        canvas.drawColor(0x66000000); // translucent: the frames still show through
+        if (audioClipStyle) {
+            canvas.drawColor(0xFF0D1B2A); // dark navy, nothing behind it
+            barPaint.setColor(0x3C1E90FF);
+            barPaint.setStrokeWidth(1f);
+            canvas.drawLine(0, h / 2f, w, h / 2f, barPaint); // thin centre line
+        } else {
+            canvas.drawColor(0x66000000); // translucent: the frames still show through
+        }
 
         final float windowStart = window.sourceStartSeconds();
         final float windowSpan = Math.max(1e-3f, window.sourceSpanSeconds());
@@ -131,10 +147,16 @@ public class WaveformBandView extends View {
             float level = 0f; // the loudest slice under the bar, so a zoomed-out clip keeps its peaks
             for (int i = i0; i < i1; i++) if (levels[i] > level) level = levels[i];
 
-            float loud = Math.min(1f, level * 2f);
-            // sqrt: quiet passages stay visible, like most editors' waveforms
-            float half = Math.max(1f, (float) Math.sqrt(loud) * maxHalf);
-            barPaint.setColor(Color.argb(120 + (int) (120 * loud), 255, 255, 255));
+            float half;
+            if (audioClipStyle) {
+                half = Math.max(2f, Math.min(1f, level) * maxHalf); // at least 2 px visible
+                barPaint.setColor(Color.argb((int) (10 + 245 * Math.min(1f, level)), 0x1E, 0x90, 0xFF)); // #1E90FF, louder = brighter
+            } else {
+                float loud = Math.min(1f, level * 2f);
+                // sqrt: quiet passages stay visible, like most editors' waveforms
+                half = Math.max(1f, (float) Math.sqrt(loud) * maxHalf);
+                barPaint.setColor(Color.argb(120 + (int) (120 * loud), 255, 255, 255));
+            }
             barRect.set(x, mid - half, x + barWidthPx, mid + half);
             canvas.drawRoundRect(barRect, 1f, 1f, barPaint);
         }
