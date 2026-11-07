@@ -3534,7 +3534,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         // Speed changes how long the clip plays its source: the timeline length follows (Desktop / iOS do the same).
         if (speedChanged) refitForSpeed(clip);
-        if (changed) syncKeyframeKnots(clip);
+        if (changed) { syncKeyframeKnots(clip); refreshClipWaveform(clip); }
         return changed;
     }
 
@@ -4692,7 +4692,11 @@ public class EditingActivity extends AppCompatActivityImpl {
             for (int i = 0; i < trackCpn.viewRef.getChildCount(); i++) {
                 View child = trackCpn.viewRef.getChildAt(i);
                 if (child.getTag() != null && child.getTag() instanceof Clip) { // It's a clip
-                    int right = (int) (child.getX() + child.getWidth());
+                    // From the clip's own start and length, NOT the view's getWidth(): right after a layout change (a trim handle
+                    // released, a zoom) the view hasn't been measured yet and still has its OLD width, which left the timeline
+                    // as long as before the trim: the playhead then ran on past the last clip.
+                    Clip clipData = (Clip) child.getTag();
+                    int right = (int) (getTimeInX(clipData.startTime) + (int) (clipData.duration * pixelsPerSecond));
                     if (right > newTimelineEnd) newTimelineEnd = right;
 
                     // For keyframe syncing
@@ -4828,6 +4832,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     //params.topMargin = 4;\
                     clip.setX(getTimeInX(data.startTime));
                     clip.setLayoutParams(params);
+                    if (clip instanceof ImageGroupView) ((ImageGroupView) clip).getWaveformBand().invalidate(); // new width / trim
                 }
                 if(clip.getTag(R.id.transition_knot_tag) instanceof TransitionClip) {
                     TransitionClip data = (TransitionClip) clip.getTag(R.id.transition_knot_tag);
@@ -5143,6 +5148,27 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
     }
 
+    /** What a clip's waveform view asks on every draw: its length, which source second plays where (trim + speed), the volume heard. */
+    private WaveformBandView.Window waveformWindow(Clip clip)
+    {
+        return new WaveformBandView.Window() {
+            @Override public float durationSeconds() { return clip.duration; }
+            @Override public float sourceSecondsAt(float localSeconds) {
+                return clip.startClipTrim + (float) clip.timeMap().sourceOffset(localSeconds); // speed 1: just the trim + local time
+            }
+            @Override public float gainAtLocal(float localSeconds) {
+                return clip.volumeGainAt(clip.startTime + localSeconds);
+            }
+        };
+    }
+
+    /** Redraws a clip's waveform after something it depends on (volume, speed) changed. */
+    private void refreshClipWaveform(Clip clip)
+    {
+        if (clip != null && clip.viewRef != null && clip.viewRef.getWaveformBand() != null)
+            clip.viewRef.getWaveformBand().invalidate();
+    }
+
     /** The height of a video clip's waveform band, as a share of the clip's height (like iOS). */
     private static final float WAVEFORM_BAND_HEIGHT_SHARE = 0.3f;
 
@@ -5161,10 +5187,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                     String audioPath = clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION);
                     AudioUtils.WaveformLevels sound = AudioUtils.decodeWaveformLevels(audioPath, clip);
                     view.post(() -> view.setAudioWaveform(sound.levels, sound.startSec, sound.spanSec,
-                            new WaveformBandView.Window() {
-                                @Override public float sourceStartSeconds() { return clip.startClipTrim; }
-                                @Override public float sourceSpanSeconds() { return clip.duration; }
-                            },
+                            waveformWindow(clip),
                             thumbnailAudioBarWidth, thumbnailAudioBarGap));
                 } catch (Exception | OutOfMemoryError e) {
                     // Couldn't decode: a tinted placeholder, as before
@@ -5175,12 +5198,9 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (clip.type != ClipType.VIDEO) return;
             try {
                 AudioUtils.WaveformLevels sound = AudioUtils.decodeWaveformLevels(clip.getAbsolutePath(properties), clip);
-                // The band reads the clip's trim on every draw, so trimming it later shows the right part without a new decode.
+                // The band reads the clip's trim, speed and volume on every draw: no new decode when they change.
                 view.post(() -> view.setWaveform(sound.levels, sound.startSec, sound.spanSec,
-                        new WaveformBandView.Window() {
-                            @Override public float sourceStartSeconds() { return clip.startClipTrim; }
-                            @Override public float sourceSpanSeconds() { return clip.duration; }
-                        },
+                        waveformWindow(clip),
                         Math.round(TRACK_HEIGHT * WAVEFORM_BAND_HEIGHT_SHARE), thumbnailAudioBarWidth, thumbnailAudioBarGap));
             } catch (Exception | OutOfMemoryError e) {
                 // No audio track (or it couldn't be decoded): the clip just has no waveform band.
@@ -6691,6 +6711,23 @@ public class EditingActivity extends AppCompatActivityImpl {
             if (!animated) return ClipTimeMap.constant(base);
             final float frozenStart = startTime;
             return ClipTimeMap.curve(t -> keyframes.getValueAtTime(this, frozenStart + (float) t, VideoProperties.ValueType.Speed));
+        }
+
+        /**
+         * The volume heard at {@code playheadTime} (timeline seconds): the keyframed value when volume has keyframes, else the
+         * static one, as a multiplier (1 = as recorded, 0 = silent). The preview's audio, and the waveform drawn on the clip.
+         */
+        public float volumeGainAt(float playheadTime) {
+            boolean animated = keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Volume);
+            float v = animated ? keyframes.getValueAtTime(this, playheadTime, VideoProperties.ValueType.Volume)
+                    : (videoProperties == null ? 1f : videoProperties.valueVolume);
+            return Float.isNaN(v) || Float.isInfinite(v) ? 1f : Math.max(0f, v);
+        }
+
+        /** Whether the volume is anything but a flat 100 %: false means the audio can be played untouched. */
+        public boolean changesVolume() {
+            boolean animated = keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Volume);
+            return animated || (videoProperties != null && Math.abs(videoProperties.valueVolume - 1f) > 1e-3f);
         }
 
         public boolean isReverse()
@@ -8353,8 +8390,41 @@ frameRate = 60;
             }
 
             audioBuffer.get(audioChunk, 0, sampleSize);
+            if (canApplyGain()) {
+                float g = clip.volumeGainAt(playheadTime);
+                applyGainPcm16(audioChunk, sampleSize, Math.max(1, audioTrack.getChannelCount()), g, g);
+            }
             audioTrack.write(audioChunk, 0, sampleSize, AudioTrack.WRITE_NON_BLOCKING);
         }
+        /** Scales interleaved 16-bit little-endian PCM by a gain that ramps from {@code g0} to {@code g1} across the block (no clicks). */
+        private static void applyGainPcm16(byte[] data, int length, int channels, float g0, float g1) {
+            int frames = length / (2 * channels);
+            for (int f = 0; f < frames; f++) {
+                float g = frames > 1 ? g0 + (g1 - g0) * f / (frames - 1) : g0;
+                for (int c = 0; c < channels; c++) {
+                    int i = (f * channels + c) * 2;
+                    int v = Math.round(((short) ((data[i] & 0xFF) | (data[i + 1] << 8))) * g);
+                    if (v > 32767) v = 32767; else if (v < -32768) v = -32768;
+                    data[i] = (byte) v;
+                    data[i + 1] = (byte) (v >> 8);
+                }
+            }
+        }
+        private static void applyGainPcm16(short[] data, int count, int channels, float g0, float g1) {
+            int frames = count / channels;
+            for (int f = 0; f < frames; f++) {
+                float g = frames > 1 ? g0 + (g1 - g0) * f / (frames - 1) : g0;
+                for (int c = 0; c < channels; c++) {
+                    int v = Math.round(data[f * channels + c] * g);
+                    data[f * channels + c] = (short) (v > 32767 ? 32767 : Math.max(v, -32768));
+                }
+            }
+        }
+        /** The preview's audio is plain 16-bit PCM; anything else is played untouched (no gain). */
+        private boolean canApplyGain() {
+            return audioTrack != null && audioTrack.getAudioFormat() == AudioFormat.ENCODING_PCM_16BIT && clip.changesVolume();
+        }
+
         boolean audioRunning;
         private void streamContinuousAudio(float clipTime) {
             if (audioTrack == null || audioExtractor == null) return;
@@ -8383,6 +8453,14 @@ frameRate = 60;
                     // Allocate a reusable buffer
                     ByteBuffer buffer = ByteBuffer.allocate(65536);
 
+                    // The clip's end in SOURCE seconds: the audio stops there, not at the end of the file (a trimmed clip kept
+                    // playing its source past the trim).
+                    final long endUs = (long) ((clip.startClipTrim + (float) speedMap.sourceOffset(clip.duration)) * 1_000_000L);
+                    final int rate = audioTrack.getSampleRate();
+                    final int channels = Math.max(1, audioTrack.getChannelCount());
+                    final boolean gain = canApplyGain();
+                    boolean lastChunk = false;
+
                     while (audioRunning) {
                         // Clear buffer for the next read
                         buffer.clear();
@@ -8391,6 +8469,24 @@ frameRate = 60;
                         int sampleSize = audioExtractor.readSampleData(buffer, 0);
                         if (sampleSize < 0) {
                             break; // End of stream reached
+                        }
+
+                        long chunkUs = audioExtractor.getSampleTime();
+                        if (chunkUs >= endUs) break; // past the end of the clip
+                        int frames = sampleSize / (2 * channels);
+                        long framesLeft = (endUs - chunkUs) * rate / 1_000_000L;
+                        if (framesLeft < frames) { // the clip ends inside this chunk: play only up to its end
+                            sampleSize = (int) framesLeft * 2 * channels;
+                            frames = (int) framesLeft;
+                            lastChunk = true;
+                            if (sampleSize <= 0) break;
+                        }
+                        if (gain) {
+                            // The volume at the start and at the end of this chunk (timeline seconds), ramped between them.
+                            float local0 = Math.max(0f, chunkUs / 1_000_000f - clip.startClipTrim); // speed 1 here: local time = source time - trim
+                            float g0 = clip.volumeGainAt(clip.startTime + local0);
+                            float g1 = clip.volumeGainAt(clip.startTime + local0 + (float) frames / rate);
+                            applyGainPcm16(buffer.array(), sampleSize, channels, g0, g1);
                         }
 
                         // 4. Write to AudioTrack in BLOCKING mode.
@@ -8404,6 +8500,7 @@ frameRate = 60;
 
                         // 5. CRITICAL: Advance the extractor to the next chunk of audio!
                         audioExtractor.advance();
+                        if (lastChunk) break;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -8482,6 +8579,10 @@ frameRate = 60;
                             pos += step;
                         }
                         if (produced > 0) {
+                            if (canApplyGain()) {
+                                applyGainPcm16(out, produced * channels, channels,
+                                        clip.volumeGainAt(clip.startTime + (float) t), clip.volumeGainAt(clip.startTime + (float) t1));
+                            }
                             int written = audioTrack.write(out, 0, produced * channels, AudioTrack.WRITE_BLOCKING);
                             if (written < 0) break;
                         }

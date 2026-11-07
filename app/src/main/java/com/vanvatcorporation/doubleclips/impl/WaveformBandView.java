@@ -22,10 +22,18 @@ import android.view.ViewTreeObserver;
  */
 public class WaveformBandView extends View {
 
-    /** Where the clip's trim currently starts in the source file and how many source seconds the clip shows. */
+    /**
+     * What the clip is doing right now, asked on every draw (so a trim, a speed change or a volume change shows without a new
+     * decode): how long it is on the timeline, which SOURCE second plays at a given timeline second (trim + speed), and how loud
+     * it is heard there.
+     */
     public interface Window {
-        float sourceStartSeconds();
-        float sourceSpanSeconds();
+        /** The clip's length on the timeline, in seconds (what this view's width stands for). */
+        float durationSeconds();
+        /** The second of the source file that plays {@code localSeconds} into the clip. */
+        float sourceSecondsAt(float localSeconds);
+        /** The volume heard {@code localSeconds} into the clip, as a multiplier (1 = as recorded). */
+        float gainAtLocal(float localSeconds);
     }
 
     private float[] levels;
@@ -115,9 +123,7 @@ public class WaveformBandView extends View {
             canvas.drawColor(0x66000000); // translucent: the frames still show through
         }
 
-        final float windowStart = window.sourceStartSeconds();
-        final float windowSpan = Math.max(1e-3f, window.sourceSpanSeconds());
-        final float secPerPx = windowSpan / w;
+        final float secPerPx = Math.max(1e-3f, window.durationSeconds()) / w; // timeline seconds per pixel
         final int stride = barWidthPx + barGapPx;
 
         // Only what is on screen (plus a bar), in this view's own coordinates.
@@ -134,9 +140,13 @@ public class WaveformBandView extends View {
         final float levelsPerSec = levels.length / levelsSpanSec;
 
         for (int x = from; x < to; x += stride) {
-            // The source seconds this bar stands for (the whole stride's worth), as a range in the levels array.
-            float t0 = windowStart + x * secPerPx;
-            float t1 = t0 + stride * secPerPx;
+            // The source seconds this bar stands for (the whole stride's worth): trim and speed make the clip's local time
+            // and the file's time differ, so both ends are asked from the clip.
+            float local0 = x * secPerPx;
+            float local1 = (x + stride) * secPerPx;
+            float t0 = window.sourceSecondsAt(local0);
+            float t1 = window.sourceSecondsAt(local1);
+            if (t1 < t0) { float tmp = t0; t0 = t1; t1 = tmp; }
             if (t1 <= levelsStartSec || t0 >= levelsStartSec + levelsSpanSec) continue; // outside what was decoded
 
             int i0 = (int) Math.floor((t0 - levelsStartSec) * levelsPerSec);
@@ -146,6 +156,9 @@ public class WaveformBandView extends View {
 
             float level = 0f; // the loudest slice under the bar, so a zoomed-out clip keeps its peaks
             for (int i = i0; i < i1; i++) if (levels[i] > level) level = levels[i];
+            // Drawn at the loudness you will HEAR (the clip's volume, keyframed or not), not the file's own; over 100 % the bars
+            // just touch the edges.
+            level = Math.min(1f, level * window.gainAtLocal((local0 + local1) / 2f));
 
             float half;
             if (audioClipStyle) {
