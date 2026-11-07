@@ -3648,7 +3648,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
         // The easing belongs to the keyframe that was at the playhead when the sheet showed it.
         if (keyframeHere != null && clip.keyframes.keyframes.contains(keyframeHere)) {
-            EasingType easing = (EasingType) clipEditSpecificAreaScreen.easingSpinner.getSelectedItem();
+            EasingType easing = clipEditSpecificAreaScreen.easingPicker.getEasing();
             if (easing != null && easing != keyframeHere.easing) {
                 keyframeHere.easing = easing;
                 changed = true;
@@ -3692,7 +3692,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             sheet.setKeyMode(type, mode, inside);
         }
         Keyframe here = clip.keyframes.keyframeAtLocal(local);
-        if (here != null) sheet.easingSpinner.setSelection(sheet.easingTypeArrayAdapter.getPosition(here.easing));
+        if (here != null) sheet.easingPicker.setEasing(here.easing);
     }
 
     // ---- effect strength keyframes (K2) ---------------------------------------------------

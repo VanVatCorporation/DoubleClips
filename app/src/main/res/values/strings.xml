@@ -194,6 +194,9 @@
     <string name="start_trim">Start Trim</string>
     <string name="end_trim">End Trim</string>
     <string name="easing">Easing</string>
+    <string name="easing_hold">Hold</string>
+    <string name="easing_linear">Linear</string>
+    <string name="easing_hold_hint">Holds the value until the next keyframe, then jumps.</string>
     <string name="keyframe_data">Keyframe Data</string>
     <string name="export_3">Export</string>
     <string name="clear_keyframes">Clear Keyframes</string>

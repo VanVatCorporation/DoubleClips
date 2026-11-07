@@ -46,8 +46,9 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
     public android.widget.TextView reverseProcessingText;
     public LinearLayout keyframeScrollFrame;
     public Button clearKeyframeButton;
-    public ArrayAdapter<EditingActivity.EasingType> easingTypeArrayAdapter;
-    public Spinner easingSpinner, inAnimationTypeSpinner, outAnimationTypeSpinner;
+    public Spinner inAnimationTypeSpinner, outAnimationTypeSpinner;
+    /** The easing of the keyframe at the playhead: a curve chip that opens a grid of curves (not a dropdown of names). */
+    public com.vanvatcorporation.doubleclips.impl.EasingPickerField easingPicker;
     public AnimationPicker inAnimationPicker, outAnimationPicker;
     /** The "Effect" section: an effect for this clip only (Clip.clipEffect). */
     public ClipEffectPicker clipEffectPicker;
@@ -154,9 +155,7 @@ public class ClipEditSpecificAreaScreen extends BaseEditSpecificAreaScreen {
 
 
 
-        easingSpinner = findViewById(R.id.easingContent);
-        easingTypeArrayAdapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, EditingActivity.EasingType.values());
-        easingSpinner.setAdapter(easingTypeArrayAdapter);
+        easingPicker = findViewById(R.id.easingContent);
 
         importKeyframesButton = findViewById(R.id.importKeyframesButton);
         exportKeyframesButton = findViewById(R.id.exportKeyframesButton);

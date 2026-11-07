@@ -170,6 +170,9 @@
     <string name="start_trim">Cắt đầu</string>
     <string name="end_trim">Cắt cuối</string>
     <string name="easing">Đường cong chuyển động</string>
+    <string name="easing_hold">Giữ nguyên</string>
+    <string name="easing_linear">Tuyến tính</string>
+    <string name="easing_hold_hint">Giữ nguyên giá trị đến keyframe tiếp theo rồi nhảy sang giá trị mới.</string>
     <string name="keyframe_data">Dữ liệu khung hình chính</string>
     <string name="export_3">Xuất</string>
     <string name="clear_keyframes">Xóa khung hình chính</string>
