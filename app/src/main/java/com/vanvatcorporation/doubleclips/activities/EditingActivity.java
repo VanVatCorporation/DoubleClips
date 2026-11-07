@@ -2520,9 +2520,14 @@ public class EditingActivity extends AppCompatActivityImpl {
         // ===========================       VIDEO PROPERTIES ZONE       ====================================
 
         videoPropertiesEditSpecificAreaScreen.onClose.add(() -> {
-            settings.videoWidth = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionXField.getText().toString(), settings.videoWidth);
-            settings.videoHeight = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), settings.videoHeight);
-            settings.frameRate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.frameRateField.getText().toString(), settings.frameRate);
+            final int oldWidth = settings.videoWidth, oldHeight = settings.videoHeight, oldFrameRate = settings.frameRate;
+            // Same rules as Desktop's VideoSettingsDialog: an even canvas of at least 16 px (H.264 4:2:0), a frame rate of at least 1;
+            // anything that isn't a number keeps the old value.
+            settings.videoWidth = evenCanvasSide(ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionXField.getText().toString(), oldWidth), oldWidth);
+            settings.videoHeight = evenCanvasSide(ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.resolutionYField.getText().toString(), oldHeight), oldHeight);
+            settings.frameRate = Math.max(1, ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.frameRateField.getText().toString(), oldFrameRate));
+            final boolean canvasSizeChanged = settings.videoWidth != oldWidth || settings.videoHeight != oldHeight;
+            final boolean frameRateChanged = settings.frameRate != oldFrameRate;
             settings.crf = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.crfField.getText().toString(), settings.crf);
             settings.bitrate = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.bitrateField.getText().toString(), settings.bitrate);
             settings.clipCap = ParserHelper.TryParse(videoPropertiesEditSpecificAreaScreen.clipCapField.getText().toString(), settings.clipCap);
@@ -2541,25 +2546,20 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-            ViewGroup.LayoutParams previewViewGroupParams = previewViewGroup.getLayoutParams();
-            previewViewGroupParams.width = settings.videoWidth;
-            previewViewGroupParams.height = settings.videoHeight;
-            previewViewGroup.setLayoutParams(previewViewGroupParams);
-
-            outerPreviewViewGroup.post(this::fitPreviewCanvas);
-
-
-            // Update ruler with new fps
-            updateRuler(timeline.duration, currentRulerInterval);
-
             if (timelineRenderer != null) timelineRenderer.setSnapGuides(settings.isSnapGuides());
 
-            // Preview engine changed: rebuild. Proxy/original only: the live engine switches by itself.
-            if (gpuPreviewChanged) {
-                if (isPlaying) stopPlayback(true);
-                else regeneratingTimelineRenderer();
-            } else if (proxyPreviewChanged) {
-                timelineRenderer.setUseProxyPreview(settings.isUseProxyPreview());
+            if (canvasSizeChanged || frameRateChanged) {
+                // A new canvas size or frame rate rebuilds the preview (and the ruler / clips), which also covers a preview engine switch.
+                onVideoSettingsChanged(canvasSizeChanged, frameRateChanged, oldFrameRate);
+            } else {
+                updateRuler(timeline.duration, currentRulerInterval);
+                // Preview engine changed: rebuild. Proxy/original only: the live engine switches by itself.
+                if (gpuPreviewChanged) {
+                    if (isPlaying) stopPlayback(true);
+                    else regeneratingTimelineRenderer();
+                } else if (proxyPreviewChanged) {
+                    timelineRenderer.setUseProxyPreview(settings.isUseProxyPreview());
+                }
             }
         });
         videoPropertiesEditSpecificAreaScreen.onOpen.add(() -> {
@@ -2705,6 +2705,43 @@ public class EditingActivity extends AppCompatActivityImpl {
             }
         });
 
+    }
+
+
+    /** A positive even number of pixels, at least 16; the old value when the typed one can't be used. */
+    private static int evenCanvasSide(int typed, int fallback) {
+        if (typed < 16) return fallback;
+        return typed - (typed % 2);
+    }
+
+    /**
+     * The project's canvas size and/or frame rate changed in the video settings (Desktop's onVideoSettingsChanged): what each
+     * one touches is rebuilt right away, without leaving the editor.
+     *  - frame rate: keyframes and clips snap to the new frame grid, the ruler and the playhead count in the new frames,
+     *    the preview speed keeps its ratio;
+     *  - canvas size: the preview canvas is re-fitted to the new aspect ratio and a new preview engine (and the gizmos on it)
+     *    is built at the new size, since the engine's canvas is fixed when it starts.
+     */
+    private void onVideoSettingsChanged(boolean canvasSizeChanged, boolean frameRateChanged, int oldFrameRate) {
+        if (isPlaying) stopPlayback(false); // a canvas that changes under a playing preview helps nobody
+
+        if (frameRateChanged) {
+            float speedRatio = (previewFpsRuntime > 0 && oldFrameRate > 0) ? previewFpsRuntime / oldFrameRate : 1f;
+            previewFpsRuntime = speedRatio * settings.frameRate;
+            for (Clip clip : timeline.getAllClips()) clip.keyframes.reassignKeyframes(settings.frameRate);
+            timeline.reassignClips(settings.frameRate); // starts and ends onto the new frame grid
+        }
+        if (canvasSizeChanged) fitPreviewCanvas(); // the outer area is already laid out; the new aspect ratio shows at once
+
+        updateClipLayouts();                        // clip widths / positions / keyframe knots after the snap
+        updateCurrentClipEnd(true);                 // duration label, end spacers and the ruler (new fps)
+        if (frameRateChanged) snapPlayheadTo(nearestFrameTime(currentTime));
+
+        regeneratingTimelineRenderer();             // new PreviewEngine at the new size / fps, gizmos rebuilt
+        previewViewGroup.post(() -> {
+            if (timelineRenderer != null) timelineRenderer.updateTime(currentTime, true);
+        });
+        Timeline.saveTimeline(this, timeline, properties, settings);
     }
 
     /** Scales the canvas view (laid out at the project resolution) to fit the available area, keeping the project's aspect ratio. */
