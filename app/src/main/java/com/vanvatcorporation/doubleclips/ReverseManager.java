@@ -180,6 +180,7 @@ public final class ReverseManager {
                 lastReported[0] = p;
                 report(build, p);
             }, () -> build.cancelled);
+            ReverseCopies.videoLength(copy.getPath()); // measured here, off the UI and GL threads, so the preview finds it remembered
             ready(build, copy.getName());
         } catch (ReverseProcessor.Cancelled e) {
             // switched off while it was being made: nothing to report

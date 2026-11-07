@@ -138,6 +138,8 @@ import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.ClipProcessingTracker;
 import com.vanvatcorporation.doubleclips.ReverseManager;
+import com.vanvatcorporation.doubleclips.ReverseMap;
+import com.vanvatcorporation.doubleclips.ReverseWav;
 import com.vanvatcorporation.doubleclips.commands.ClipPropertyCommand;
 import com.vanvatcorporation.doubleclips.helper.ClipGroupMath;
 import com.vanvatcorporation.doubleclips.helper.DateHelper;
@@ -1569,7 +1571,10 @@ public class EditingActivity extends AppCompatActivityImpl {
             // Reversed copies: make the missing ones of flagged clips, drop the unused ones.
             reverseManager = new ReverseManager(() -> properties.getProjectPath(), () -> timeline.getAllClips(),
                     task -> runOnUiThread(task),
-                    () -> Timeline.saveTimeline(this, timeline, properties, settings),
+                    () -> {
+                        Timeline.saveTimeline(this, timeline, properties, settings);
+                        regeneratingTimelineRenderer(); // the preview now plays the copy
+                    },
                     this::onReverseFailed, ClipProcessingTracker.get());
             reverseStatusListener = () -> runOnUiThread(this::refreshReverseStatus);
             ClipProcessingTracker.get().addListener(reverseStatusListener);
@@ -3277,6 +3282,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             else reverseManager.release(c);
             Timeline.saveTimeline(this, timeline, properties, settings);
             refreshReverseStatus();
+            regeneratingTimelineRenderer(); // plays the copy when there is one, forward when there isn't
         }));
     }
 
@@ -8145,6 +8151,7 @@ frameRate = 60;
         private TextureView textureView;
         private org.rajawali3d.view.SurfaceView surfaceView;
         private Context context;
+        private MainAreaScreen.ProjectData data;
 
         private ExecutorService renderThreadExecutorAudio = Executors.newFixedThreadPool(1);
         private ExecutorService renderThreadExecutorVideo = Executors.newFixedThreadPool(1);
@@ -8176,6 +8183,7 @@ frameRate = 60;
             this.context = context;
             this.clip = clip;
             this.gpuVisuals = gpuVisuals;
+            this.data = data;
 
             try
             {
@@ -8275,7 +8283,7 @@ frameRate = 60;
                         // AUDIO
 
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION));
+                        audioExtractor.setDataSource(audioSourcePath());
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -8402,7 +8410,7 @@ frameRate = 60;
                     {
 
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION));
+                        audioExtractor.setDataSource(audioSourcePath());
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -8504,7 +8512,7 @@ frameRate = 60;
         }
         private void pumpDecoderAudioSeek(float playheadTime) {
             if (audioTrack == null || audioExtractor == null) return;
-            float clipTime = clip.startClipTrim + (float) clip.timeMap().sourceOffset(playheadTime - clip.startTime);
+            float clipTime = audioBase() + (float) clip.timeMap().sourceOffset(playheadTime - clip.startTime);
             long ptsUs = (long)(clipTime * 1_000_000); // override presentation timestamp
             audioTrack.flush(); // discard stale buffered audio from previous position
             audioExtractor.seekTo(ptsUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
@@ -8554,6 +8562,42 @@ frameRate = 60;
             return audioTrack != null && audioTrack.getAudioFormat() == AudioFormat.ENCODING_PCM_16BIT && clip.changesVolume();
         }
 
+        /**
+         * Length (seconds) of the reversed preview WAV this renderer plays, or -1 when the clip plays its normal sound. A reversed clip
+         * with its reversed copy ready plays {@link ReverseWav}'s twin of the preview WAV, so its audio is reversed too.
+         */
+        private float reverseAudioLength = -1f;
+
+        /** The file the clip's preview sound is read from: the reversed twin for a reversed clip whose copy is ready, else the normal WAV. */
+        private String audioSourcePath() {
+            String path = clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION);
+            reverseAudioLength = -1f;
+            if (clip.type == ClipType.VIDEO && ReverseManager.wantsCopy(clip)
+                    && ReverseManager.copyFileOf(clip, new File(data.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY)) != null) {
+                File reversed = ReverseWav.ensure(new File(path));
+                if (reversed != null) {
+                    double length = ReverseWav.lengthSeconds(reversed);
+                    if (length > 0) {
+                        reverseAudioLength = (float) length;
+                        return reversed.getPath();
+                    }
+                }
+            }
+            return path;
+        }
+
+        /**
+         * Where, in the file {@link #audioSourcePath} opened, the clip's sound starts: its trim-in for a normal clip; for a reversed one
+         * the same place the video copy starts (the audio file is flipped about its own length, so the sound stays in step with the picture).
+         * Every audio time is this plus the source time the speed has consumed.
+         */
+        private float audioBase() {
+            if (reverseAudioLength > 0) {
+                return (float) ReverseMap.copyTime(reverseAudioLength, clip.originalDuration, clip.endClipTrim, 0.0);
+            }
+            return clip.startClipTrim;
+        }
+
         boolean audioRunning;
         private void streamContinuousAudio(float clipTime) {
             if (audioTrack == null || audioExtractor == null) return;
@@ -8584,7 +8628,7 @@ frameRate = 60;
 
                     // The clip's end in SOURCE seconds: the audio stops there, not at the end of the file (a trimmed clip kept
                     // playing its source past the trim).
-                    final long endUs = (long) ((clip.startClipTrim + (float) speedMap.sourceOffset(clip.duration)) * 1_000_000L);
+                    final long endUs = (long) ((audioBase() + (float) speedMap.sourceOffset(clip.duration)) * 1_000_000L);
                     final int rate = audioTrack.getSampleRate();
                     final int channels = Math.max(1, audioTrack.getChannelCount());
                     final boolean gain = canApplyGain();
@@ -8612,7 +8656,7 @@ frameRate = 60;
                         }
                         if (gain) {
                             // The volume at the start and at the end of this chunk (timeline seconds), ramped between them.
-                            float local0 = Math.max(0f, chunkUs / 1_000_000f - clip.startClipTrim); // speed 1 here: local time = source time - trim
+                            float local0 = Math.max(0f, chunkUs / 1_000_000f - audioBase()); // speed 1 here: local time = source time - trim
                             float g0 = clip.volumeGainAt(clip.startTime + local0);
                             float g1 = clip.volumeGainAt(clip.startTime + local0 + (float) frames / rate);
                             applyGainPcm16(buffer.array(), sampleSize, channels, g0, g1);
@@ -8670,7 +8714,7 @@ frameRate = 60;
                     ByteBuffer chunk = ByteBuffer.allocate(65536).order(java.nio.ByteOrder.LITTLE_ENDIAN);
 
                     // timeline seconds into the clip at the first output frame (the inverse of the speed integral)
-                    double t = map.localTime(Math.max(0, clipTime - clip.startClipTrim));
+                    double t = map.localTime(Math.max(0, clipTime - audioBase()));
 
                     while (audioRunning && t < clip.duration) {
                         double t1 = t + (double) block / rate;
@@ -8847,7 +8891,7 @@ frameRate = 60;
 
                 // SOURCE seconds the playhead is at: the trim plus what the speed has consumed (identical to the old
                 // "playhead - start + trim" at speed 1).
-                float clipTime = clip.startClipTrim + (float) clip.timeMap().sourceOffset(Math.max(0, playheadTime - clip.startTime));
+                float clipTime = audioBase() + (float) clip.timeMap().sourceOffset(Math.max(0, playheadTime - clip.startTime));
 
                 if (isSeekingOnly) {
                     softStopAudio();

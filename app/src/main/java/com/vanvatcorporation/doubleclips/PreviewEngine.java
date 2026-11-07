@@ -824,6 +824,37 @@ public final class PreviewEngine {
         private final Map<String, ImageEntry> images = new LinkedHashMap<>(16, 0.75f, true);
         private final Set<Object> reported = new HashSet<>();
         final TextTextureCache text = new TextTextureCache();
+
+        /** A reversed clip's cached reversed copy (see ReverseManager) and the copy's video length, for the time mapping. */
+        private final class ReverseSource {
+            final String path;
+            final double copyLength;
+            ReverseSource(String path, double copyLength) { this.path = path; this.copyLength = copyLength; }
+        }
+        private final Map<EditingActivity.Clip, ReverseSource> reverseSources = new java.util.IdentityHashMap<>();
+
+        /**
+         * The reversed copy this clip plays, or null: the clip isn't reversed, or its copy isn't made yet (it then plays forward, as on
+         * iOS, until the editor rebuilds the preview when the copy is ready). Worked out once per clip per engine.
+         */
+        private ReverseSource reverseSource(EditingActivity.Clip clip) {
+            if (!ReverseManager.wantsCopy(clip)) return null;
+            if (reverseSources.containsKey(clip)) return reverseSources.get(clip);
+            ReverseSource found = null;
+            File clipsDir = new File(project.getProjectPath(), com.vanvatcorporation.doubleclips.constants.Constants.DEFAULT_CLIP_DIRECTORY);
+            File copy = ReverseManager.copyFileOf(clip, clipsDir);
+            if (copy != null) {
+                double length = ReverseCopies.videoLength(copy.getPath());
+                if (length > 0) found = new ReverseSource(copy.getPath(), length);
+            }
+            reverseSources.put(clip, found);
+            return found;
+        }
+
+        /** Where in the reversed copy the clip's first frame is (its in-point), in seconds. */
+        private double copyStartSeconds(EditingActivity.Clip clip, ReverseSource rs) {
+            return ReverseMap.copyTime(rs.copyLength, clip.originalDuration, clip.endClipTrim, 0.0);
+        }
         private long frameCounter = 0;
 
         private final class Stream {
@@ -864,7 +895,9 @@ public final class PreviewEngine {
             try {
                 // A frame before the clip's in-point belongs to another part of the file (a keyframe the decoder started
                 // from): never show it. iOS gets this from its composition segments; here it is the floor below.
-                long inPointFloorUs = clip.isReverse() ? Long.MIN_VALUE
+                ReverseSource rs = reverseSource(clip);
+                long inPointFloorUs = rs != null ? Math.round(copyStartSeconds(clip, rs) * 1_000_000.0) - stream.decoder.frameDurationUs()
+                        : clip.isReverse() ? Long.MIN_VALUE
                         : Math.round(clip.startClipTrim * 1_000_000.0) - stream.decoder.frameDurationUs();
                 long targetUs = wantedUs;
                 if (cmd.motion != null && motionEngine() != null) {
@@ -897,8 +930,9 @@ public final class PreviewEngine {
             try {
                 String path = videoPath(cmd.clip);
                 double sourceSeconds = sourceTimeSeconds(cmd.clip, cmd);
-                boolean notStarted = cmd.clip.startTime > nowSeconds && !cmd.clip.isReverse();
-                if (notStarted) sourceSeconds = Math.min(sourceSeconds, cmd.clip.startClipTrim);
+                ReverseSource rs = reverseSource(cmd.clip);
+                boolean notStarted = cmd.clip.startTime > nowSeconds && (rs != null || !cmd.clip.isReverse());
+                if (notStarted) sourceSeconds = Math.min(sourceSeconds, rs != null ? copyStartSeconds(cmd.clip, rs) : cmd.clip.startClipTrim);
                 long wantedUs = Math.max(0L, Math.round(sourceSeconds * 1_000_000.0));
                 Stream stream = acquire(path, wantedUs);
                 if (notStarted && System.nanoTime() < deadlineNanos) {
@@ -910,10 +944,15 @@ public final class PreviewEngine {
         }
 
         /**
-         * A reversed clip's DrawCommand time refers to the pre-reversed intermediate the export builds,
-         * which the preview doesn't have: reversed clips play forward here (export is correct).
+         * The time to ask the decoder for. A reversed clip's DrawCommand time is the source time ELAPSED since the clip's in-point
+         * (it plays its trimmed range from the end backwards), so with a reversed copy ready it is read from the copy at
+         * {@link ReverseMap#copyTime}. Without a copy yet the clip plays forward here.
          */
         private double sourceTimeSeconds(EditingActivity.Clip clip, OpenGLEdit.DrawCommand cmd) {
+            ReverseSource rs = reverseSource(clip);
+            if (rs != null) {
+                return Math.max(0.0, ReverseMap.copyTime(rs.copyLength, clip.originalDuration, clip.endClipTrim, cmd.localSourceTimeSeconds));
+            }
             double t = cmd.localSourceTimeSeconds;
             if (clip.isReverse()) {
                 if (reported.add("reverse:" + clip.getClipName())) {
@@ -925,6 +964,8 @@ public final class PreviewEngine {
         }
 
         private String videoPath(EditingActivity.Clip clip) {
+            ReverseSource reversed = reverseSource(clip);
+            if (reversed != null) return reversed.path; // full-quality copy, short GOP: no proxy needed
             if (useProxy) {
                 String proxy = clip.getAbsolutePreviewPath(project, com.vanvatcorporation.doubleclips.constants.Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION);
                 // getAbsolutePreviewPath hands back the original when no proxy exists yet; that case
