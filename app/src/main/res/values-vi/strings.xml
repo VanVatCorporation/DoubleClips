@@ -391,4 +391,10 @@
     <string name="use_proxy_confirm_process">Xử lý</string>
     <string name="use_proxy_confirm_cancel">Không dùng proxy</string>
     <string name="processing_applied">Đã áp dụng</string>
+    <string name="applying_feature_percent">Đang áp dụng %1$s… %2$s</string>
+    <string name="applying_n_features_percent">Đang áp dụng %1$d tính năng… %2$s</string>
+    <string name="applying_one_feature">Đang áp dụng 1 tính năng…</string>
+    <string name="applying_n_features">Đang áp dụng %1$d tính năng…</string>
+    <string name="feature_applied">Đã áp dụng %1$s</string>
+    <string name="feature_reverse">Đảo ngược</string>
 </resources>

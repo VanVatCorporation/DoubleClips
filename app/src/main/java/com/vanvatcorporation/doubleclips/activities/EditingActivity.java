@@ -141,6 +141,7 @@ import com.vanvatcorporation.doubleclips.ReverseManager;
 import com.vanvatcorporation.doubleclips.PreviewMedia;
 import com.vanvatcorporation.doubleclips.PreviewMediaManager;
 import com.vanvatcorporation.doubleclips.ReverseMap;
+import com.vanvatcorporation.doubleclips.MarqueeSelection;
 import com.vanvatcorporation.doubleclips.ReverseWav;
 import com.vanvatcorporation.doubleclips.commands.ClipPropertyCommand;
 import com.vanvatcorporation.doubleclips.helper.ClipGroupMath;
@@ -157,6 +158,7 @@ import com.vanvatcorporation.doubleclips.helper.StringFormatHelper;
 import com.vanvatcorporation.doubleclips.impl.AppCompatActivityImpl;
 import com.vanvatcorporation.doubleclips.impl.ImageGroupView;
 import com.vanvatcorporation.doubleclips.impl.WaveformBandView;
+import com.vanvatcorporation.doubleclips.impl.ProcessingBadgeView;
 import com.vanvatcorporation.doubleclips.impl.TrackFrameLayout;
 import com.vanvatcorporation.doubleclips.impl.java.RunnableImpl;
 import com.vanvatcorporation.doubleclips.manager.LoggingManager;
@@ -3104,59 +3106,33 @@ public class EditingActivity extends AppCompatActivityImpl {
         if (timeline == null) return;
         ClipProcessingTracker tracker = ClipProcessingTracker.get();
         for (Clip clip : timeline.getAllClips()) {
-            if (clip.viewRef != null) clip.viewRef.setProcessingLabel(tracker.clipLabel(clip));
+            if (clip.viewRef != null) clip.viewRef.setProcessingLabel(ProcessingBadgeView.clipLabel(this, clip)); // in the user's language
         }
     }
 
-    private TextView processingBadge;
-    private final Runnable hideDoneBadge = this::refreshProcessingBadge;
+    private ProcessingBadgeView processingBadge;
 
     private int dpToPx(float dp) {
         return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
     /**
-     * A small badge over the preview: "Applying 3 features... 40.0%" while anything is being made (the average of every running job),
-     * "Applied" for a moment once it is all done, nothing otherwise.
+     * A small badge over the preview: "Applying 3 features..." with a spinner while anything is being made (tap it to list which clip and
+     * feature are at what percent), "<feature> applied" with a green tick for a moment once it is all done, nothing otherwise.
      */
     private void refreshProcessingBadge() {
         if (outerPreviewViewGroup == null) return;
-        ClipProcessingTracker tracker = ClipProcessingTracker.get();
         if (processingBadge == null) {
-            processingBadge = new TextView(this);
-            processingBadge.setTextColor(0xFFFFFFFF);
-            processingBadge.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
-            processingBadge.setPadding(dpToPx(10), dpToPx(5), dpToPx(10), dpToPx(5));
-            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setColor(0xCC000000);
-            bg.setCornerRadius(dpToPx(12));
-            processingBadge.setBackground(bg);
-            processingBadge.setClickable(false);
+            processingBadge = new ProcessingBadgeView(this);
             RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
             lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
             lp.topMargin = dpToPx(8);
             outerPreviewViewGroup.addView(processingBadge, lp);
-            processingBadge.setVisibility(View.GONE);
         }
-        String title = tracker.badgeTitle();
-        if (title != null) {
-            double sum = 0;
-            java.util.List<ClipProcessingTracker.Job> running = tracker.running();
-            for (ClipProcessingTracker.Job j : running) sum += j.progress();
-            String text = title + " " + ClipProcessingTracker.percent(running.isEmpty() ? 0 : sum / running.size());
-            if (!text.contentEquals(processingBadge.getText())) processingBadge.setText(text);
-            processingBadge.setVisibility(View.VISIBLE);
-            processingBadge.bringToFront();
-        } else if (tracker.lastFinished() != null) {
-            processingBadge.setText(R.string.processing_applied);
-            processingBadge.setVisibility(View.VISIBLE);
-            processingBadge.removeCallbacks(hideDoneBadge);
-            processingBadge.postDelayed(hideDoneBadge, ClipProcessingTracker.DONE_VISIBLE_MS + 100);
-        } else {
-            processingBadge.setVisibility(View.GONE);
-        }
+        processingBadge.refresh();
+        if (processingBadge.getVisibility() == View.VISIBLE) processingBadge.bringToFront();
     }
 
     private static double averageProgress(Clip clip) {
@@ -3909,6 +3885,165 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         });
     }
+    // ------------------------------------  marquee: long press on empty space, then drag  ------------------------------------
+    // The touch version of Desktop's click-drag rectangle: every clip it TOUCHES is selected (MarqueeSelection). Started in multi-select
+    // mode it ADDS to the selection (Ctrl/Cmd+drag of desktop); otherwise it starts a fresh one. Near an edge of the timeline it scrolls.
+
+    private boolean marqueeArmed, marqueeActive, marqueeWasMultiple;
+    private float marqueeDownRawX, marqueeDownRawY, marqueeRawX, marqueeRawY;
+    private float marqueeStartLocalX, marqueeStartLocalY;   // press point in the tracks container (it scrolls with the content)
+    private View marqueeAnchorView;
+    private android.graphics.drawable.GradientDrawable marqueeDrawable;
+    private final List<Clip> marqueeBaseline = new ArrayList<>();
+    private List<Clip> marqueeLastHits = new ArrayList<>();
+    private Runnable marqueeScrollTick;
+    private final Runnable marqueeLongPress = this::beginMarquee;
+
+    private void armMarquee(View v, MotionEvent e) {
+        if (e.getPointerCount() != 1 || timeline == null) return;
+        marqueeArmed = true;
+        marqueeDownRawX = marqueeRawX = e.getRawX();
+        marqueeDownRawY = marqueeRawY = e.getRawY();
+        marqueeAnchorView = v;
+        v.removeCallbacks(marqueeLongPress);
+        v.postDelayed(marqueeLongPress, android.view.ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void disarmMarquee() {
+        marqueeArmed = false;
+        if (marqueeAnchorView != null) marqueeAnchorView.removeCallbacks(marqueeLongPress);
+    }
+
+    private void beginMarquee() {
+        if (!marqueeArmed || marqueeActive || timeline == null) return;
+        marqueeArmed = false;
+        marqueeActive = true;
+        if (isPlaying) stopPlayback(true);
+        timelineScroll.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+        if (marqueeAnchorView != null && marqueeAnchorView.getParent() != null) {
+            marqueeAnchorView.getParent().requestDisallowInterceptTouchEvent(true); // the finger draws now, it doesn't scroll
+        }
+
+        marqueeWasMultiple = isClipSelectMultiple;
+        marqueeBaseline.clear();
+        if (isClipSelectMultiple) {
+            marqueeBaseline.addAll(selectedClips);
+        } else {
+            // a fresh marquee drops the old selection right away, like a file manager
+            deselectingTrack();
+            deselectingClip();
+            selectedClip = null;
+        }
+        marqueeLastHits = new ArrayList<>();
+
+        int[] c = new int[2];
+        timelineTracksContainer.getLocationOnScreen(c);
+        marqueeStartLocalX = marqueeDownRawX - c[0];
+        marqueeStartLocalY = marqueeDownRawY - c[1];
+
+        marqueeDrawable = new android.graphics.drawable.GradientDrawable();
+        marqueeDrawable.setColor(0x2600D4FF);
+        marqueeDrawable.setStroke(Math.max(1, dpToPx(1.5f)), 0xFF00D4FF);
+        marqueeDrawable.setBounds((int) marqueeStartLocalX, (int) marqueeStartLocalY, (int) marqueeStartLocalX, (int) marqueeStartLocalY);
+        timelineTracksContainer.getOverlay().add(marqueeDrawable);
+        startMarqueeScroll();
+        updateMarquee(marqueeRawX, marqueeRawY);
+    }
+
+    private void updateMarquee(float rawX, float rawY) {
+        marqueeRawX = rawX;
+        marqueeRawY = rawY;
+        if (!marqueeActive || marqueeDrawable == null) return;
+
+        int[] c = new int[2];
+        timelineTracksContainer.getLocationOnScreen(c);
+        float x = rawX - c[0], y = rawY - c[1];
+        float left = Math.min(marqueeStartLocalX, x), right = Math.max(marqueeStartLocalX, x);
+        float top = Math.min(marqueeStartLocalY, y), bottom = Math.max(marqueeStartLocalY, y);
+        marqueeDrawable.setBounds((int) left, (int) top, (int) right, (int) bottom);
+        timelineTracksContainer.invalidate();
+
+        // Clips are tested from their views, in the same container coordinates (clips scrolled out of sight are still found).
+        List<Clip> hits = new ArrayList<>();
+        int[] p = new int[2];
+        for (Track track : timeline.tracks) {
+            for (Clip clip : track.clips) {
+                ImageGroupView cv = clip.viewRef;
+                if (cv == null || !cv.isAttachedToWindow()) continue;
+                cv.getLocationOnScreen(p);
+                float cl = p[0] - c[0], ct = p[1] - c[1];
+                if (MarqueeSelection.touches(left, top, right, bottom, cl, ct, cl + cv.getWidth(), ct + cv.getHeight())) hits.add(clip);
+            }
+        }
+        hits.sort((a, b) -> a.trackIndex != b.trackIndex ? Integer.compare(a.trackIndex, b.trackIndex) : Float.compare(a.startTime, b.startTime));
+        if (hits.equals(marqueeLastHits)) return; // nothing changed: skip the repaint
+        marqueeLastHits = hits;
+
+        List<Clip> sel = new ArrayList<>(marqueeBaseline);
+        for (Clip h : hits) if (!sel.contains(h)) sel.add(h);
+        deselectingClip();
+        selectedClip = null;
+        isClipSelectMultiple = true;
+        for (Clip clip : sel) selectingClip(clip, false);
+    }
+
+    private void endMarquee() {
+        if (!marqueeActive) return;
+        marqueeActive = false;
+        stopMarqueeScroll();
+        if (marqueeDrawable != null) {
+            timelineTracksContainer.getOverlay().remove(marqueeDrawable);
+            marqueeDrawable = null;
+            timelineTracksContainer.invalidate();
+        }
+        marqueeBaseline.clear();
+        marqueeLastHits = new ArrayList<>();
+
+        List<Clip> sel = new ArrayList<>(selectedClips);
+        if (sel.isEmpty()) {
+            isClipSelectMultiple = marqueeWasMultiple; // nothing was hit: back to how it was
+            deselectingClip();
+        } else if (sel.size() == 1) {
+            selectClipsExact(sel); // a single clip is a normal selection (its own toolbar)
+        } else {
+            refreshPrimaryHandles();
+        }
+    }
+
+    /** While the rectangle is being drawn, a finger near an edge of the timeline scrolls it (and the rectangle grows with it). */
+    private void startMarqueeScroll() {
+        stopMarqueeScroll();
+        marqueeScrollTick = new Runnable() {
+            @Override
+            public void run() {
+                if (!marqueeActive) return;
+                float zone = TRACK_HEIGHT * 0.8f;
+                int dx = 0, dy = 0;
+                int[] loc = new int[2];
+                timelineScroll.getLocationOnScreen(loc);
+                if (marqueeRawX < loc[0] + zone) dx = -(int) (28 * Math.min(1f, (loc[0] + zone - marqueeRawX) / zone));
+                else if (marqueeRawX > loc[0] + timelineScroll.getWidth() - zone)
+                    dx = (int) (28 * Math.min(1f, (marqueeRawX - (loc[0] + timelineScroll.getWidth() - zone)) / zone));
+                timelineVerticalScroll.getLocationOnScreen(loc);
+                if (marqueeRawY < loc[1] + zone) dy = -(int) (24 * Math.min(1f, (loc[1] + zone - marqueeRawY) / zone));
+                else if (marqueeRawY > loc[1] + timelineVerticalScroll.getHeight() - zone)
+                    dy = (int) (24 * Math.min(1f, (marqueeRawY - (loc[1] + timelineVerticalScroll.getHeight() - zone)) / zone));
+                if (dx != 0) timelineScroll.scrollBy(dx, 0);
+                if (dy != 0) timelineVerticalScroll.scrollBy(0, dy);
+                if (dx != 0 || dy != 0) updateMarquee(marqueeRawX, marqueeRawY); // the content moved under the finger
+                edgeScrollHandler.postDelayed(this, 16);
+            }
+        };
+        edgeScrollHandler.post(marqueeScrollTick);
+    }
+
+    private void stopMarqueeScroll() {
+        if (marqueeScrollTick != null) {
+            edgeScrollHandler.removeCallbacks(marqueeScrollTick);
+            marqueeScrollTick = null;
+        }
+    }
+
     private void handleTrackInteraction(View view) {
         view.setOnClickListener(v -> {
             if(view instanceof TrackFrameLayout)
@@ -3921,21 +4056,37 @@ public class EditingActivity extends AppCompatActivityImpl {
             scaleDetector.onTouchEvent(event);
             switch (event.getAction())
             {
+                case MotionEvent.ACTION_DOWN:
+                    armMarquee(v, event); // a long press on empty space turns into a selection rectangle
+                    break;
                 case MotionEvent.ACTION_MOVE:
                     if(event.getPointerCount() == 2) {
+                        disarmMarquee();
                         timelineScroll.requestDisallowInterceptTouchEvent(true);
+                    } else if (marqueeActive) {
+                        updateMarquee(event.getRawX(), event.getRawY());
+                    } else if (marqueeArmed && Math.hypot(event.getRawX() - marqueeDownRawX, event.getRawY() - marqueeDownRawY)
+                            > android.view.ViewConfiguration.get(this).getScaledTouchSlop()) {
+                        disarmMarquee(); // the finger moved before the long press: it is a scroll
                     }
                     break;
                     // ACTION_UP is the action that invoke only if we clicked
                     // that's mean its invoke if we didn't ACTION_MOVE
                 case MotionEvent.ACTION_UP:
-                    v.performClick();
+                    if (marqueeActive) {
+                        endMarquee(); // the rectangle ends here, it is not a tap on the track
+                    } else {
+                        disarmMarquee();
+                        v.performClick();
+                    }
                     currentTimeBeforeScrolling = -1;
                     timelineScroll.requestDisallowInterceptTouchEvent(false);
                     break;
                     // ACTION_CANCEL is when you accidentally click something and
                     // drag it somewhere so it doesn't recognize that click anymore
                 case MotionEvent.ACTION_CANCEL:
+                    disarmMarquee();
+                    endMarquee();
                     currentTimeBeforeScrolling = -1;
                     timelineScroll.requestDisallowInterceptTouchEvent(false);
                     break;

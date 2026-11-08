@@ -416,4 +416,10 @@
     <string name="use_proxy_confirm_process">Process</string>
     <string name="use_proxy_confirm_cancel">Don\'t use proxy</string>
     <string name="processing_applied">Applied</string>
+    <string name="applying_feature_percent">Applying %1$s… %2$s</string>
+    <string name="applying_n_features_percent">Applying %1$d features… %2$s</string>
+    <string name="applying_one_feature">Applying 1 feature…</string>
+    <string name="applying_n_features">Applying %1$d features…</string>
+    <string name="feature_applied">%1$s applied</string>
+    <string name="feature_reverse">Reverse</string>
 </resources>
