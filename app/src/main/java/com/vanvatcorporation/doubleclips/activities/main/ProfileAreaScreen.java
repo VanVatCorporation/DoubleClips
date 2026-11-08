@@ -21,6 +21,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.SettingsActivity;
+import com.vanvatcorporation.doubleclips.activities.StatisticsActivity;
 import com.vanvatcorporation.doubleclips.activities.TemplateCollectionActivity;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.LoginActivity;
@@ -77,6 +78,8 @@ public class ProfileAreaScreen extends BaseAreaScreen {
             Intent intent = new Intent(getContext(), SettingsActivity.class);
             getContext().startActivity(intent);
         });
+        // Statistics: the phone's own numbers, plus (signed in) how the account's templates perform. Works signed out.
+        findViewById(R.id.statisticsButton).setOnClickListener(v -> getContext().startActivity(new Intent(getContext(), StatisticsActivity.class)));
         findViewById(R.id.signInButton).setOnClickListener(v -> {
             Intent intent = new Intent(getContext(), LoginActivity.class);
             getContext().startActivity(intent);

@@ -397,4 +397,42 @@
     <string name="applying_n_features">Đang áp dụng %1$d tính năng…</string>
     <string name="feature_applied">Đã áp dụng %1$s</string>
     <string name="feature_reverse">Đảo ngược</string>
+
+    <!-- Profile -> Statistics -->
+    <string name="stats_section_device">Trên điện thoại này</string>
+    <string name="stats_section_templates">Mẫu của bạn</string>
+    <string name="stats_projects">Dự án</string>
+    <string name="stats_total_footage">Tổng thời lượng</string>
+    <string name="stats_storage_used">Dung lượng đã dùng</string>
+    <string name="stats_last_edited">Chỉnh sửa gần nhất</string>
+    <string name="stats_longest_project">Dự án dài nhất</string>
+    <string name="stats_biggest_project">Dự án nặng nhất</string>
+    <string name="stats_by_month">Dự án được chỉnh sửa gần nhất, theo tháng</string>
+    <string name="stats_templates">Mẫu</string>
+    <string name="stats_views">Lượt xem</string>
+    <string name="stats_uses">Lượt dùng</string>
+    <string name="stats_likes">Lượt thích</string>
+    <string name="stats_saves">Lượt lưu</string>
+    <string name="stats_comments">Bình luận</string>
+    <string name="stats_unique_viewers">Người xem riêng biệt</string>
+    <string name="stats_people_opened">người đã mở mẫu</string>
+    <string name="stats_of_views">%1$s lượt xem</string>
+    <string name="stats_all_time">Từ trước đến nay</string>
+    <string name="stats_new_viewers">Người xem mới</string>
+    <string name="stats_no_change">Không đổi</string>
+    <string name="stats_new">mới</string>
+    <string name="stats_period_header">%1$d ngày qua (so với %2$d ngày trước đó)</string>
+    <string name="stats_days">%1$d ngày</string>
+    <string name="stats_activity_per_day">Hoạt động theo ngày</string>
+    <string name="stats_unit_new_viewers">người xem mới</string>
+    <string name="stats_unit_uses">lượt dùng</string>
+    <string name="stats_unit_likes">lượt thích</string>
+    <string name="stats_unit_saves">lượt lưu</string>
+    <string name="stats_top_templates">Mẫu hàng đầu</string>
+    <string name="stats_untitled">Chưa đặt tên</string>
+    <string name="stats_retry">Thử lại</string>
+    <string name="stats_loading">Đang tải mẫu của bạn…</string>
+    <string name="stats_load_failed">Không thể tải mẫu của bạn: %1$s</string>
+    <string name="stats_none_posted">Bạn chưa đăng mẫu nào</string>
+    <string name="stats_sign_in_prompt">Đăng nhập để xem hiệu quả các mẫu của bạn.</string>
 </resources>

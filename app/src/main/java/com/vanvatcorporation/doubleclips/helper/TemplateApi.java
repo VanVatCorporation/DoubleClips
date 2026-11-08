@@ -325,6 +325,31 @@ public final class TemplateApi {
                 });
     }
 
+    // ---- "My statistics" -----------------------------------------------------------------------------------------------
+
+    /**
+     * Profile -> Statistics: totals, other people's activity per local day for the last {@code days} days and the same number of
+     * days before them, and the account's templates with their counters. The server counts; nothing pages through the list.
+     * Needs an account ("Login required" otherwise). @param days 7..90
+     */
+    public static void fetchAuthorStats(Context context, int days, ApiCallback<AuthorStats> callback) {
+        final Context app = context.getApplicationContext();
+        String viewer = viewer(app);
+        if (viewer == null) { MAIN.post(() -> callback.onError("Login required")); return; }
+
+        // The days are the user's LOCAL days: tell the server how far this phone is from UTC (minutes east, Vietnam = 420).
+        int tzMinutes = java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60000;
+        HttpUrl.Builder url = HttpUrl.get(BASE + "/templates/stats").newBuilder()
+                .addQueryParameter("days", String.valueOf(days))
+                .addQueryParameter("tz", String.valueOf(tzMinutes))
+                .addQueryParameter("viewer", viewer);      // query, not a header: OkHttp rejects non-ASCII header values
+        send(app, new Request.Builder().url(url.build()).get(), body -> {
+            AuthorStats stats = GSON.fromJson(body, AuthorStats.class);
+            if (stats == null) throw new IOException("empty");
+            return stats;
+        }, callback);
+    }
+
     // ---- plumbing -------------------------------------------------------------------------------------------------
 
     private interface Parser<T> { T parse(String body) throws Exception; }

@@ -422,4 +422,42 @@
     <string name="applying_n_features">Applying %1$d features…</string>
     <string name="feature_applied">%1$s applied</string>
     <string name="feature_reverse">Reverse</string>
+
+    <!-- Profile -> Statistics -->
+    <string name="stats_section_device">On this phone</string>
+    <string name="stats_section_templates">Your templates</string>
+    <string name="stats_projects">Projects</string>
+    <string name="stats_total_footage">Total footage</string>
+    <string name="stats_storage_used">Storage used</string>
+    <string name="stats_last_edited">Last edited</string>
+    <string name="stats_longest_project">Longest project</string>
+    <string name="stats_biggest_project">Biggest project</string>
+    <string name="stats_by_month">Projects last edited, by month</string>
+    <string name="stats_templates">Templates</string>
+    <string name="stats_views">Views</string>
+    <string name="stats_uses">Uses</string>
+    <string name="stats_likes">Likes</string>
+    <string name="stats_saves">Saves</string>
+    <string name="stats_comments">Comments</string>
+    <string name="stats_unique_viewers">Unique viewers</string>
+    <string name="stats_people_opened">people who opened them</string>
+    <string name="stats_of_views">%1$s of views</string>
+    <string name="stats_all_time">All time</string>
+    <string name="stats_new_viewers">New viewers</string>
+    <string name="stats_no_change">No change</string>
+    <string name="stats_new">new</string>
+    <string name="stats_period_header">Last %1$d days (change against the %2$d days before)</string>
+    <string name="stats_days">%1$d days</string>
+    <string name="stats_activity_per_day">Activity per day</string>
+    <string name="stats_unit_new_viewers">new viewers</string>
+    <string name="stats_unit_uses">uses</string>
+    <string name="stats_unit_likes">likes</string>
+    <string name="stats_unit_saves">saves</string>
+    <string name="stats_top_templates">Top templates</string>
+    <string name="stats_untitled">Untitled</string>
+    <string name="stats_retry">Retry</string>
+    <string name="stats_loading">Loading your templates…</string>
+    <string name="stats_load_failed">Couldn\'t load your templates: %1$s</string>
+    <string name="stats_none_posted">You haven\'t posted a template yet</string>
+    <string name="stats_sign_in_prompt">Sign in to see how your templates perform.</string>
 </resources>
