@@ -38,7 +38,8 @@ import java.util.zip.ZipOutputStream;
  * What it does differently from the earlier helper, and why:
  * <ul>
  *   <li><b>Plans first.</b> Export walks the folder once, so the total byte count is exact before any compressing
- *       starts, and {@code Clips/Temp} (the regenerable frame cache) is left out, like iOS does.</li>
+ *       starts, and the regenerable folders are left out: {@code Clips/Temp} (the frame cache) and {@code PreviewClips} (preview
+ *       proxies, preview audio and compatibility copies, all made again from the originals when the project is opened).</li>
  *   <li><b>Media is not deflated.</b> Video, audio and images are already compressed; running deflate over them
  *       burns CPU for no size gain. They are written with compression level 0 (stored blocks inside the normal
  *       deflate framing): that needs no CRC pre-pass, which a true STORED entry would, because the output can't
@@ -76,6 +77,11 @@ public final class ProjectZip {
     public static final double DATA_SHARE = 0.97;
     /** The regenerable frame cache, relative to the project folder; not exported. */
     public static final String TEMP_DIRECTORY = "Clips/Temp";
+    /**
+     * The preview proxies, preview audio and compatibility copies, relative to the project folder; not exported. The editor checks
+     * for them every time a project is entered and makes the missing ones again from the originals (see PreviewMedia).
+     */
+    public static final String PREVIEW_DIRECTORY = "PreviewClips";
 
     /** Already-compressed formats: written without deflating (same list as the iOS port). */
     public static final Set<String> STORED_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
@@ -182,7 +188,8 @@ public final class ProjectZip {
             File f = new File(dir, name);
             String rel = relative.isEmpty() ? name : relative + "/" + name;
             if (f.isDirectory()) {
-                if (excludeTemp && rel.equals(TEMP_DIRECTORY)) continue;
+                // Both folders are rebuilt from the originals, so they never travel with an export or a backup.
+                if (excludeTemp && (rel.equals(TEMP_DIRECTORY) || rel.equals(PREVIEW_DIRECTORY))) continue;
                 collect(f, root, rel, excludeTemp, out, total, cancel);
             } else if (f.isFile()) {
                 long size = f.length();

@@ -13,6 +13,8 @@ public class ImageGroupView extends RelativeLayout {
     android.widget.ProgressBar loadingIndicator;
     /** A video clip's sound, drawn at the current zoom along the bottom edge (not part of the stretched thumbnail bitmap). */
     WaveformBandView waveformBand;
+    /** "Applying Proxy... 52.6%" while a job runs for this clip (reverse, motion, proxy, ...); hidden otherwise. */
+    android.widget.TextView processingLabel;
 
     public ImageGroupView(Context context) {
         super(context);
@@ -46,6 +48,18 @@ public class ImageGroupView extends RelativeLayout {
         waveformBand.setVisibility(GONE); // until a clip with sound gives it levels
         addView(waveformBand);
 
+        processingLabel = new android.widget.TextView(context);
+        processingLabel.setTextColor(0xFFFFFFFF);
+        processingLabel.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10);
+        processingLabel.setSingleLine(true);
+        processingLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        processingLabel.setGravity(android.view.Gravity.CENTER);
+        processingLabel.setBackgroundColor(0xAA000000);
+        processingLabel.setVisibility(GONE);
+        RelativeLayout.LayoutParams labelParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        labelParams.addRule(RelativeLayout.CENTER_VERTICAL);
+        addView(processingLabel, labelParams);
+
         // Loading indicator
         loadingIndicator = new android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleSmall);
         RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -71,6 +85,16 @@ public class ImageGroupView extends RelativeLayout {
         filledImageView.setImageBitmap(filledImageBitmap);
         filledImageView.setScaleType(ImageView.ScaleType.FIT_XY);
         hideLoading();
+    }
+
+    /** Shows {@code label} over the clip (null hides it). Cheap to call on every progress tick: nothing changes if the text is the same. */
+    public void setProcessingLabel(String label) {
+        if (label == null) {
+            if (processingLabel.getVisibility() != GONE) processingLabel.setVisibility(GONE);
+            return;
+        }
+        if (!label.contentEquals(processingLabel.getText())) processingLabel.setText(label);
+        if (processingLabel.getVisibility() != VISIBLE) processingLabel.setVisibility(VISIBLE);
     }
 
     public WaveformBandView getWaveformBand() {

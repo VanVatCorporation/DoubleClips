@@ -409,4 +409,11 @@
     <string name="licenses_show_text">Show the licence text</string>
     <string name="licenses_hide_text">Hide the licence text</string>
     <string name="licenses_text_missing">The full text isn\'t bundled with this build. Use the licence link above.</string>
+    <string name="preview_media_failed">Couldn\'t prepare the preview of %1$s. The preview plays the original.</string>
+    <string name="preview_media_missing_source">%1$d clips have no media file left, so their preview can\'t be prepared.</string>
+    <string name="use_proxy_confirm_title">Use proxy</string>
+    <string name="use_proxy_confirm_message">Proxy clips will be processed on %1$d clips. This runs in the background and the clips show its progress. Process them now?</string>
+    <string name="use_proxy_confirm_process">Process</string>
+    <string name="use_proxy_confirm_cancel">Don\'t use proxy</string>
+    <string name="processing_applied">Applied</string>
 </resources>

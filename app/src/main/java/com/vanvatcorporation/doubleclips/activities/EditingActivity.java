@@ -138,6 +138,8 @@ import com.vanvatcorporation.doubleclips.commands.base.CommandUtils;
 import com.vanvatcorporation.doubleclips.constants.Constants;
 import com.vanvatcorporation.doubleclips.ClipProcessingTracker;
 import com.vanvatcorporation.doubleclips.ReverseManager;
+import com.vanvatcorporation.doubleclips.PreviewMedia;
+import com.vanvatcorporation.doubleclips.PreviewMediaManager;
 import com.vanvatcorporation.doubleclips.ReverseMap;
 import com.vanvatcorporation.doubleclips.ReverseWav;
 import com.vanvatcorporation.doubleclips.commands.ClipPropertyCommand;
@@ -465,31 +467,9 @@ public class EditingActivity extends AppCompatActivityImpl {
         offsetTime += duration;
 
 
-        previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Preview Generation",
-                () -> {
-                    processingPreview(newClip, clipPath, previewClipPath);
-                }));
-
-        if(type == ClipType.VIDEO && isClipHasAudio)
-        {
-            previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Preview Generation",
-                    () -> {
-                        // Extract audio from Video if it has audio
-                        Clip audioClip = new Clip(newClip);
-                        audioClip.type = ClipType.AUDIO;
-                        processingPreview(audioClip, clipPath, previewClipPath);
-                    }));
-        }
-
-        // MediaCodec (preview without proxy, OpenGL export) can't decode every codec - ProRes for
-        // one. Those clips get a one-time hardware-decodable H.264 copy, see MediaCompat.
-        if(type == ClipType.VIDEO && !com.vanvatcorporation.doubleclips.utils.MediaCompat.isVideoDecodable(clipPath))
-        {
-            previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compatibility Conversion",
-                    () -> {
-                        processingCompat(newClip, clipPath);
-                    }));
-        }
+        // The preview files of the new clip are made in the background and shown like a reversed copy: its preview sound (always),
+        // a compatible copy when MediaCodec can't decode the video, and the video proxy only while "Use proxy" is on.
+        if (previewMedia != null) previewMedia.syncClip(newClip, settings.isUseProxyPreview());
 
         return offsetTime;
     }
@@ -582,6 +562,9 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
         addClipToTrack(selectedTrack, newClip);
+
+        // Its preview files may not exist yet (a file imported from another project, say): same rules as an import.
+        if (previewMedia != null) previewMedia.syncClip(newClip, settings.isUseProxyPreview());
     }
 
     // ==============       Unsorted feature          =============
@@ -1076,250 +1059,6 @@ public class EditingActivity extends AppCompatActivityImpl {
 
 
 
-    void processingPreview(Clip clip, String originalClipPath, String previewClipPath)
-    {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
-        // Inflate your custom layout
-        LayoutInflater inflater = LayoutInflater.from(this);
-        View dialogView = inflater.inflate(R.layout.popup_processing_preview, null);
-        builder.setView(dialogView);
-        builder.setCancelable(false);
-        builder.setNegativeButton(getText(R.string.alert_processing_without_preview_confirmation),
-                (dialog, which) -> {
-            // This initial listener might be simple or a placeholder
-                    dialog.dismiss();
-        });
-
-        // Get references to the EditText and Buttons in your custom layout
-        TextView processingText = dialogView.findViewById(R.id.adsDescriptionText);
-        TextView processingDescription = dialogView.findViewById(R.id.processingDescription);
-        ProgressBar previewProgressBar = dialogView.findViewById(R.id.previewProgressBar);
-        TextView processingPercent = dialogView.findViewById(R.id.processingPercent);
-
-        // Create the AlertDialog
-        AlertDialog dialog = builder.create();
-
-        // Already prevent using the setCancelable above
-        //dialog.setCanceledOnTouchOutside(false);
-        // Show the dialog
-        dialog.show();
-
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.GONE);
-
-
-        processingText.setText(getString(R.string.processing) + " " + "\"" + clip.getClipName() + "\"");
-
-
-        int videoWidth = 2;
-        int videoHeight = 1;
-        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-        try {
-            // SAFEGUARD 1: Attempts to initialize data source.
-            // If the file is completely invalid (e.g., a PDF or text file), this will throw an exception.
-            retriever.setDataSource(originalClipPath);
-
-            // Extract width and height metadata strings
-            String widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
-            String heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
-
-            // SAFEGUARD 2: Check if dimensions actually exist.
-            // If it's a valid media file but an AUDIO file (like an MP3), these keys will return null.
-            if (widthStr != null && heightStr != null) {
-                videoWidth = Integer.parseInt(widthStr);
-                videoHeight = Integer.parseInt(heightStr);
-            } else {
-                LoggingManager.LogToNoteOverlay(this, "File is media, but contains no video tracks (likely an audio file).");
-            }
-
-        } catch (Exception e) {
-            LoggingManager.LogExceptionToNoteOverlay(this, e);
-        } finally {
-            // Always clean up resources
-            try {
-                retriever.release();
-            } catch (Exception e) {
-                LoggingManager.LogExceptionToNoteOverlay(this, e);
-            }
-        }
-
-
-        String scaleStr;
-        if(videoWidth < videoHeight) scaleStr = "-2:720";
-        else scaleStr = "1280:-2";
-
-        String previewGeneratedVideoCmd = "-i \"" + originalClipPath +
-                "\" -vf \"scale=" + scaleStr + "\" -c:v libopenh264 -preset ultrafast -crf 32 -g 1 -an -y \"" + previewClipPath.substring(0, previewClipPath.lastIndexOf('.')) + Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION + "\"";
-//        String previewGeneratedVideoCmd = "-i \"" + originalClipPath +
-//                "\" -vf \"scale=" + scaleStr + "\" -c:v h264_mediacodec -b:v 512k -g 1 -an -y \"" + previewClipPath + "\"";
-        String previewGeneratedAudioCmd = "-i \"" + originalClipPath +
-                "\" -vn -ac 1 -ar 22050 -c:a pcm_s16le -y \"" + previewClipPath.substring(0, previewClipPath.lastIndexOf('.')) + Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION + "\"";
-
-
-        processingDescription.setTextColor(0xFF00AA00);
-        if(clip.type == ClipType.AUDIO)
-        {
-            runAnyCommand(this, previewGeneratedAudioCmd, "Exporting Preview Audio",
-                    () -> EditingActivity.this.runOnUiThread(() -> {
-
-                        dialog.dismiss();
-                        previewRenderQueue.taskCompleted();
-                    }), () -> {
-                        processingDescription.post(() -> {
-                            processingDescription.setTextColor(0xFFFF0000);
-
-                            dialog.setCancelable(true);
-                            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.VISIBLE);
-                        });
-                    }
-                    , new RunnableImpl() {
-                        @Override
-                        public <T> void runWithParam(T param) {
-                            Log log = (Log) param;
-                            processingDescription.post(() -> {
-                                processingDescription.setText(log.getMessage());
-                            });
-                        }
-                    }, new RunnableImpl() {
-                        @Override
-                        public <T> void runWithParam(T param) {
-                            double duration = clip.duration * 1000;
-
-                            Statistics statistics = (Statistics) param;
-                            {
-                                if (statistics.getTime() > 0) {
-                                    int progress = (int) ((statistics.getTime() * 100) / (int) duration);
-                                    previewProgressBar.setMax(100);
-                                    previewProgressBar.setProgress(progress);
-                                    processingPercent.setText(progress + "%");
-                                }
-                            }
-                        }
-                    });
-        }
-        else if(clip.type == ClipType.VIDEO)
-        {
-            runAnyCommand(this, previewGeneratedVideoCmd, "Exporting Preview Video",
-                    () -> EditingActivity.this.runOnUiThread(() -> {
-                        dialog.dismiss();
-                        previewRenderQueue.taskCompleted();
-                        if(clip.viewRef != null)
-                        {
-                            // After preview process, render the thumbnail
-                            loadClipVisuals(clip, clip.viewRef);
-                        }
-                    }), () -> {
-                        processingDescription.post(() -> {
-                            processingDescription.setTextColor(0xFFFF0000);
-
-                            dialog.setCancelable(true);
-                            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.VISIBLE);
-                        });
-                }
-                    , new RunnableImpl() {
-                        @Override
-                        public <T> void runWithParam(T param) {
-                            Log log = (Log) param;
-                            processingDescription.post(() -> {
-                                processingDescription.setText(log.getMessage());
-                            });
-                        }
-                    }, new RunnableImpl() {
-                        @Override
-                        public <T> void runWithParam(T param) {
-                            double duration = clip.duration * 1000;
-
-                            Statistics statistics = (Statistics) param;
-                            {
-                                if (statistics.getTime() > 0) {
-                                    int progress = (int) ((statistics.getTime() * 100) / (int) duration);
-                                    previewProgressBar.setMax(100);
-                                    previewProgressBar.setProgress(progress);
-                                    processingPercent.setText(progress + "%");
-                                }
-                            }
-                        }
-                    });
-
-
-
-
-
-
-
-        }
-        else {
-            // Any other type should be drop
-            dialog.dismiss();
-        }
-    }
-
-    /**
-     * Converts a video MediaCodec can't decode (e.g. ProRes) into a hardware-decodable H.264 file
-     * next to the preview proxy. PreviewEngine and the OpenGL export read that file instead of the
-     * original. See MediaCompat.
-     */
-    void processingCompat(Clip clip, String originalClipPath)
-    {
-        String compatPath = com.vanvatcorporation.doubleclips.utils.MediaCompat.compatPath(properties.getProjectPath(), clip.getClipName());
-        File compatDir = new File(compatPath).getParentFile();
-        if (compatDir != null) compatDir.mkdirs();
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.popup_processing_preview, null);
-        builder.setView(dialogView);
-        builder.setCancelable(false);
-        builder.setNegativeButton(getText(R.string.alert_processing_without_preview_confirmation),
-                (d, which) -> d.dismiss());
-
-        TextView processingText = dialogView.findViewById(R.id.adsDescriptionText);
-        TextView processingDescription = dialogView.findViewById(R.id.processingDescription);
-        ProgressBar previewProgressBar = dialogView.findViewById(R.id.previewProgressBar);
-        TextView processingPercent = dialogView.findViewById(R.id.processingPercent);
-
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.GONE);
-
-        processingText.setText(getString(R.string.processing) + " " + "\"" + clip.getClipName() + "\"");
-        processingDescription.setTextColor(0xFF00AA00);
-
-        String cmd = com.vanvatcorporation.doubleclips.utils.MediaCompat.buildCompatCommand(originalClipPath, com.vanvatcorporation.doubleclips.utils.MediaCompat.tempPath(compatPath));
-
-        runAnyCommand(this, cmd, "Converting for Compatibility",
-                () -> EditingActivity.this.runOnUiThread(() -> {
-                    com.vanvatcorporation.doubleclips.utils.MediaCompat.commit(compatPath);
-                    dialog.dismiss();
-                    previewRenderQueue.taskCompleted();
-                }), () -> {
-                    com.vanvatcorporation.doubleclips.utils.MediaCompat.discard(compatPath);
-                    EditingActivity.this.runOnUiThread(() -> {
-                        processingDescription.setTextColor(0xFFFF0000);
-                        dialog.setCancelable(true);
-                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setVisibility(View.VISIBLE);
-                        previewRenderQueue.taskCompleted();
-                    });
-                }, new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        Log log = (Log) param;
-                        processingDescription.post(() -> processingDescription.setText(log.getMessage()));
-                    }
-                }, new RunnableImpl() {
-                    @Override
-                    public <T> void runWithParam(T param) {
-                        double duration = Math.max(1, clip.duration * 1000);
-                        Statistics statistics = (Statistics) param;
-                        if (statistics.getTime() > 0) {
-                            int progress = (int) Math.min(100, (statistics.getTime() * 100) / (int) duration);
-                            previewProgressBar.setMax(100);
-                            previewProgressBar.setProgress(progress);
-                            processingPercent.setText(progress + "%");
-                        }
-                    }
-                });
-    }
-
     void processingMultiPreview(Uri[] uris) {
 //        AlertDialog.Builder builder = new AlertDialog.Builder(this);
 //
@@ -1580,39 +1319,12 @@ public class EditingActivity extends AppCompatActivityImpl {
             ClipProcessingTracker.get().addListener(reverseStatusListener);
             reverseManager.syncAll();
 
-            // Projects made before MediaCompat (or whose conversion was cancelled) have video MediaCodec
-            // can't decode and no compat copy yet: convert those once, one task per source file.
-            java.util.Set<String> compatQueued = new java.util.HashSet<>();
-            for (Clip clip : timeline.getAllClips())
-            {
-                if (clip.type != ClipType.VIDEO) continue;
-                String originalPath = clip.getAbsolutePath(properties);
-                if (!new File(originalPath).isFile()) continue;
-
-                // The preview proxy is what thumbnails are read from (the platform retriever can't decode
-                // everything MediaCodec can, e.g. 10-bit / Dolby Vision): rebuild one that is missing or empty.
-                String mcName = clip.getClipName();
-                int mcDot = mcName.lastIndexOf('.');
-                File mcProxy = new File(IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY,
-                        (mcDot > 0 ? mcName.substring(0, mcDot) : mcName) + Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION));
-                if ((!mcProxy.isFile() || mcProxy.length() == 0) && compatQueued.add(mcProxy.getPath())) {
-                    String mcPreviewPath = IOHelper.CombinePath(properties.getProjectPath(), Constants.DEFAULT_PREVIEW_CLIP_DIRECTORY, mcName);
-                    File mcDir = mcProxy.getParentFile();
-                    if (mcDir != null) mcDir.mkdirs();
-                    previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Preview Generation",
-                            () -> {
-                                processingPreview(clip, originalPath, mcPreviewPath);
-                            }));
-                }
-
-                String compatPath = com.vanvatcorporation.doubleclips.utils.MediaCompat.compatPath(properties.getProjectPath(), clip.getClipName());
-                if (new File(compatPath).isFile() || !compatQueued.add(compatPath)) continue;
-                if (com.vanvatcorporation.doubleclips.utils.MediaCompat.isVideoDecodable(originalPath)) continue;
-                previewRenderQueue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compatibility Conversion",
-                        () -> {
-                            processingCompat(clip, originalPath);
-                        }));
-            }
+            // The preview files (the sound the preview plays, compatible copies, and - while "Use proxy" is on - the video proxies) are
+            // not part of an export, and an imported or older project may lack them: check on EVERY entry and make what is missing in
+            // the background, shown like the reversed copies. With "Use proxy" off no video proxy is made.
+            previewMedia = new PreviewMediaManager(this, () -> properties.getProjectPath(), previewRenderQueue,
+                    ClipProcessingTracker.get(), previewMediaHost);
+            previewMedia.sync(timeline.getAllClips(), settings.isUseProxyPreview());
 
             // Regenerate timeline renderer when timeline finishes loading.
             regeneratingTimelineRenderer();
@@ -2593,6 +2305,8 @@ public class EditingActivity extends AppCompatActivityImpl {
                     timelineRenderer.setUseProxyPreview(settings.isUseProxyPreview());
                 }
             }
+            // Switched ON: say how many clips will be processed (and flip it back off if the user declines).
+            if (proxyPreviewChanged && settings.isUseProxyPreview()) confirmProxyProcessing();
         });
         videoPropertiesEditSpecificAreaScreen.onOpen.add(() -> {
             videoPropertiesEditSpecificAreaScreen.resolutionXField.setText(String.valueOf(settings.getVideoWidth()));
@@ -3266,10 +2980,70 @@ public class EditingActivity extends AppCompatActivityImpl {
     private ReverseManager reverseManager;
     private Runnable reverseStatusListener;
 
+    // ── Preview files (PreviewClips: preview sound, video proxies, compatible copies; see PreviewMedia) ─────────────
+
+    private PreviewMediaManager previewMedia;
+
+    private final PreviewMediaManager.Host previewMediaHost = new PreviewMediaManager.Host() {
+        @Override public void runOnUi(Runnable r) {
+            if (!isFinishing() && !isDestroyed()) runOnUiThread(r);
+        }
+
+        @Override public void onBatchDone(boolean anyMade) {
+            // The preview opened the originals (and no sound) for the clips that waited: open the files that now exist.
+            if (!anyMade) return;
+            if (isPlaying) stopPlayback(true);
+            else regeneratingTimelineRenderer();
+        }
+
+        @Override public void onFailed(PreviewMedia.Need need, String why) {
+            android.widget.Toast.makeText(EditingActivity.this,
+                    getString(R.string.preview_media_failed, need.original.substring(need.original.lastIndexOf('/') + 1)),
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+
+        @Override public void onMissingSources(int clips) {
+            android.widget.Toast.makeText(EditingActivity.this, getString(R.string.preview_media_missing_source, clips),
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+    };
+
+    /**
+     * "Use proxy" was just switched ON: if clips are missing their proxy, say how many will be processed. Agreeing makes them in the
+     * background (shown like Reverse / motion); declining switches "Use proxy" back off.
+     */
+    private void confirmProxyProcessing() {
+        if (previewMedia == null || timeline == null) return;
+        final String project = properties.getProjectPath();
+        final List<Clip> clips = new ArrayList<>(timeline.getAllClips());
+        Executors.newSingleThreadExecutor().execute(() -> {
+            final int missing = PreviewMedia.countMissingProxies(project, clips);
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || missing == 0) return; // nothing to make: the proxies are all there
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.use_proxy_confirm_title)
+                        .setMessage(getString(R.string.use_proxy_confirm_message, missing))
+                        .setCancelable(false)
+                        .setPositiveButton(R.string.use_proxy_confirm_process,
+                                (d, w) -> previewMedia.sync(timeline.getAllClips(), true))
+                        .setNegativeButton(R.string.use_proxy_confirm_cancel, (d, w) -> turnProxyOff())
+                        .show();
+            });
+        });
+    }
+
+    /** The user declined to process the proxies: "Use proxy" goes back off. */
+    private void turnProxyOff() {
+        settings.noProxyPreview = true;
+        settings.saveSettings(this, properties);
+        if (timelineRenderer != null) timelineRenderer.setUseProxyPreview(false);
+    }
+
     @Override
     protected void onDestroy() {
         if (reverseStatusListener != null) ClipProcessingTracker.get().removeListener(reverseStatusListener);
         if (reverseManager != null) reverseManager.shutdown();
+        if (previewMedia != null) previewMedia.destroy();
         super.onDestroy();
     }
 
@@ -3312,6 +3086,8 @@ public class EditingActivity extends AppCompatActivityImpl {
 
     /** The "Processing xx%" line under the Reverse switch follows the running job of the selected clip. */
     private void refreshReverseStatus() {
+        refreshProcessingLabels();
+        refreshProcessingBadge();
         if (clipEditSpecificAreaScreen == null || clipEditSpecificAreaScreen.reverseProcessingText == null) return;
         String label = selectedClip == null ? null : ClipProcessingTracker.get().propertiesLabel(selectedClip);
         if (label == null) {
@@ -3320,6 +3096,66 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.reverseProcessingText.setText(getString(R.string.processing_percent,
                     ClipProcessingTracker.percent(averageProgress(selectedClip))));
             clipEditSpecificAreaScreen.reverseProcessingText.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /** Every clip with a running job shows "Applying Proxy... 52.6%" over its timeline block; the others show nothing. */
+    private void refreshProcessingLabels() {
+        if (timeline == null) return;
+        ClipProcessingTracker tracker = ClipProcessingTracker.get();
+        for (Clip clip : timeline.getAllClips()) {
+            if (clip.viewRef != null) clip.viewRef.setProcessingLabel(tracker.clipLabel(clip));
+        }
+    }
+
+    private TextView processingBadge;
+    private final Runnable hideDoneBadge = this::refreshProcessingBadge;
+
+    private int dpToPx(float dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * A small badge over the preview: "Applying 3 features... 40.0%" while anything is being made (the average of every running job),
+     * "Applied" for a moment once it is all done, nothing otherwise.
+     */
+    private void refreshProcessingBadge() {
+        if (outerPreviewViewGroup == null) return;
+        ClipProcessingTracker tracker = ClipProcessingTracker.get();
+        if (processingBadge == null) {
+            processingBadge = new TextView(this);
+            processingBadge.setTextColor(0xFFFFFFFF);
+            processingBadge.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
+            processingBadge.setPadding(dpToPx(10), dpToPx(5), dpToPx(10), dpToPx(5));
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xCC000000);
+            bg.setCornerRadius(dpToPx(12));
+            processingBadge.setBackground(bg);
+            processingBadge.setClickable(false);
+            RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+            lp.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            lp.topMargin = dpToPx(8);
+            outerPreviewViewGroup.addView(processingBadge, lp);
+            processingBadge.setVisibility(View.GONE);
+        }
+        String title = tracker.badgeTitle();
+        if (title != null) {
+            double sum = 0;
+            java.util.List<ClipProcessingTracker.Job> running = tracker.running();
+            for (ClipProcessingTracker.Job j : running) sum += j.progress();
+            String text = title + " " + ClipProcessingTracker.percent(running.isEmpty() ? 0 : sum / running.size());
+            if (!text.contentEquals(processingBadge.getText())) processingBadge.setText(text);
+            processingBadge.setVisibility(View.VISIBLE);
+            processingBadge.bringToFront();
+        } else if (tracker.lastFinished() != null) {
+            processingBadge.setText(R.string.processing_applied);
+            processingBadge.setVisibility(View.VISIBLE);
+            processingBadge.removeCallbacks(hideDoneBadge);
+            processingBadge.postDelayed(hideDoneBadge, ClipProcessingTracker.DONE_VISIBLE_MS + 100);
+        } else {
+            processingBadge.setVisibility(View.GONE);
         }
     }
 
@@ -8341,10 +8177,13 @@ frameRate = 60;
 
                         } // end visual
 
-                        // AUDIO
-
+                        // AUDIO (none while the preview sound is still being made)
+                        audioSetup:
+                        {
+                        String audioPath = audioSourcePath();
+                        if (audioPath == null) break audioSetup;
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(audioSourcePath());
+                        audioExtractor.setDataSource(audioPath);
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -8371,6 +8210,7 @@ frameRate = 60;
                             );
                             audioTrack.play();
                         }
+                        } // end audioSetup
 
 
                         break;
@@ -8469,9 +8309,11 @@ frameRate = 60;
                     }
                     case AUDIO:
                     {
+                        String audioPath = audioSourcePath();
+                        if (audioPath == null) break; // the preview sound is still being made: silence
 
                         audioExtractor = new MediaExtractor();
-                        audioExtractor.setDataSource(audioSourcePath());
+                        audioExtractor.setDataSource(audioPath);
 
                         int audioTrackIndex = TimelineUtils.findMediaTrackIndex(audioExtractor, ClipType.AUDIO);
                         audioExtractor.selectTrack(audioTrackIndex);
@@ -8631,8 +8473,10 @@ frameRate = 60;
 
         /** The file the clip's preview sound is read from: the reversed twin for a reversed clip whose copy is ready, else the normal WAV. */
         private String audioSourcePath() {
-            String path = clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION);
             reverseAudioLength = -1f;
+            // No preview sound (yet): silence. Falling back to the original would push its compressed bytes through the speaker.
+            if (!PreviewMedia.hasAudioFile(data.getProjectPath(), clip)) return null;
+            String path = clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_AUDIO_EXTENSION);
             if (clip.type == ClipType.VIDEO && ReverseManager.wantsCopy(clip)
                     && ReverseManager.copyFileOf(clip, new File(data.getProjectPath(), Constants.DEFAULT_CLIP_DIRECTORY)) != null) {
                 File reversed = ReverseWav.ensure(new File(path));

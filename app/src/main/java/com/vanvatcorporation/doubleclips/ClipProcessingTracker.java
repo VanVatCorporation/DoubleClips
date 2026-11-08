@@ -28,6 +28,8 @@ public final class ClipProcessingTracker {
 
     /** The feature names the editor reports under (what the user reads: "Applying Motion blur..."). */
     public static final String OPTICAL_FLOW = "Optical flow", MOTION_BLUR = "Motion blur", REVERSE = "Reverse";
+    /** The preview files of PreviewMedia: the small video proxy, the preview sound, and the H.264 copy of a video MediaCodec can't decode. */
+    public static final String PROXY = "Proxy", PREVIEW_AUDIO = "Preview audio", COMPATIBLE_COPY = "Compatible copy";
 
     /** One feature being applied to one clip. */
     public final class Job {

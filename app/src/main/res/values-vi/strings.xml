@@ -384,4 +384,11 @@
     <string name="licenses_show_text">Hiện nội dung giấy phép</string>
     <string name="licenses_hide_text">Ẩn nội dung giấy phép</string>
     <string name="licenses_text_missing">Bản dựng này chưa kèm toàn văn giấy phép. Hãy dùng liên kết giấy phép ở trên.</string>
+    <string name="preview_media_failed">Không thể chuẩn bị bản xem trước của %1$s. Bản xem trước sẽ phát tệp gốc.</string>
+    <string name="preview_media_missing_source">%1$d clip không còn tệp phương tiện nên không thể chuẩn bị bản xem trước.</string>
+    <string name="use_proxy_confirm_title">Dùng proxy</string>
+    <string name="use_proxy_confirm_message">Clip proxy sẽ được xử lý trên %1$d clip. Việc này chạy nền và các clip hiển thị tiến trình. Xử lý ngay?</string>
+    <string name="use_proxy_confirm_process">Xử lý</string>
+    <string name="use_proxy_confirm_cancel">Không dùng proxy</string>
+    <string name="processing_applied">Đã áp dụng</string>
 </resources>
