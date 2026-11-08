@@ -2421,8 +2421,17 @@ public class EditingActivity extends AppCompatActivityImpl {
                 // Only modify if different
                 if(!selectedClip.getClipName().equals(clipEditSpecificAreaScreen.clipNameField.getText().toString()))
                     selectedClip.setClipName(clipEditSpecificAreaScreen.clipNameField.getText().toString(), properties, timeline);
-                selectedClip.setStartClipTrim(ParserHelper.TryParse(clipEditSpecificAreaScreen.startTrimField.getText().toString(), selectedClip.getStartClipTrim()));
-                selectedClip.setEndClipTrim(ParserHelper.TryParse(clipEditSpecificAreaScreen.endTrimField.getText().toString(), selectedClip.getEndClipTrim()));
+                // The first field is the clip's LEFT edge, the second its right edge (like the trim handles): for a reversed video
+                // the left edge is the source's end, so the first field holds endClipTrim.
+                float leftEdgeTrim = ParserHelper.TryParse(clipEditSpecificAreaScreen.startTrimField.getText().toString(), selectedClip.leadTrim());
+                float rightEdgeTrim = ParserHelper.TryParse(clipEditSpecificAreaScreen.endTrimField.getText().toString(), selectedClip.tailTrim());
+                if (selectedClip.playsBackwards()) {
+                    selectedClip.setStartClipTrim(rightEdgeTrim);
+                    selectedClip.setEndClipTrim(leftEdgeTrim);
+                } else {
+                    selectedClip.setStartClipTrim(leftEdgeTrim);
+                    selectedClip.setEndClipTrim(rightEdgeTrim);
+                }
 
                 // Per-property keyframes: a property with keyframes is written into the keyframe at the playhead (added when
                 // there is none), any other property is edited as before. One undo step for the whole sheet.
@@ -2459,8 +2468,8 @@ public class EditingActivity extends AppCompatActivityImpl {
             clipEditSpecificAreaScreen.totalDurationText.setText(String.valueOf(selectedClip.originalDuration));
             clipEditSpecificAreaScreen.durationText.setText(String.valueOf(selectedClip.duration));
             clipEditSpecificAreaScreen.clipNameField.setText(String.valueOf(selectedClip.getClipName()));
-            clipEditSpecificAreaScreen.startTrimField.setText(String.valueOf(selectedClip.startClipTrim));
-            clipEditSpecificAreaScreen.endTrimField.setText(String.valueOf(selectedClip.endClipTrim));
+            clipEditSpecificAreaScreen.startTrimField.setText(String.valueOf(selectedClip.leadTrim()));
+            clipEditSpecificAreaScreen.endTrimField.setText(String.valueOf(selectedClip.tailTrim()));
             sheetBefore = KeyframeSnapshot.of(selectedClip);
             clipEditSpecificAreaScreen.setKeyDiamondListener(this::onSheetKeyDiamond);
             populateSheetProperties();
@@ -3282,6 +3291,7 @@ public class EditingActivity extends AppCompatActivityImpl {
             else reverseManager.release(c);
             Timeline.saveTimeline(this, timeline, properties, settings);
             refreshReverseStatus();
+            refreshClipWaveform(c);
             regeneratingTimelineRenderer(); // plays the copy when there is one, forward when there isn't
         }));
     }
@@ -5282,6 +5292,10 @@ public class EditingActivity extends AppCompatActivityImpl {
         return new WaveformBandView.Window() {
             @Override public float durationSeconds() { return clip.duration; }
             @Override public float sourceSecondsAt(float localSeconds) {
+                if (clip.playsBackwards()) {
+                    // reversed: the clip starts at the source's used END and plays back towards its start
+                    return Math.max(0f, (clip.originalDuration - clip.endClipTrim) - (float) clip.timeMap().sourceOffset(localSeconds));
+                }
                 return clip.startClipTrim + (float) clip.timeMap().sourceOffset(localSeconds); // speed 1: just the trim + local time
             }
             @Override public float gainAtLocal(float localSeconds) {
@@ -6221,14 +6235,16 @@ public class EditingActivity extends AppCompatActivityImpl {
                                         float delta = (event.getRawX() - downX) / pixelsPerSecond;
                                         delta = Math.min(duration0 - MIN_CLIP_DURATION, delta);
                                         double source = map0.sourceOffset(delta);
-                                        if (source < -startTrim0) { // cannot go before the first frame of the file
-                                            source = -startTrim0;
+                                        // A reversed video shows the source's END at its left edge: the left handle eats endClipTrim.
+                                        final float lead0 = clip.playsBackwards() ? endTrim0 : startTrim0;
+                                        if (source < -lead0) { // cannot go before the first frame of the file (past the last one, reversed)
+                                            source = -lead0;
                                             delta = (float) (source / map0.speedAt(0));
                                         }
                                         float newDuration = duration0 - delta;
                                         if (newDuration * pixelsPerSecond < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
                                         clip.startTime = startTime0 + delta;
-                                        clip.startClipTrim = startTrim0 + (float) source;
+                                        clip.assignLeadTrim(lead0 + (float) source);
                                         clip.setDuration(newDuration);
 
                                         clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
@@ -6262,7 +6278,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                                     if (type == ClipType.VIDEO || type == ClipType.AUDIO) {
                                         // deltaTime is timeline time, the trim is in source seconds: a speed != 1 stretches it
                                         // (read the map before the start moves). At speed 1 this is exactly the old line.
-                                        clip.startClipTrim += (float) clip.timeMap().sourceOffset(deltaTime);
+                                        clip.assignLeadTrim(clip.leadTrim() + (float) clip.timeMap().sourceOffset(deltaTime));
                                         clip.startTime += deltaTime;
                                         clip.setDuration(clip.fittedDuration());
                                     } else {
@@ -6337,14 +6353,16 @@ public class EditingActivity extends AppCompatActivityImpl {
                                         delta = Math.max(-(duration0 - MIN_CLIP_DURATION), delta);
                                         double base = map0.sourceOffset(duration0);
                                         double source = map0.sourceOffset(duration0 + delta) - base; // source the drag adds (+) or gives back (-)
-                                        if (source > endTrim0) { // cannot go past the last frame of the file
-                                            source = endTrim0;
+                                        // Forward: the right edge is the source's END (endClipTrim). Reversed: the source's START (startClipTrim).
+                                        final float tail0 = clip.playsBackwards() ? startTrim0 : endTrim0;
+                                        if (source > tail0) { // cannot go past the last frame of the file (before the first one, reversed)
+                                            source = tail0;
                                             delta = (float) (map0.localTime(base + source) - duration0);
                                         }
                                         float newDuration = duration0 + delta;
                                         if (newDuration * pixelsPerSecond < Constants.TRACK_CLIPS_SHRINK_LIMIT_PIXEL) return true;
                                         clip.setDuration(newDuration);
-                                        clip.endClipTrim = endTrim0 - (float) source;
+                                        clip.assignTailTrim(tail0 - (float) source);
 
                                         clipView.getLayoutParams().width = (int) (clip.duration * pixelsPerSecond);
                                         clipView.requestLayout();
@@ -6375,7 +6393,7 @@ public class EditingActivity extends AppCompatActivityImpl {
                                         // the new timeline length consumes this much source (a speed != 1 stretches it); at speed 1
                                         // endClipTrim ends up exactly where the old "-= deltaTime" put it.
                                         double newDuration = clip.duration + deltaTime;
-                                        clip.endClipTrim = (float) (clip.originalDuration - clip.startClipTrim - clip.timeMap().sourceOffset(newDuration));
+                                        clip.assignTailTrim((float) (clip.originalDuration - clip.leadTrim() - clip.timeMap().sourceOffset(newDuration)));
                                         clip.setDuration((float) newDuration);
                                     } else {
                                         clip.endClipTrim -= deltaTime;
@@ -6596,14 +6614,25 @@ public class EditingActivity extends AppCompatActivityImpl {
             boolean constantSpeed = !(keyframes != null && keyframes.keyframes != null && keyframes.isAnimated(VideoProperties.ValueType.Speed));
             float cutInSource = fits ? (float) timeMap().sourceOffset(translatedLocalCurrentTime) : translatedLocalCurrentTime;
 
+            // A reversed video plays its used range backwards, so the part on the LEFT of the cut is the source's LATER half: it keeps
+            // the end trim and now starts (in source terms) at the cut; the part on the right plays what lies before the cut.
+            final boolean backwards = playsBackwards();
+            final float cutSource = backwards ? (originalDuration - oldEndClipTrim) - cutInSource : cutInSource + oldStartClipTrim;
+
             // Primary clip: ends at the cut. A curve starts over at the second half, so the halves are cut by TIMELINE length
             // (iOS): the first is what was played, the second is what was left.
-            endClipTrim = originalDuration - (cutInSource + oldStartClipTrim);
+            if (backwards) startClipTrim = cutSource;
+            else endClipTrim = originalDuration - cutSource;
             setDuration(fits ? (constantSpeed ? fittedDuration() : translatedLocalCurrentTime) : originalDuration - endClipTrim - startClipTrim);
 
             // Secondary clip
-            secondaryClip.startClipTrim = cutInSource + oldStartClipTrim;
-            secondaryClip.endClipTrim = oldEndClipTrim;
+            if (backwards) {
+                secondaryClip.startClipTrim = oldStartClipTrim;
+                secondaryClip.endClipTrim = originalDuration - cutSource;
+            } else {
+                secondaryClip.startClipTrim = cutSource;
+                secondaryClip.endClipTrim = oldEndClipTrim;
+            }
             secondaryClip.setDuration(fits ? (constantSpeed ? secondaryClip.fittedDuration() : Math.max(0f, oldDuration - translatedLocalCurrentTime))
                     : secondaryClip.originalDuration - secondaryClip.endClipTrim - secondaryClip.startClipTrim);
 
@@ -6919,10 +6948,11 @@ public class EditingActivity extends AppCompatActivityImpl {
          */
         public void snapEndToFrame(int frameRate) {
             boolean trims = followsSpeed();
-            ClipEndSnap.Result r = ClipEndSnap.snap(startTime, duration, endClipTrim, frameRate, trims ? timeMapSnapshot() : null, trims);
+            // The trim at the clip's right edge: the end trim, or for a reversed video (which plays backwards) the start trim.
+            ClipEndSnap.Result r = ClipEndSnap.snap(startTime, duration, tailTrim(), frameRate, trims ? timeMapSnapshot() : null, trims);
             if (!r.changed) return;
             setDuration(r.duration);
-            endClipTrim = r.endClipTrim;
+            assignTailTrim(r.endClipTrim);
         }
 
         /** Both edges of the clip (its start and its end) on whole frames. */
@@ -6965,6 +6995,37 @@ public class EditingActivity extends AppCompatActivityImpl {
         }
 
         /**
+         * A reversed video plays its used range backwards, so the clip's LEFT edge on the timeline is the source's END and its right
+         * edge the source's START. Everything that works on "the trim at the left / right edge" goes through {@link #leadTrim} /
+         * {@link #tailTrim} so the left handle always eats what the clip shows first (|4-3-2-1| -> |3-2-1|). Same as iOS and Desktop.
+         */
+        public boolean playsBackwards() {
+            return type == ClipType.VIDEO && isReverse;
+        }
+
+        /** The trim at the clip's left edge: the start trim, or for a reversed video the end trim (source seconds). */
+        public float leadTrim() {
+            return playsBackwards() ? endClipTrim : startClipTrim;
+        }
+
+        /** The trim at the clip's right edge: the end trim, or for a reversed video the start trim (source seconds). */
+        public float tailTrim() {
+            return playsBackwards() ? startClipTrim : endClipTrim;
+        }
+
+        /** Sets {@link #leadTrim} without touching the duration (the trim handles set that themselves). */
+        public void assignLeadTrim(float value) {
+            if (playsBackwards()) endClipTrim = value;
+            else startClipTrim = value;
+        }
+
+        /** Sets {@link #tailTrim} without touching the duration. */
+        public void assignTailTrim(float value) {
+            if (playsBackwards()) startClipTrim = value;
+            else endClipTrim = value;
+        }
+
+        /**
          * The timeline length that plays the source between the trims at the clip's speed (Desktop / iOS store this as the
          * duration). The trims stay in SOURCE seconds; only the length on the timeline stretches or shrinks with the speed.
          * At speed 1 (and for every other clip type) it is the plain {@code originalDuration - trims}, exactly as before.
@@ -6988,14 +7049,14 @@ public class EditingActivity extends AppCompatActivityImpl {
 
         /** How much longer (timeline seconds) the clip can be dragged out at its end before it runs out of source. */
         public float endRoomOnTimeline() {
-            if (!followsSpeed()) return endClipTrim;
-            return (float) Math.max(0, timeMap().localTime(originalDuration - startClipTrim) - duration);
+            if (!followsSpeed()) return tailTrim();
+            return (float) Math.max(0, timeMap().localTime(originalDuration - leadTrim()) - duration);
         }
 
         /** How much of the clip's start (timeline seconds) can be dragged in front of it before the source starts. */
         public float startRoomOnTimeline() {
-            if (!followsSpeed()) return startClipTrim;
-            return (float) timeMap().localTime(Math.max(0, startClipTrim));
+            if (!followsSpeed()) return leadTrim();
+            return (float) timeMap().localTime(Math.max(0, leadTrim()));
         }
 
         public void resetKeyframes(EditingActivity instance) {
@@ -8151,7 +8212,6 @@ frameRate = 60;
         private TextureView textureView;
         private org.rajawali3d.view.SurfaceView surfaceView;
         private Context context;
-        private MainAreaScreen.ProjectData data;
 
         private ExecutorService renderThreadExecutorAudio = Executors.newFixedThreadPool(1);
         private ExecutorService renderThreadExecutorVideo = Executors.newFixedThreadPool(1);
@@ -8178,6 +8238,7 @@ frameRate = 60;
         // true when PreviewEngine draws VIDEO/IMAGE clips: no per-clip view or video decoder here,
         // this renderer then only plays the clip's audio.
         private final boolean gpuVisuals;
+        private MainAreaScreen.ProjectData data;
 
         public ClipRenderer(Context context, Clip clip, MainAreaScreen.ProjectData data, VideoSettings settings, EditingActivity editingActivity, FrameLayout previewViewGroup, TextView textCanvasControllerInfo, boolean gpuVisuals) {
             this.context = context;
