@@ -1076,11 +1076,13 @@ public class OpenGLEdit {
         if (clip.type == EditingActivity.ClipType.VIDEO && clip.hasOpticalFlow()) {
             elapsedOutput = (float) OpticalFlowMath.snapToGrid(elapsedOutput, clip.opticalFlow.effectiveFps());
         }
-        // Reversed clips are decoded from a pre-rendered, already-reversed
-        // intermediate that OpenGLEditNative builds for just the used trim
-        // range (see PLAN.md decisions log) - that file starts at local time
-        // 0 with the trim-in point, so no startClipTrim offset applies here,
-        // unlike the normal (forward, original-file) case. Note: elapsedOutput
+        // Reversed clips are decoded from the project's reversed copy of their
+        // whole source file (ReverseMap / ReverseProcessor), and the time put
+        // in the command is the source time ELAPSED since the clip's in-point
+        // (it plays its trimmed range from the end backwards), so no
+        // startClipTrim offset applies here, unlike the normal (forward,
+        // original-file) case. OpenGLEditNative turns that elapsed time into a
+        // position in the copy (ReverseMap.copyTime). Note: elapsedOutput
         // is intentionally allowed to be negative (clipB pre-rolling into a
         // transition, before its own nominal start) or exceed the clip's own
         // duration (clipA continuing past its nominal end, during a

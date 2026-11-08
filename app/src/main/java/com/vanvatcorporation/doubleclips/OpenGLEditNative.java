@@ -327,6 +327,8 @@ public class OpenGLEditNative {
         String diagFormat = "";
         boolean diagSeeked = false;
         boolean diagFirstFrameLogged = false;
+        /** Video length (seconds) of the reversed copy this source reads, or -1 when it isn't one (see the time mapping in drawClip). */
+        double reverseCopyLength = -1;
 
         public ClipFrameSource(String clipPath) {
             this.clipPath = clipPath;
@@ -2528,6 +2530,12 @@ public class OpenGLEditNative {
             String overridePath = reversedClipPaths != null ? reversedClipPaths.get(cmd.clip) : null;
             String sourcePath = overridePath != null ? overridePath : cmd.clip.getAbsolutePath(projectPath);
             source = new ClipFrameSource(sourcePath);
+            // A reversed clip is read from the project's reversed copy of its source (ReverseMap); remember how long the copy is
+            // for the time mapping below.
+            if (cmd.clip.type == EditingActivity.ClipType.VIDEO && cmd.clip.isReverse() && overridePath != null
+                    && ReverseMap.isCacheName(new java.io.File(overridePath).getName())) {
+                source.reverseCopyLength = ReverseCopies.videoLength(overridePath);
+            }
             long diagOpenStart = System.nanoTime();
             try {
                 source.open();
@@ -2551,7 +2559,13 @@ public class OpenGLEditNative {
             activeSources.put(cmd.clip, source);
         }
 
-        long localSourceTimeUs = Math.round(cmd.localSourceTimeSeconds * 1_000_000.0);
+        // cmd.localSourceTimeSeconds of a reversed clip is the source time ELAPSED since its in-point (it plays its trimmed range from
+        // the end backwards); in the reversed copy that is ReverseMap.copyTime. Anything else is already a position in the file.
+        double localSourceSeconds = cmd.localSourceTimeSeconds;
+        if (source.reverseCopyLength > 0) {
+            localSourceSeconds = ReverseMap.copyTime(source.reverseCopyLength, cmd.clip.originalDuration, cmd.clip.endClipTrim, localSourceSeconds);
+        }
+        long localSourceTimeUs = Math.round(localSourceSeconds * 1_000_000.0);
         if (profiler != null) profiler.begin(FrameProfiler.DECODE);
         long diagAdvanceStart = System.nanoTime();
         final boolean motionOn = cmd.motion != null && source.framesKept();

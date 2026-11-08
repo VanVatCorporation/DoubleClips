@@ -151,6 +151,32 @@ public final class ReverseProcessor {
      * {@code cancelled} is polled often. On any failure nothing is left at {@code output}.
      */
     public static void build(String sourcePath, File output, DoubleConsumer progress, BooleanSupplier cancelled) throws IOException {
+        // One writer per output file: the editor and an export may both ask for the same copy. The second waits, then finds it done.
+        synchronized (lockFor(output)) {
+            buildLocked(sourcePath, output, progress, cancelled);
+        }
+    }
+
+    private static final java.util.Map<String, Object> LOCKS = new java.util.HashMap<>();
+
+    private static Object lockFor(File output) {
+        synchronized (LOCKS) {
+            Object lock = LOCKS.get(output.getPath());
+            if (lock == null) {
+                lock = new Object();
+                LOCKS.put(output.getPath(), lock);
+            }
+            return lock;
+        }
+    }
+
+    private static void buildLocked(String sourcePath, File output, DoubleConsumer progress, BooleanSupplier cancelled) throws IOException {
+        // A copy that is already there and whose length matches the source's is simply reused.
+        if (output.isFile() && output.length() > 0
+                && ReverseMap.plausibleLength(ReverseCopies.videoLength(output.getPath()), ReverseCopies.videoLength(sourcePath))) {
+            if (progress != null) progress.accept(1.0);
+            return;
+        }
         File dir = output.getParentFile();
         if (dir != null) //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();

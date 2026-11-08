@@ -36,6 +36,8 @@ import com.vanvatcorporation.doubleclips.R;
 import com.vanvatcorporation.doubleclips.activities.export.VideoPropertiesExportSpecificAreaScreen;
 import com.vanvatcorporation.doubleclips.activities.main.MainAreaScreen;
 import com.vanvatcorporation.doubleclips.constants.Constants;
+import com.vanvatcorporation.doubleclips.ReverseMap;
+import com.vanvatcorporation.doubleclips.ReverseProcessor;
 import com.vanvatcorporation.doubleclips.dynamiclibs.auth.AuthRepository;
 import com.vanvatcorporation.doubleclips.TemplatePackager;
 import com.vanvatcorporation.doubleclips.helper.IOHelper;
@@ -442,6 +444,8 @@ public class ExportActivity extends AppCompatActivityImpl {
     // Kept so leaving the screen can stop a running GPU export (the FFmpeg queue's
     // cancelAllTask() only knows about FFmpeg sessions).
     private volatile OpenGLEditNative activeOpenGlExport;
+    // Set when the screen is left: a reverse running for the export stops at its next check.
+    private volatile boolean reverseCancelled;
 
     /**
      * Routes export to whichever engine is selected. What the OpenGL renderer
@@ -637,13 +641,12 @@ public class ExportActivity extends AppCompatActivityImpl {
 
         boolean hasAudio = timelineHasAudio();
 
-        // Reversed-clip pre-pass: MediaCodec can't decode backward, so any
-        // isReverse() VIDEO clip has its used range (startClipTrim..
-        // originalDuration-endClipTrim) extracted and reversed by FFmpeg into a
-        // temp file BEFORE OpenGL ever opens it (see PLAN.md decisions log).
-        // Video only - audio reversal already happens separately, against the
-        // ORIGINAL file, inside FFmpegEdit's own areverse in the audio-only pass
-        // below, so it isn't affected by any of this.
+        // Reversed clips: MediaCodec can't decode backward, so a reversed clip plays a reversed COPY of its whole source file
+        // (ReverseMap / ReverseProcessor, the same copy the editor's preview plays: <clipName>.reversed.mp4 in Clips). It is
+        // made when the user switches Reverse on, so here it normally exists and is just reused; one that is missing (or was cut
+        // short) is made now, once per source file. The GL export then reads the copy through the same override map as the
+        // compat files below, and maps the clip's time onto it (OpenGLEditNative). Video only - the sound of a reversed clip is
+        // still reversed inside FFmpegEdit's own areverse in the audio-only pass below, against the ORIGINAL file.
         List<EditingActivity.Clip> reversedClips = new ArrayList<>();
         if (timeline != null && timeline.tracks != null) {
             for (EditingActivity.Track track : timeline.tracks) {
@@ -655,36 +658,67 @@ public class ExportActivity extends AppCompatActivityImpl {
                 }
             }
         }
-        // synchronizedMap: written on FFmpegKit's callback thread (once per clip,
-        // one at a time - the queue serializes these), read later on the GL
+        // synchronizedMap: written on the reverse task's thread (before the GL task starts), read later on the GL
         // export thread. IdentityHashMap because Clip doesn't override equals().
         java.util.Map<EditingActivity.Clip, String> reversedClipPaths =
                 java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
 
-        for (int i = 0; i < reversedClips.size(); i++) {
-            EditingActivity.Clip clip = reversedClips.get(i);
-            String reversedPath = IOHelper.CombinePath(projectPath, "opengl_reversed_" + i + "_tmp.mp4");
-            float trimEnd = clip.originalDuration - clip.endClipTrim;
+        // FfmpegRenderQueue isn't thread-safe: a GPU / reverse task starts running the moment it is enqueued, so it waits
+        // here until the UI thread has queued the rest.
+        java.util.concurrent.CountDownLatch tasksQueued = new java.util.concurrent.CountDownLatch(1);
 
-            String codecArgs = settings.isUseHardwareAccel()
-                    ? "-c:v h264_" + FFmpegEditNative.hardwareAcceleratedName + " -b:v " + settings.getBitrate() + "M"
-                    : "-c:v libopenh264 -preset " + settings.getPreset() + " -tune " + settings.getTune() + " -crf " + settings.getCRF();
+        if (!reversedClips.isEmpty()) {
+            final java.util.Map<String, List<EditingActivity.Clip>> reversedBySource = new java.util.LinkedHashMap<>();
+            for (EditingActivity.Clip clip : reversedClips) {
+                List<EditingActivity.Clip> group = reversedBySource.get(clip.getClipName());
+                if (group == null) {
+                    group = new ArrayList<>();
+                    reversedBySource.put(clip.getClipName(), group);
+                }
+                group.add(clip);
+            }
+            final File reverseClipsDir = new File(projectPath, Constants.DEFAULT_CLIP_DIRECTORY);
 
-            // trim+setpts resets the segment to local time 0 before reverse -
-            // reverse needs a PTS-STARTPTS-clean input to buffer and flip
-            // correctly; it must not see the rest of the source either side.
-            String reverseCmd = "-y -i \"" + clip.getAbsolutePath(properties) + "\" -vf \"trim=start=" + clip.startClipTrim +
-                    ":end=" + trimEnd + ",setpts=PTS-STARTPTS,reverse\" -an " + codecArgs + " -threads 0 \"" + reversedPath + "\"";
-
-            FFmpegEdit.runAnyCommand(this, reverseCmd, "Reversing Clip (" + (i + 1) + "/" + reversedClips.size() + ")",
-                    () -> reversedClipPaths.put(clip, reversedPath),
-                    () -> {
-                        // Stop the chain: OpenGL would otherwise decode the
-                        // original (forward) file for this clip with no warning.
-                        FFmpegEdit.queue.cancelAllTask();
-                        finishExportRendering();
-                    },
-                    ffmpegLogCallback(), ffmpegStatsCallback());
+            FFmpegEdit.queue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Reversing Clips", () ->
+                    new Thread(() -> {
+                        boolean ok = true;
+                        try {
+                            tasksQueued.await();
+                            int index = 0;
+                            for (java.util.Map.Entry<String, List<EditingActivity.Clip>> entry : reversedBySource.entrySet()) {
+                                if (reverseCancelled) throw new ReverseProcessor.Cancelled();
+                                final int shown = ++index;
+                                final int total = reversedBySource.size();
+                                final String name = entry.getKey();
+                                final File copy = new File(reverseClipsDir, ReverseMap.cacheName(name));
+                                // a converted (compat) file when the original isn't decodable, else the original
+                                String source = com.vanvatcorporation.doubleclips.utils.MediaCompat.resolveSource(
+                                        projectPath, name, entry.getValue().get(0).getAbsolutePath(properties));
+                                appendToLogWindow("Reversing " + name + " (" + shown + "/" + total + ")");
+                                // build() reuses a copy that is already there and complete, so this is instant for a clip
+                                // that was reversed in the editor
+                                ReverseProcessor.build(source, copy, p -> {
+                                    setTaskProgress((int) (p * 100));
+                                    final String percent = String.format(java.util.Locale.US, "%.1f", p * 100);
+                                    statusText.post(() -> statusText.setText("Reversing Clip (" + shown + "/" + total + ")... (" + percent + "%)"));
+                                }, () -> reverseCancelled);
+                                for (EditingActivity.Clip clip : entry.getValue()) reversedClipPaths.put(clip, copy.getPath());
+                            }
+                        } catch (ReverseProcessor.Cancelled cancelled) {
+                            ok = false;
+                        } catch (Exception | OutOfMemoryError e) {
+                            LoggingManager.LogToPersistentDataPath(this, "Reverse failed: " + LoggingManager.getStackTraceFromException(e instanceof Exception ? (Exception) e : new RuntimeException(e)));
+                            appendToLogWindow("Could not reverse a clip: " + e.getMessage());
+                            ok = false;
+                        }
+                        if (!ok) {
+                            // Stop the chain: OpenGL would otherwise play the original (forward) file for this clip with no warning.
+                            FFmpegEdit.queue.cancelAllTask();
+                            finishExportRendering();
+                        } else {
+                            FFmpegEdit.queue.taskCompleted();
+                        }
+                    }).start()));
         }
 
         // Compatibility pre-pass: OpenGL decodes through MediaCodec, which can't read every codec
@@ -761,10 +795,6 @@ public class ExportActivity extends AppCompatActivityImpl {
                     "-map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -shortest \"" + finalOutputPath + "\"";
         }
 
-        // FfmpegRenderQueue isn't thread-safe: the GPU task starts running the moment
-        // it is enqueued, so it waits here until the UI thread has queued the rest.
-        java.util.concurrent.CountDownLatch tasksQueued = new java.util.concurrent.CountDownLatch(1);
-
         FFmpegEdit.queue.enqueue(new FFmpegEdit.FfmpegRenderQueue.FfmpegRenderQueueInfo("Compositing Video (OpenGL)", () ->
                 new Thread(() -> {
                     OpenGLEditNative gl = new OpenGLEditNative(this);
@@ -838,7 +868,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                         finishExportRendering();
                     } else if (!hasAudio) {
                         new File(videoOnlyPath).renameTo(new File(finalOutputPath));
-                        for (String reversedPath : reversedClipPaths.values()) IOHelper.deleteFile(reversedPath);
+                        for (String overridePath : reversedClipPaths.values()) if (!ReverseMap.isCacheName(new File(overridePath).getName())) IOHelper.deleteFile(overridePath); // the reversed copies are the project's cache: kept
                         FFmpegEdit.queue.taskCompleted(); // queue is empty: resets itself
                         onExportDone.run();
                     } else {
@@ -860,7 +890,7 @@ public class ExportActivity extends AppCompatActivityImpl {
                     () -> {
                         IOHelper.deleteFile(videoOnlyPath);
                         IOHelper.deleteFile(audioOnlyPath);
-                        for (String reversedPath : reversedClipPaths.values()) IOHelper.deleteFile(reversedPath);
+                        for (String overridePath : reversedClipPaths.values()) if (!ReverseMap.isCacheName(new File(overridePath).getName())) IOHelper.deleteFile(overridePath); // the reversed copies are the project's cache: kept
                         onExportDone.run();
                     },
                     this::finishExportRendering,
@@ -1068,6 +1098,7 @@ public class ExportActivity extends AppCompatActivityImpl {
     }
 
     private void cancelOpenGlExport() {
+        reverseCancelled = true;
         OpenGLEditNative gl = activeOpenGlExport;
         if (gl != null) gl.cancel();
     }
