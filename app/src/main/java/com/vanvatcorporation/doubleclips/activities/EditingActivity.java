@@ -5113,7 +5113,7 @@ public class EditingActivity extends AppCompatActivityImpl {
         try {
             // Only picture / sound clips have a file behind them; an effect, text or 3D clip has none (its thumbnail is a tint).
             boolean hasFile = clip.type == ClipType.VIDEO || clip.type == ClipType.IMAGE || clip.type == ClipType.AUDIO;
-            String path = hasFile ? clip.getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION) : "";
+            String path = hasFile ? clip.getAbsoluteVideoSourcePath(properties, settings.isUseProxyPreview()) : "";
             return combineThumbnails(extractThumbnail(this, path, clip));
         } catch (Exception | OutOfMemoryError e) {
             // Whatever goes wrong, the caller (a background thread) must still get a bitmap: without one the clip's loading
@@ -6602,6 +6602,18 @@ public class EditingActivity extends AppCompatActivityImpl {
                 if (type == ClipType.VIDEO && Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION.equals(previewExtension))
                     path = com.vanvatcorporation.doubleclips.utils.MediaCompat.resolveSource(projectPath, getClipName(), path);
             }
+            return path;
+        }
+        /**
+         * The file the legacy preview and the timeline thumbnails read a clip's PICTURES from. "Use proxy" off means off: the original
+         * (a video MediaCodec can't decode: its compatible copy), even when a proxy from an earlier time is still in PreviewClips. On: the
+         * proxy when it exists, else the same fallback as {@link #getAbsolutePreviewPath(String, String)}.
+         */
+        public String getAbsoluteVideoSourcePath(MainAreaScreen.ProjectData properties, boolean useProxy) {
+            if (useProxy) return getAbsolutePreviewPath(properties, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION);
+            String path = getAbsolutePath(properties.getProjectPath());
+            if (type == ClipType.VIDEO)
+                path = com.vanvatcorporation.doubleclips.utils.MediaCompat.resolveSource(properties.getProjectPath(), getClipName(), path);
             return path;
         }
         public float getLocalClipTime(float playheadTime) {
@@ -8115,7 +8127,7 @@ frameRate = 60;
 
                                     // Step 1: Extractor setup
                                     videoExtractor = new MediaExtractor();
-                                    videoExtractor.setDataSource(clip.getAbsolutePreviewPath(data, Constants.DEFAULT_PREVIEW_CLIP_VIDEO_EXTENSION));
+                                    videoExtractor.setDataSource(clip.getAbsoluteVideoSourcePath(data, settings.isUseProxyPreview())); // "Use proxy" off: the original
 
                                     int trackIndex = TimelineUtils.findMediaTrackIndex(videoExtractor, clip.type);
                                     videoExtractor.selectTrack(trackIndex);
